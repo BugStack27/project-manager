@@ -38,7 +38,7 @@ const ONLY = String(arg('only', '') || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
-const SHOT_NAMES = ['overview', 'statistics', 'requirements', 'launch', 'changes', 'agent-resume', 'agent-question'];
+const SHOT_NAMES = ['overview', 'statistics', 'requirements', 'requirement-refs', 'launch', 'changes', 'agent-resume', 'agent-question'];
 const want = (name) => (ONLY.length ? ONLY.includes(name) : true);
 
 const TMP = path.join(os.tmpdir(), 'app-screenshots');
@@ -136,6 +136,13 @@ function serve() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
+/**
+ * 启动浏览器并拿到调试端口。
+ *
+ * 不靠 stderr 里的 "DevTools listening on ..."：Windows 上 Edge / Chrome 的启动器常常
+ * 把真正的浏览器进程留在后台，自己立刻退出（stderr 什么都没有），于是「子进程退出」
+ * 并不等于启动失败。端口一律从 profile 下的 DevToolsActivePort 文件读，进程退出只当提示。
+ */
 function launchChrome(chrome) {
   const profile = path.join(TMP, 'profile-' + Date.now());
   const child = spawn(
@@ -153,22 +160,54 @@ function launchChrome(chrome) {
     ],
     { stdio: ['ignore', 'ignore', 'pipe'] }
   );
+  /* stderr 没人读会把缓冲区塞满、拖住浏览器：一律丢弃，报错看超时信息 */
+  child.stderr.resume();
   return new Promise((resolve, reject) => {
-    let buf = '';
-    const timer = setTimeout(() => reject(new Error('Chromium 启动超时')), 20000);
-    child.stderr.on('data', (d) => {
-      buf += d.toString();
-      const m = buf.match(/DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//);
-      if (m) {
-        clearTimeout(timer);
-        resolve({ child, debugPort: Number(m[1]) });
-      }
-    });
+    const portFile = path.join(profile, 'DevToolsActivePort');
+    const end = Date.now() + 20000;
+    let exitCode = null;
     child.on('exit', (code) => {
-      clearTimeout(timer);
-      reject(new Error('Chromium 提前退出：' + code));
+      exitCode = code;
     });
+    child.on('error', reject);
+    const poll = () => {
+      try {
+        if (fs.existsSync(portFile)) {
+          const port = Number(String(fs.readFileSync(portFile, 'utf8')).split(/\r?\n/)[0]);
+          if (port > 0) {
+            resolve({ child, debugPort: port, profile });
+            return;
+          }
+        }
+      } catch (_) {
+        /* 文件刚创建时可能读不全，下一轮再试 */
+      }
+      if (Date.now() > end) {
+        reject(new Error('Chromium 启动超时' + (exitCode === null ? '' : '（启动器已退出：' + exitCode + '）')));
+        return;
+      }
+      setTimeout(poll, 150);
+    };
+    poll();
   });
+}
+
+/** 用 CDP 关掉整个浏览器：启动器早就退出了，杀子进程管不到真正在跑的那个 */
+async function closeChrome(port) {
+  try {
+    const res = await fetch('http://127.0.0.1:' + port + '/json/version', { signal: AbortSignal.timeout(1000) });
+    const info = await res.json();
+    const ws = new WebSocket(info.webSocketDebuggerUrl);
+    await new Promise((resolve, reject) => {
+      ws.onopen = resolve;
+      ws.onerror = reject;
+    });
+    ws.send(JSON.stringify({ id: 1, method: 'Browser.close' }));
+    await new Promise((r) => setTimeout(r, 1500));
+    ws.close();
+  } catch (_) {
+    /* 已经退出或连不上：没什么可关的 */
+  }
 }
 
 async function pageWs(port) {
@@ -277,6 +316,34 @@ async function main() {
       saved += 1;
       console.log('  ✓ ' + path.relative(ROOT, file) + ' (' + Math.round(fs.statSync(file).size / 1024) + ' KB)');
     };
+    /**
+     * 悬停到某个元素上：悬停卡由 React 的 onMouseEnter 打开，只有真实鼠标轨迹能触发。
+     * 先移到 (0,0) 再移到目标，避免浏览器把两次相邻坐标合并成一次移动。
+     */
+    const hoverText = async (selector, text, waitSelector) => {
+      // 先滚到可视区再量坐标：面板是平滑滚动，滚动刚发出去时量到的位置还是旧的
+      const found = await evalJs(
+        '(() => { const el = [...document.querySelectorAll(' +
+          JSON.stringify(selector) +
+          ')].find((e) => e.textContent.includes(' +
+          JSON.stringify(text) +
+          ')); if (!el) return false; el.scrollIntoView({ block: "center" }); return true; })()'
+      );
+      if (!found) throw new Error('找不到悬停目标：' + selector + ' / ' + text);
+      await sleep(500);
+      const pos = await evalJs(
+        '(() => { const el = [...document.querySelectorAll(' +
+          JSON.stringify(selector) +
+          ')].find((e) => e.textContent.includes(' +
+          JSON.stringify(text) +
+          ')); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()'
+      );
+      if (!pos) throw new Error('悬停目标消失：' + selector + ' / ' + text);
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0, button: 'none' });
+      await sleep(120);
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pos.x, y: pos.y, button: 'none' });
+      await waitFor('!!document.querySelector(' + JSON.stringify(waitSelector) + ')', '悬停卡');
+    };
 
     await waitFor("document.querySelectorAll('.ov-row').length > 3", '总览渲染');
     await waitFor("document.documentElement.dataset.theme === '" + THEME + "'", '主题应用');
@@ -291,6 +358,12 @@ async function main() {
     await clickText('.req', '工作台首页支持自定义卡片排序');
     await waitFor("!!document.querySelector('.rd-title')", '需求详情');
     await shot('requirements');
+
+    await clickText('.req', '导出任务列表复用消息分组交互');
+    await waitFor("!!document.querySelector('.rd-title')", '引用示例需求详情');
+    await evalJs("(() => { const b = document.querySelector('.rpanel-body'); if (b) b.scrollTop = 0; return true; })()");
+    await hoverText('.rd-ref.rd-file', 'JobList.tsx', '.fhover');
+    await shot('requirement-refs');
 
     await clickText('.vtab', '启动台');
     await waitFor("!!document.querySelector('.rlogs .log')", '启动台日志');
@@ -334,8 +407,17 @@ async function main() {
     );
   } finally {
     cdp.close();
+    await closeChrome(launched.debugPort);
     launched.child.kill();
     server.close();
+    for (let i = 0; i < 5; i += 1) {
+      try {
+        fs.rmSync(launched.profile, { recursive: true, force: true });
+        break;
+      } catch (_) {
+        await sleep(300);
+      }
+    }
   }
 }
 

@@ -21,6 +21,9 @@
 | 项目视图页签 | `.vtab`（需求中心 / 启动台 / 修改记录） |
 | 需求行 | `.req`（标题在 `.req-title`） |
 | 需求详情根 | `.rd-title` |
+| 正文引用 chip | `.rd-body .ref-chip`（项目 / 需求 / 文件；技能是同类的 `.ref-chip.skill`） |
+| 引用清单行 | `.rd-ref`（项目 / 需求 / 文件；`.rd-ref.rd-file` 是文件行，行本身也能悬停） |
+| 悬停卡 | `.fhover`（文件内容）、`.rqhover`（需求）、`.phover`（项目）、`.skhover`（技能） |
 | 提问 / 验收卡片 | `.rd-ask`（提问）、`.rd-ask.rd-review`（待审核） |
 | 右面板滚动容器 | `.rpanel-body` |
 | 总览行 | `.ov-row` |
@@ -34,15 +37,17 @@
 1. **overview**：等 `.ov-row` 数量 > 3，确认 `dataset.theme` 已是目标主题，直接截。
 2. **statistics**：点 `.nav-item`「统计」→ 等 `.stat-chart`。
 3. **requirements**：点 `.pitem`「星港数据平台」→ 等 `.req` → 点标题含「工作台首页支持自定义卡片排序」的需求 → 等 `.rd-title`。
-4. **launch**：点 `.vtab`「启动台」→ 等 `.rlogs .log`（默认自动选运行中的命令）。
-5. **changes**：点 `.vtab`「修改记录」→ 等 `.gtree .gfile` → 点 `ExportPanel.tsx` → 等 `.diff-body`。
-6. **agent-resume**：点 `.vtab`「需求中心」→ 点 `.pitem`「极光移动端」→ 点「消息中心支持按项目分组并置顶未读」（doing + claim）→ 等 `.rd-title` → `rpanel-body.scrollTop = scrollHeight`，截到底部「解锁项目」。
-7. **agent-question**：点「灰度开关默认值改为跟随系统」（doing + question）→ 等 `.rd-ask` → **先把 `rpanel-body.scrollTop` 复位为 0**；默认不滚动以保留标题/正文上下文，只有卡片底部超出面板时才按超出量滚动最小距离，等 1100ms 后截。不要直接 `scrollIntoView('start')`，否则会把顶部信息顶出可视区。
+4. **requirement-refs**：仍在「星港数据平台」→ 点标题含「导出任务列表复用消息分组交互」的需求 → 等 `.rd-title` → `rpanel-body.scrollTop = 0` → 用 CDP 发 `Input.dispatchMouseEvent`（`mouseMoved` 先到 (0,0) 再到 chip 中心）悬停「引用文件」行的 `.rd-ref.rd-file`（JobList.tsx）→ 等 `.fhover` 出现后截。悬停正文里的 `.rd-body .ref-chip.file-chip` 也能出同样的卡，但那张卡会盖住下方引用清单，README 用图取前者。
+5. **launch**：点 `.vtab`「启动台」→ 等 `.rlogs .log`（默认自动选运行中的命令）。
+6. **changes**：点 `.vtab`「修改记录」→ 等 `.gtree .gfile` → 点 `ExportPanel.tsx` → 等 `.diff-body`。
+7. **agent-resume**：点 `.vtab`「需求中心」→ 点 `.pitem`「极光移动端」→ 点「消息中心支持按项目分组并置顶未读」（doing + claim）→ 等 `.rd-title` → `rpanel-body.scrollTop = scrollHeight`，截到底部「解锁项目」。
+8. **agent-question**：点「灰度开关默认值改为跟随系统」（doing + question）→ 等 `.rd-ask` → **先把 `rpanel-body.scrollTop` 复位为 0**；默认不滚动以保留标题/正文上下文，只有卡片底部超出面板时才按超出量滚动最小距离，等 1100ms 后截。不要直接 `scrollIntoView('start')`，否则会把顶部信息顶出可视区。
 
 ## 数据约束
 
 - `agent-resume` 用的需求必须 `status: 'doing'` 且有 `claim`，否则底部没有「解锁项目」。
 - `agent-question` 用的需求必须 `status: 'doing'` 且有 `question`（含 `text`、`at`、可选 `options` / `default` / `expiresAt`），否则同一条也能正常显示。
+- `requirement-refs` 用的需求正文必须同时含 `@{项目名}`、`@{#序号}`、`@{file:路径}`、`{UseSkill:技能名}`，生成器里同步补好 `refs` / `reqRefs` / `fileRefs` / `skills`（形状与 `electron/services/domain/views.js` 的 `reqView` 一致）；文件悬停内容来自 mock 的 `fileSnippet`，目前按路径含 `JobList` 返回演示代码。
 - 启动台截图的日志来自 mock 的 `logs` 对象，键是命令 id（默认 `c_aurora_web`）。
 - 修改记录截图需要 `changes.p_aurora` 里有文件条目，并且 `gitDiff` 返回 diff（底座已内置）。
 - 时间线由生成器按需求生成；底座的 `timelineOf` 原本固定输出 #12 的事件，切换到别的需求会串台，生成器已改成按当前需求拼装。

@@ -30,6 +30,9 @@
 <p align="center"><strong>需求中心 — 候选、进行中、待审核在同一条时间线上推进</strong></p>
 <p align="center"><img src="doc/screenshots/requirements.png" width="960" alt="需求中心" /></p>
 
+<p align="center"><strong>需求详情 — 正文用 @ 引用其他项目、本项目需求与文件，用 / 引用技能；悬停就地查看需求或文件内容</strong></p>
+<p align="center"><img src="doc/screenshots/requirement-refs.png" width="960" alt="需求详情引用与悬停预览" /></p>
+
 <p align="center"><strong>Agent 提问 — 带候选答案和倒计时，你回一句它当场继续</strong></p>
 <p align="center"><img src="doc/screenshots/agent-question.png" width="960" alt="Agent 提问" /></p>
 

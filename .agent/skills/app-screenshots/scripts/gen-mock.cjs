@@ -64,6 +64,68 @@ const questionText =
 
 const newRequirements = [
   /* 星港数据平台：做成需求中心截图里最丰富的一屏 */
+  /* 需求详情截图：正文里同时引用别的项目、本项目需求、本项目文件和技能 */
+  req('p_aurora', 17, '导出任务列表复用消息分组交互', 'todo', {
+    body:
+      '导出中心的列表要与 @{极光移动端} 的消息分组保持一致：分组头吸顶、未读置顶、一键全部已读；筛选与分页沿用 @{#13} 里定下的快捷视图，不再另起一套状态。\n\n' +
+      '列表直接改 @{file:web/src/views/export/JobList.tsx}，不要新建组件；改完按 {UseSkill:code-review} 的清单把空态、加载失败和超长标题过一遍。',
+    source: 'manual',
+    refs: [
+      {
+        name: '极光移动端',
+        projectId: 'p_mobile',
+        projectName: '极光移动端',
+        path: 'D:\\workspace\\aurora-mobile',
+        archived: false,
+        ambiguous: false,
+        requirementCount: 4,
+        pendingCount: 3,
+        pending: [
+          { seq: 10, title: '灰度开关默认值改为跟随系统', status: 'doing' },
+          { seq: 9, title: '启动页骨架屏与首屏耗时上报', status: 'review' },
+          { seq: 4, title: '通知支持免打扰时段', status: 'todo' }
+        ]
+      }
+    ],
+    reqRefs: [
+      {
+        name: '#13',
+        seq: 13,
+        requirementId: 'r_aurora_13',
+        projectId: 'p_aurora',
+        title: '筛选条件支持保存为快捷视图',
+        status: 'todo',
+        body: '常用筛选组合目前靠记忆，保存成快捷视图后一键切换。',
+        exists: true
+      }
+    ],
+    fileRefs: [
+      {
+        name: 'file:web/src/views/export/JobList.tsx',
+        path: 'web/src/views/export/JobList.tsx',
+        absPath: 'D:\\workspace\\aurora-platform\\web\\src\\views\\export\\JobList.tsx',
+        exists: true,
+        directory: false,
+        restricted: false,
+        reason: null
+      }
+    ],
+    skills: [
+      {
+        name: 'code-review',
+        skillId: 'workbuddy/code-review',
+        source: 'workbuddy',
+        dir: 'C:\\Users\\demo\\.workbuddy\\skills\\code-review',
+        entry: 'C:\\Users\\demo\\.workbuddy\\skills\\code-review\\SKILL.md',
+        description: '按清单检查空态、加载失败、超长文本与边界用例，输出可直接改的问题列表',
+        exists: true,
+        ambiguous: false,
+        candidates: []
+      }
+    ],
+    createdAt: iso(1 * DAY),
+    updatedAt: iso(3 * HOUR)
+  }),
   req('p_aurora', 16, '导出中心支持按对象存储直传', 'doing', {
     body: '大文件导出目前经服务端中转，峰值时会把带宽打满。希望导出任务直接写对象存储，完成后回传签名地址；断点续传要能跨进程恢复，同时保留服务端中转作为兜底。',
     source: 'manual',
@@ -506,7 +568,8 @@ function insertObjectEntries(text, startMarker, endMarker, entries) {
   return text.slice(0, end) + ',\n' + payload + ',\n' + text.slice(end);
 }
 
-let mock = fs.readFileSync(BASE, 'utf8');
+/* 仓库在 Windows 上检出常是 CRLF，而下面的插入点都按 \n 写：统一成 LF 再替换 */
+let mock = fs.readFileSync(BASE, 'utf8').replace(/\r\n/g, '\n');
 
 /* 列表预览直接平铺正文，演示数据里的 markdown 记号在窄行里不好看，改成白描 */
 mock = mock.replace(
@@ -576,6 +639,10 @@ mock = mock.replace(
 
 /* 视图补齐当前版本字段 */
 mock = mock.replace(
+  "      body: r.body || '',\n      note: r.note || '',",
+  "      body: r.body || '',\n      refs: r.refs || [],\n      reqRefs: r.reqRefs || [],\n      fileRefs: r.fileRefs || [],\n      skills: r.skills || [],\n      note: r.note || '',"
+);
+mock = mock.replace(
   '      path: p.path,\n      archived: !!p.archived,',
   '      path: p.path,\n      kind: p.kind || null,\n      stacks: p.stacks || [],\n      archived: !!p.archived,'
 );
@@ -616,6 +683,69 @@ const gsNew =
   '        })\n' +
   '    }),';
 mock = mock.slice(0, gsStart) + gsNew + mock.slice(gsEnd + 3);
+
+/* 技能悬停卡需要技能清单与 Agent 注册表：补齐三条虚构技能与几个 Agent 名字 */
+mock = mock.replace(
+  "    agents: () => ({\n      agents: [{ id: 'a_demo1', name: 'demo', createdAt: '2026-11-07T08:00:00.000Z' }]\n    }),",
+  "    agents: () => ({\n      agents: [\n" +
+    "        { id: 'a_claude', name: '白泽', createdAt: '2026-10-12T08:00:00.000Z' },\n" +
+    "        { id: 'a_cursor', name: '光标', createdAt: '2026-10-20T08:00:00.000Z' },\n" +
+    "        { id: 'a_demo1', name: 'demo', createdAt: '2026-11-07T08:00:00.000Z' }\n" +
+    "      ]\n" +
+    "    }),\n" +
+    "    skills: () => ({\n" +
+    "      skills: [\n" +
+    "        { id: 'workbuddy/code-review', name: 'code-review', source: 'workbuddy', dir: 'C:\\\\Users\\\\demo\\\\.workbuddy\\\\skills\\\\code-review', entry: 'C:\\\\Users\\\\demo\\\\.workbuddy\\\\skills\\\\code-review\\\\SKILL.md', description: '按清单检查空态、加载失败、超长文本与边界用例，输出可直接改的问题列表', exists: true, agents: ['a_claude', 'a_cursor'] },\n" +
+    "        { id: 'workbuddy/pdf', name: 'pdf', source: 'workbuddy', dir: 'C:\\\\Users\\\\demo\\\\.workbuddy\\\\skills\\\\pdf', entry: 'C:\\\\Users\\\\demo\\\\.workbuddy\\\\skills\\\\pdf\\\\SKILL.md', description: '生成、合并与检查 PDF 文件', exists: true, agents: ['a_claude'] },\n" +
+    "        { id: 'qoder/ui-review', name: 'ui-review', source: 'qoder', dir: 'C:\\\\Users\\\\demo\\\\.qoder\\\\skills\\\\ui-review', entry: 'C:\\\\Users\\\\demo\\\\.qoder\\\\skills\\\\ui-review\\\\SKILL.md', description: '前端界面走查：层级、间距与交互状态', exists: true, agents: [] }\n" +
+    "      ]\n" +
+    "    }),"
+);
+
+/* 文件悬停卡：需求里引用的 JobList.tsx 返回一段像样的代码，其余文件仍用演示内容 */
+const jobListLines = [
+  "import { useMemo, useState } from 'react';",
+  "import { useJobGroups } from '../../hooks/useJobGroups';",
+  "import JobRow from './JobRow';",
+  '',
+  'type Props = { keyword: string; pageSize?: number };',
+  '',
+  'export default function JobList({ keyword, pageSize = 20 }: Props) {',
+  '  const [page, setPage] = useState(1);',
+  '  const [selected, setSelected] = useState<string[]>([]);',
+  '  const { groups, loading, error, reload } = useJobGroups(',
+  '    keyword,',
+  '    page,',
+  '    pageSize',
+  '  );',
+  '',
+  '  const unread = useMemo(',
+  '    () => groups.filter((g) => g.unread > 0),',
+  '    [groups]',
+  '  );',
+  '',
+  '  if (error) return <EmptyState tone="error" onRetry={reload} />;',
+  '  if (loading) return <ListSkeleton rows={pageSize} />;',
+  '',
+  '  return (',
+  '    <section className="job-list">',
+  '      {unread.length ? (',
+  '        <button className="linklike">全部标为已读</button>',
+  '      ) : null}',
+  '      {groups.map((g) => (',
+  '        <JobRow key={g.id} group={g} />',
+  '      ))}',
+  '    </section>',
+  '  );',
+  '}'
+];
+mock = mock.replace(
+  "    fileSnippet: ({ path }) => snippet(path, ['// 演示文件内容', 'export const demo = true;'])",
+  "    fileSnippet: ({ path }) =>\n" +
+    "      String(path).includes('JobList')\n" +
+    '        ? snippet(path, ' + JSON.stringify(jobListLines) + ')\n' +
+    "        : snippet(path, ['// 演示文件内容', 'export const demo = true;'])"
+);
 
 fs.writeFileSync(OUT, mock);
 

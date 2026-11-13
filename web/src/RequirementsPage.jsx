@@ -5,7 +5,8 @@ import { IC } from './icons.jsx';
 import { ContextBar, DangerButton, Empty } from './ui.jsx';
 
 /** 看板列顺序：与状态流转一致；候选池单列（还没确认的想法），
-    未开始 / 进行中 / 待审核 三态合并为「未完成」一列（与列表页签同口径），终态的两种状态合并一列 */
+    未开始 / 进行中 / 待审核 三态合并为「未完成」一列（与列表页签同口径），终态的两种状态合并一列。
+    top = 该列内置顶的状态、数组顺序即先后，只影响列内顺序 */
 const BOARD_COLUMNS = [
   { key: 'candidate', label: STATUS.candidate.label, dot: 'st-candidate', statuses: ['candidate'] },
   {
@@ -13,7 +14,8 @@ const BOARD_COLUMNS = [
     label: TAB_LABEL.unfinished,
     dot: 'mixed-open',
     statuses: UNFINISHED,
-    mixed: true
+    mixed: true,
+    top: ['doing', 'review']
   },
   {
     key: 'closed',
@@ -233,10 +235,17 @@ export default function RequirementsPage({
       ? requirements.filter((r) => UNFINISHED.includes(r.status))
       : requirements.filter((r) => r.status === filter);
 
-  const board = BOARD_COLUMNS.map((col) => ({
-    ...col,
-    items: requirements.filter((r) => col.statuses.includes(r.status))
-  }));
+  /* 未完成列里进行中 / 待审核按 top 的先后置顶（一列挤三种状态，在跑的和在等的先看到），
+     没列进去的排在后面，沿用接口给的编号从新到旧 —— Array#sort 稳定，同档之间不会被这次排序打乱 */
+  const board = BOARD_COLUMNS.map((col) => {
+    const items = requirements.filter((r) => col.statuses.includes(r.status));
+    if (!col.top) return { ...col, items };
+    const w = (r) => {
+      const i = col.top.indexOf(r.status);
+      return i < 0 ? col.top.length : i;
+    };
+    return { ...col, items: items.sort((a, b) => w(a) - w(b)) };
+  });
 
   return (
     <div className={'wrap' + (view === 'board' ? ' board-wrap' : '')}>

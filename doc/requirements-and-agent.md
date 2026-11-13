@@ -39,6 +39,7 @@ status: accepted
 |---|---|---|
 | 页签结构 | 「未开始」「进行中」合并为「未完成」，最终 未完成 / 已完成 / 已拒绝，默认「未完成」 | 两页签语义重复；「全部」与「未完成」高度重合 |
 | 行内徽标 | 「未完成」内仍按真实状态显示未开始 / 进行中 / 待审核（待审核橙色） | 合并的是筛选视图，不是状态语义 |
+| 看板未完成列排序（2026-11-13） | 只改看板这一列的列内顺序：进行中 → 待审核 按 `BOARD_COLUMNS.top` 的先后置顶，未开始排在后面，同档内保持接口给的编号从新到旧（稳定排序，不改同档相对序）；列表页签、侧栏灯 / 总览 / 悬停卡的「待审核 > 进行中 > 未开始」口径都不跟着动 | 三态挤在一列里，在跑的和已交付等验收的是这列的看点，未开始只是排队；那三处是「最该由我处理」口径，两者问的不是同一件事，混成一个序会互相顶掉 |
 | Agent 名称展示（2026-11-07） | 认领徽标、提问 / 交付作者、往返记录气泡、右下角提醒、验收弹窗与事件时间线都显示 Agent 名称；需求视图与事件查询另带 `agentName`，注册表查不到（已删除 / 历史自报名字）才回落 AgentID | 用户登记名称就是为了识别；AgentID 只用于接口身份与归属判断，不该出现在界面 |
 | 侧栏需求灯 | 未开始=静态蓝点、进行中=呼吸蓝点、待审核=静态中空大环（10px 外径 / 2px 线宽）；tooltip「N 条待审核 / 进行中 / 未开始」，点击直达需求中心 | 多条并存时按 待审核 > 进行中 > 未开始 只亮一盏；颜色已被五类语义占满 |
 | 详情位置与选中 | 右面板；App 只存 `selReqId`，按 id 从列表实时解析，不缓存对象 | 5s 轮询会换对象引用，缓存必然过期 |
@@ -180,7 +181,7 @@ status: accepted
 | `electron/prompts.js` + `prompts/{scout,scout-stub,worker}.md` | `createPromptStore` + `REGISTRY`：启动覆盖、清理 `.bak` / `.baseline.json`、读取不缓存；巡检手册与执行手册真源 |
 | `electron/main.js` | `appBaseUrl` / `isAppUrl` / `openExternalSafely`、`setWindowOpenHandler` 与 `will-navigate`、组装 `promptStore`（`PM_PROMPT_DIR`） |
 | `web/src/RequirementDetail.jsx` | 扁平 `.rd-*` 详情、`buildContentText` / `buildAgentText`、`editing` / `draft` 内联保存、「本次交付」、待审核「通过 / 继续回复」区块、`MD_COMPONENTS` |
-| `web/src/RequirementsPage.jsx` | `counts`（含候选池）与 `unfinished` 筛选、候选池页签与看板列、`actionsFor` 的候选（采纳 / 丢弃）/ 状态 / 审核分支、整行选中态、认领徽标 |
+| `web/src/RequirementsPage.jsx` | `counts`（含候选池）与 `unfinished` 筛选、候选池页签与看板列（`BOARD_COLUMNS.top`：未完成列「进行中 / 待审核」置顶）、`actionsFor` 的候选（采纳 / 丢弃）/ 状态 / 审核分支、整行选中态、认领徽标 |
 | `web/src/components/AiAccessModal.jsx` | 四个页签；Agent 管理页负责添加 / 列表 / 技能目录（卡片显示 AgentID 与每个目录的技能数，「添加 Agent」弹窗可一键选择本机已装客户端），自动认领页单独选择 Agent 并注入 AgentID，未选中禁止复制 |
 | `web/src/App.jsx` | `selReqId` / `openRequirement` / `deleteRequirement` / `saveRequirementDetail`、详情 `key`、进入自动选中、`applyStatus` 文案、验收时可选提交推送（`approveRequirementWithGit` / `confirmStatusWithGit`）、`AiAccessModal`、`pendingItems`（提问 + 待审核） |
 | `web/src/lib/commit-message.js` + `web/src/components/CommitModal.jsx` | 提交信息唯一真源：`buildCommitMessage` 只认 `completion.commitMessage`、`splitCommitMessage` 识别并保留标准类型前缀；弹窗不再展示会话说明 |

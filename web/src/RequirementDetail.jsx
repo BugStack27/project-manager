@@ -281,6 +281,7 @@ export default function RequirementDetail({
   onSave,
   onDelete,
   onArchive,
+  onStatus,
   onAnswer,
   onApprove,
   onReply,
@@ -557,6 +558,19 @@ export default function RequirementDetail({
                   disabled={busy}
                   onConfirm={archive}
                 />
+              ) : null}
+              {/* 终态的撤销从看板卡片挪到这里：卡片不再为两个按钮多占一行，
+                  done 走状态弹窗填原因（agent 重开时要知道为什么被撤） */}
+              {(requirement.status === "done" || requirement.status === "rejected") &&
+              onStatus ? (
+                <button
+                  className="btn sm ghost"
+                  onClick={() => onStatus(requirement, "todo")}
+                  disabled={busy}
+                  title="撤销这条需求，回到未开始重新排队"
+                >
+                  撤销
+                </button>
               ) : null}
               <DangerButton
                 icon={IC.trash}

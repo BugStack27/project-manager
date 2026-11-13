@@ -812,6 +812,7 @@ export default function App() {
         onSaveRequirement={saveRequirementDetail}
         onDeleteRequirement={deleteRequirement}
         onArchiveRequirement={archiveRequirement}
+        onStatusRequirement={changeStatus}
         onAnswerRequirement={answerRequirement}
         onApproveRequirement={approveRequirementWithGit}
         onReplyRequirement={replyRequirement}

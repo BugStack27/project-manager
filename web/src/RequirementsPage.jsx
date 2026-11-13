@@ -144,10 +144,13 @@ function actionsFor(r, api) {
 }
 
 /** 看板卡片：状态由所在列表达，卡内只留编号、来源与标题等识别信息；
-    合并列里同时存在两种状态，需额外展示状态徽标区分 */
-function BoardCard({ r, sel, onSelect, onStatus, onArchive, showStatus }) {
+    合并列里同时存在两种状态，需额外展示状态徽标区分。
+    终态（已完成/已拒绝）的归档与撤销只放在右面板，卡底不再占一行；
+    认领 agent 与待回答角标挤在列宽最小 200px 的底行里，靠省略号截断 */
+function BoardCard({ r, sel, onSelect, onStatus, showStatus }) {
   const term = r.status === 'done' || r.status === 'rejected' ? ' term' : '';
   const ask = askBadge(r);
+  const hasTag = !!(r.claim || ask.list.length);
   return (
     <article
       className={'bcard' + term + (sel ? ' sel' : '')}
@@ -166,37 +169,39 @@ function BoardCard({ r, sel, onSelect, onStatus, onArchive, showStatus }) {
         {r.title}
       </h3>
       {r.body ? <p className="bcard-body">{r.body}</p> : null}
-      {r.claim || ask.list.length ? (
-        <div className="bcard-badges">
-          {r.claim ? (
-            <span
-              className="src claim"
-              title={
-                '由 ' +
-                (r.claim.agentName || r.claim.agent) +
-                ' 于 ' +
-                fmtDateTime(r.claim.at) +
-                ' 认领'
-              }
-            >
-              {r.claim.agentName || r.claim.agent}
-            </span>
-          ) : null}
-          {ask.list.length ? (
-            <span className="src ask" title={ask.tip}>
-              {ask.label}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
       <div className="bcard-meta">
+        {hasTag ? (
+          <span className="bcard-tags">
+            {r.claim ? (
+              <span
+                className="src claim"
+                title={
+                  '由 ' +
+                  (r.claim.agentName || r.claim.agent) +
+                  ' 于 ' +
+                  fmtDateTime(r.claim.at) +
+                  ' 认领'
+                }
+              >
+                {r.claim.agentName || r.claim.agent}
+              </span>
+            ) : null}
+            {ask.list.length ? (
+              <span className="src ask" title={ask.tip}>
+                {ask.label}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
         <span className="meta">
-          创建 <b>{fmtDateTime(r.createdAt)}</b>
+          更新 <b>{fmtDateTime(r.updatedAt)}</b>
         </span>
       </div>
-      <div className="bacts" onClick={(e) => e.stopPropagation()}>
-        {actionsFor(r, { onStatus, onArchive })}
-      </div>
+      {term ? null : (
+        <div className="bacts" onClick={(e) => e.stopPropagation()}>
+          {actionsFor(r, { onStatus })}
+        </div>
+      )}
     </article>
   );
 }
@@ -335,7 +340,6 @@ export default function RequirementsPage({
                       sel={selId === r.id}
                       onSelect={onSelect}
                       onStatus={onStatus}
-                      onArchive={onArchive}
                       showStatus={mixed}
                     />
                   ))

@@ -50,6 +50,7 @@ export default function RightPanel({
   onSaveRequirement,
   onDeleteRequirement,
   onArchiveRequirement,
+  onStatusRequirement,
   onAnswerRequirement,
   onApproveRequirement,
   onReplyRequirement,
@@ -110,6 +111,7 @@ export default function RightPanel({
             onSave={(patch) => onSaveRequirement(selReq, patch)}
             onDelete={() => onDeleteRequirement(selReq)}
             onArchive={() => onArchiveRequirement(selReq)}
+            onStatus={onStatusRequirement}
             onAnswer={(text, qid) => onAnswerRequirement(selReq, text, qid)}
             onApprove={(autoPush) => onApproveRequirement(selReq, autoPush)}
             onReply={(text) => onReplyRequirement(selReq, text)}

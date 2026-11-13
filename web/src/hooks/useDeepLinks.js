@@ -4,7 +4,7 @@ import { api } from '../api.js';
 /**
  * 外部导航目标的统一落点：通知 / 审计 / 全局搜索。
  * 主进程只给目标，项目与页面在这里解析；启动完成前的目标先挂起，等 projects 就绪后补发。
- * 深链参数（reqId / logCmdId / commitSha）也在这里消费，等对应数据确属目标项目后才落地。
+ * 深链参数（reqId / logCmdId / commitSha / openWorking）也在这里消费，等对应数据确属目标项目后才落地。
  */
 export function useDeepLinks({
   booted,
@@ -25,10 +25,12 @@ export function useDeepLinks({
   layout,
   setLayout,
   gitCommits,
+  gitChanges,
   gitLoading,
   gitRefreshing,
   gitStatePid,
   openCommitDetail,
+  openFile,
   notify
 }) {
   /** 主进程导航回调的最新副本：projects 轮询变化后仍能落到正确项目 */
@@ -57,7 +59,7 @@ export function useDeepLinks({
         return;
       }
       if (t.page === 'changes') {
-        gotoProject(p, 'changes');
+        gotoProject(p, 'changes', t.openWorking ? { openWorking: true } : undefined);
         return;
       }
       gotoProject(p, 'req', t.requirementId);
@@ -127,6 +129,16 @@ export function useDeepLinks({
       else notify('该提交不在项目最近 30 条记录中，无法查看详情', 'warn');
       return;
     }
+    if (pendingNav.openWorking) {
+      // 审核页「查看改动」落地：目标项目的改动列表就位后默认选中第一个未提交文件，
+      // 让中区选中行与右面板 diff 联动，而不是停在空提示上
+      if (gitLoading || gitRefreshing) return;
+      if (gitStatePid !== pid) return;
+      setPendingNav(null);
+      const files = (gitChanges && gitChanges.files) || [];
+      if (files.length) openFile(files[0]);
+      return;
+    }
     setPendingNav(null);
   }, [
     pendingNav,
@@ -135,10 +147,12 @@ export function useDeepLinks({
     reqs,
     cmds,
     gitCommits,
+    gitChanges,
     gitLoading,
     gitRefreshing,
     gitStatePid,
     openCommitDetail,
+    openFile,
     notify,
     layout.rightCollapsed,
     setLayout,

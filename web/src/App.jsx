@@ -490,10 +490,12 @@ export default function App() {
     layout,
     setLayout,
     gitCommits,
+    gitChanges,
     gitLoading,
     gitRefreshing,
     gitStatePid,
     openCommitDetail,
+    openFile,
     notify
   });
 
@@ -819,7 +821,7 @@ export default function App() {
         onUnlockRequirement={unlockRequirement}
         onRelockRequirement={relockRequirement}
         onOpenAudit={(payload) => setModal({ type: 'audit', ...payload })}
-        onViewChanges={() => gotoProject(project, 'changes')}
+        onViewChanges={() => gotoProject(project, 'changes', { openWorking: true })}
         notify={notify}
       />
 

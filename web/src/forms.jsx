@@ -311,11 +311,11 @@ export function RequirementStatusForm({ requirement, status, onClose, onConfirm,
   const [commitPush, setCommitPush] = useState(true);
   const autoCommitPush = approve && pending > 0 && commitPush;
 
-  /** 查看改动：关掉弹窗后切到该项目的修改记录页，直接看这批未提交改动 */
+  /** 查看改动：关掉弹窗后切到该项目的修改记录页，并默认选中第一个未提交改动 */
   function viewChanges() {
     if (busy) return;
     onClose();
-    if (onNavigate) onNavigate({ page: 'changes', projectId: requirement.projectId });
+    if (onNavigate) onNavigate({ page: 'changes', projectId: requirement.projectId, openWorking: true });
   }
 
   async function submit(e) {

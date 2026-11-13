@@ -128,7 +128,7 @@ status: accepted
 | 解析归属 | 只在 `electron/services/domain/refs.js` 解析，结果随 `reqView.refs` 下发（列表 / 详情 / `/next` / `/claim` 同一份） | 重名取哪个、大小写、归档算不算，两处判定就会出现「界面说找到了、agent 说没找到」 |
 | 重名与归档 | 名字比对忽略大小写；同名取未归档的、再取库里靠前的，`ambiguous` 标出重名；归档项目照常解析并标 `archived` | 引用指向历史项目是正常现象；解析失败比指向「差不多」的项目更糟 |
 | 找不到时 | `projectId` / `path` 为 `null`；界面显示红色失效 chip，正文原文不吞掉 | 名字打错要能一眼看见，静默消失等于丢信息 |
-| 显示 | `MarkdownText` 把 `@{x}` 换成 `pm-ref:` 链接再接管成 chip（可点跳转）；正文下方一行「引用项目」列全，正文里的代码块不替换 | chip 就地可点、清单一眼看全；`pm-ref:` 必须在 `urlTransform` 里放行，否则被 react-markdown 清成空 href |
+| 显示 | `MarkdownText` 把 `@{x}` 换成 `pm-ref:` 链接再接管成 chip（可点跳转）；正文下方一行「引用项目」列全，正文里的代码块不替换；chip 与清单行悬停出与侧栏项目行同一张信息卡（`HoverCardLayer`，见 `doc/projects.md` §2.4），并让位撤掉原来的 `title`，不必跳过去也不知道那个项目现在什么样 | chip 就地可点、清单一眼看全；`pm-ref:` 必须在 `urlTransform` 里放行，否则被 react-markdown 清成空 href；悬停卡复用同一份 `projectView` 计数，两处口径不会分叉；卡与原生提示不同时出现，否则一次悬停弹两套 |
 | 录入 | 正文输入框统一用 `ProjectRefInput`：打 `@` 弹项目候选（↑↓ 选择、Enter / Tab 插入、Esc 关闭），插入 `@{项目名}` | 记准项目名太麻烦；Enter 只在候选打开时接管，其余键（含换行）原样透传 |
 | agent 侧 | `reqView.refs` 每条给 `name` / `projectId` / `path` / `archived` / `ambiguous` / `requirementCount` / `pendingCount` / `pending`（最多 5 条未完成需求）；`prompts/worker.md` 要求按 `path` 读被引用项目、**只读不改**，更细的需求清单走 MCP `pm_list_requirements` | 只给一个目录，agent 还得通读才敢下判断；带上「还在忙什么」才能决定读哪里。改别人的项目会破坏「只改 project.path」的边界 |
 | 不做 | 不把项目 id 缓存进正文（改名即失效，属预期）、不支持引用命令、中区列表与看板仍显示原文、不预读被引用项目的 README / 目录结构 | 每加一种引用形态都要在解析 / 显示 / agent 三条链路同步；预读文件会让 `/next` 变慢且长度不可控，理解代码是 agent 按 `path` 自己做的事。（引用单条需求 / 文件已在 2.10 支持） |
@@ -195,7 +195,7 @@ status: accepted
 | `web/src/lib/events-view.js` | `requirement.released` / `requirement.asked` / `requirement.answered` 文案、`via=next` 的认领显示为「自动认领」 |
 | `web/src/RequirementDetail.jsx`（往返记录） | `thread` 消息流渲染（含 `reopen`）、待回答区块与回复框、旧需求按 `completion` / `feedback` 兼容 |
 | `web/src/styles/{requirements,panel,controls,tokens,modal}.css` | `.rd-*` / `.md-body` / `.row.req.sel`、`.src.claim`、`.st-review`、`.plight` 三态、青色语义色、`.mcp-cfg` |
-| `web/claim-test.html` | 手工验证页，支持 `?status=review` 与 `completion` |
+| `web/claim-test.html` | 手工验证页，支持 `?status=review` 与 `completion`；演示数据带一个被引用项目与一条技能解析结果（含 `agents` / `skills` 通道），用于核对引用项目与技能的悬停信息窗 |
 | `package.json` + `README.md` | `build.files` 含 `prompts/**/*`；六态（含候选池）、`/claim` + `/complete` + `/next` + `/release` 契约与错误码、编码要求、两个复制按钮分工 |
 
 ## 4. 关键修正与教训

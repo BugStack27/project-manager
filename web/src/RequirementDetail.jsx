@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api.js";
 import AskCard from "./components/AskCard.jsx";
 import EvidenceNote from "./components/EvidenceNote.jsx";
+import { hoverProps } from "./components/HoverCardLayer.jsx";
 import MarkdownText from "./components/MarkdownText.jsx";
 import ProjectRefInput from "./components/ProjectRefInput.jsx";
 import { STATUS } from "./constants.js";
@@ -661,26 +662,22 @@ export default function RequirementDetail({
             <div className="rd-refs">
               <span className="rd-refs-lead">引用项目</span>
               {/* 这一行的信息就是 agent 认领时能拿到的：路径、还有几条未完成 ——
-                  用户据此判断引用指得对不对，不必先复制给 agent 试一次 */}
+                  用户据此判断引用指得对不对，不必先复制给 agent 试一次。
+                  悬停出与侧栏同一张项目信息卡（路径 / 计数都在卡上），原来那份 title 已撤掉：
+                  两套提示一起弹很影响观感。归档另有行内角标，重名则看卡上的路径认是哪个项目。 */}
               {refs.map((ref) => (
                 <button
                   key={ref.name}
                   type="button"
                   className={"rd-ref" + (ref.projectId ? "" : " miss")}
                   aria-disabled={!ref.projectId}
+                  {...hoverProps.project(ref.projectId)}
                   onClick={() => {
                     if (ref.projectId && onOpenProject) onOpenProject(ref.projectId);
                   }}
                   title={
                     ref.projectId
-                      ? [
-                          ref.path,
-                          ref.pendingCount ? ref.pendingCount + " 条未完成" : "没有未完成需求",
-                          ref.archived ? "项目已归档" : "",
-                          ref.ambiguous ? "有同名项目，这里取第一个" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")
+                      ? undefined
                       : "没有找到这个项目：检查名字是否写错，或重新输入 @ 选一个"
                   }
                 >
@@ -764,12 +761,14 @@ export default function RequirementDetail({
               <span className="rd-refs-lead">使用技能</span>
               {/* 与项目引用同一套来源（服务端解析）：这里只展示，不提供跳转，
                   所以用 span 而不是 button —— 长得像按钮却点不动比不做成按钮更糟。
-                  技能是目录，不按 Agent 归属过滤：目录记在谁名下都能读。 */}
+                  技能是目录，不按 Agent 归属过滤：目录记在谁名下都能读。
+                  能出信息窗就不再挂 title（两套一起弹很碍眼），失效态才用原生提示说明原因。 */}
               {skills.map((sk) => (
                 <span
                   key={sk.name}
                   className={"rd-ref rd-skill" + (skillMissing(sk) ? " miss" : "")}
-                  title={skillTip(sk)}
+                  {...hoverProps.skill(sk)}
+                  title={skillMissing(sk) ? skillTip(sk) : undefined}
                 >
                   <span className="rd-ref-name">{"{UseSkill:" + sk.name + "}"}</span>
                   {sk.skillId && !sk.exists ? (

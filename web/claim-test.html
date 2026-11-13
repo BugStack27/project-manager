@@ -41,12 +41,50 @@
         candidates: ['workbuddy/pdf'],
         reason: null
       };
+      // 被引用的另一个项目：悬停信息窗（复用侧栏那张卡）要有路径、技术栈与各类计数才看得出效果
+      const refProject = {
+        id: 'p_ref',
+        name: '灯塔控制台',
+        path: 'D:\\workspace\\beacon-console',
+        kind: 'electron',
+        stacks: ['electron', 'npm'],
+        aiScout: true,
+        createdAt: now,
+        updatedAt: now,
+        requirementCount: 9,
+        pendingCount: 4,
+        todoCount: 1,
+        doingCount: 1,
+        reviewCount: 1,
+        questionCount: 1,
+        lockedCount: 0,
+        candidateCount: 2,
+        doneCount: 5,
+        rejectedCount: 0,
+        runningCount: 1,
+        commandCount: 3,
+        commands: []
+      };
       const req = {
         id: 'r_test1',
         projectId: 'p_test',
         seq: 7,
         title: '测试认领需求',
-        body: '这是需求正文，使用 {UseSkill:pdf}',
+        body: '这是需求正文，界面口径见 @{灯塔控制台}，使用 {UseSkill:pdf}',
+        // 引用项目与技能的解析结果与服务端 reqView 同形，用来核对 chip 悬停出的信息窗
+        refs: [
+          {
+            name: '灯塔控制台',
+            projectId: 'p_ref',
+            path: refProject.path,
+            pendingCount: refProject.pendingCount,
+            pending: [],
+            archived: false,
+            ambiguous: false
+          }
+        ],
+        reqRefs: [],
+        fileRefs: [],
         skills: [SKILL],
         note: '这是需求备注',
         source: 'ai',
@@ -113,13 +151,30 @@
         commands: []
       };
       const data = {
-        projects: { projects: [project] },
+        projects: { projects: [project, refProject] },
         project: { project },
         requirements: { requirements: [req] },
         pendingRequirements: { requirements: [req] },
         commands: { commands: [] },
         ides: { ides: [], lastIdeId: null, diagnostics: [] },
         mcpInfo: { port: 7318, url: 'http://127.0.0.1:7318/mcp' },
+        // 技能悬浮窗要知道「这条技能归哪个 Agent」：清单里是 id，名字回注册表查
+        agents: { agents: [{ id: AGENT_ID, name: AGENT_NAME, client: 'claude', skillDirs: [{ path: 'C:\\skills' }] }] },
+        skills: {
+          skills: [
+            {
+              id: SKILL.skillId,
+              source: SKILL.source,
+              name: SKILL.name,
+              scope: 'home',
+              dir: SKILL.dir,
+              entry: SKILL.entry,
+              description: SKILL.description,
+              exists: true,
+              agents: [AGENT_ID]
+            }
+          ]
+        },
         scoutPrompt: { stub: '' },
         gitSummary: { total: 1, repoCount: 0, dirtyCount: 0, projects: [] },
         gitCommits: { isRepo: false, branch: null, commits: [], hasMore: false },

@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import { IC } from "../icons.jsx";
 import { mcpFailDesc } from "../lib/mcp-view.js";
 import {
+    invalidateAgentList,
     invalidateSkills,
     sameOrUnder,
     skillsUnder,
@@ -131,6 +132,8 @@ export default function AiAccessModal({
       const res = await api.agents();
       const list = (res && res.agents) || [];
       setAgentList(list);
+      // 技能悬浮窗显示的「所属 Agent」名字也来自这份注册表，缓存跟着作废
+      invalidateAgentList();
       setAgentId((cur) =>
         cur && list.some((a) => a.id === cur)
           ? cur

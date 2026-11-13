@@ -11,6 +11,7 @@ import {
   findFileRef
 } from '../lib/req-refs.js';
 import { findSkill, linkifySkills, readSkillHref } from '../lib/skill-refs.js';
+import { hoverProps } from './HoverCardLayer.jsx';
 import SkillChip from './SkillChip.jsx';
 
 /**
@@ -38,6 +39,8 @@ function anchorFor(props) {
 /**
  * 跨项目引用的 chip：正文里的 `@{项目名}` 在渲染前已被换成 pm-ref: 链接，
  * 这里把它接管成按钮 —— 点一下跳到那个项目的需求中心，而不是当外链丢给浏览器。
+ * 悬停出与侧栏项目行同一张信息卡（见 HoverCardLayer），不必跳过去才知道那个项目现在什么样；
+ * 出了卡就不再挂原生 title，两套提示一起弹很影响观感。
  * 解析不到项目时保留原名字并标成失效态：名字打错比静默消失更容易被发现。
  */
 function RefChip({ name, projectId, onOpen }) {
@@ -48,7 +51,7 @@ function RefChip({ name, projectId, onOpen }) {
         type="button"
         className="ref-chip"
         onClick={() => onOpen(projectId)}
-        title={'打开项目「' + name + '」的需求中心'}
+        {...hoverProps.project(projectId)}
       >
         {label}
       </button>

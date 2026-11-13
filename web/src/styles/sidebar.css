@@ -65,6 +65,15 @@
   .pstack-item svg{display:block;width:11px;height:11px}
   @keyframes phover-in{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){.phover{animation:none}}
+  /* 技能悬停卡：.phover 的同族（同样的定位、外壳与出现节奏），内容只有名字 / 描述 / 归属 */
+  .skhover{position:fixed;z-index:75;width:286px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--card);border:1px solid var(--sep);border-radius:12px;box-shadow:var(--sh-sheet);padding:12px;pointer-events:none;color:var(--label-2);animation:phover-in .12s ease-out}
+  .sh-name{font-size:13px;font-weight:500;line-height:1.35;color:var(--ink-body);word-break:break-all}
+  .sh-desc{margin-top:7px;font-size:12px;line-height:1.5;color:var(--label-2)}
+  .sh-agents{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:10px;padding-top:9px;border-top:1px solid var(--sep)}
+  .sh-label{font-size:11px;color:var(--label-3)}
+  .sh-agent{font-size:11px;line-height:18px;padding:0 6px;border-radius:5px;background:var(--blue-tint);color:var(--blue)}
+  .sh-agent.none{background:rgb(var(--ink-rgb) / .05);color:var(--label-3)}
+  @media (prefers-reduced-motion:reduce){.skhover{animation:none}}
   /* 纯黑矢量图标在深色界面里看不见：按需反色；纯白图标在浅色界面同理 */
   [data-theme="dark"] .pav-mono-dark img{filter:invert(1)}
   [data-theme="light"] .pav-mono-light img{filter:invert(1)}

@@ -3,6 +3,7 @@ import { api } from './api.js';
 import ChangesPage from './ChangesPage.jsx';
 import AppModals from './components/AppModals.jsx';
 import CommandPalette from './components/CommandPalette.jsx';
+import { HoverCardLayer } from './components/HoverCardLayer.jsx';
 import QuestionBall from './components/QuestionBall.jsx';
 import QuitPrompt from './components/QuitPrompt.jsx';
 import PageMenu from './components/PageMenu.jsx';
@@ -848,6 +849,14 @@ export default function App() {
       />
 
       <Toast toast={toast} />
+
+      {/* 引用项目 / 技能的悬停信息窗：全界面一张卡，就地挂在根层，chip 谁都能呼叫 */}
+      <HoverCardLayer
+        projects={projects}
+        archivedProjects={archivedProjects}
+        dirtyFiles={dirtyFiles}
+        behindMap={behindMap}
+      />
 
       {/* 强提醒球：提问与待审核都收在这里，贴在右面板左侧的右下角，不压内容 */}
       <QuestionBall

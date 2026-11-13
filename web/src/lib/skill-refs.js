@@ -214,6 +214,30 @@ export function invalidateSkills() {
   cache = null;
 }
 
+/**
+ * Agent 注册表缓存：技能清单里的 `agents` 只有 id，悬浮窗要说得出名字。
+ * 与 loadSkills 同一套做法；注册表变了由接入弹窗显式失效，否则改名后要刷新页面才见效。
+ */
+let agentCache = null;
+
+export function loadAgentList() {
+  if (!agentCache) {
+    agentCache = api
+      .agents()
+      .then((res) => (res && Array.isArray(res.agents) ? res.agents : []))
+      .catch(() => {
+        // 读失败不缓存空表：下次悬浮还要能重新取，否则这一次误判会一直留着
+        agentCache = null;
+        return [];
+      });
+  }
+  return agentCache;
+}
+
+export function invalidateAgentList() {
+  agentCache = null;
+}
+
 /** 路径比较口径：分隔符与末尾斜杠不敏感，Windows 下大小写不敏感（与服务端 skill-scan 一致） */
 function normDir(p) {
   const s = String(p || '')

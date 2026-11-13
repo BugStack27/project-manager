@@ -15,11 +15,9 @@
   /* 行尾箭头：鼠标进到行里才出现，暗示「整行可展开日志」 */
   .cmd .cmd-go{flex:none;display:grid;place-items:center;color:var(--label-4);opacity:0;transform:translateX(-2px);transition:opacity .12s,transform .12s;pointer-events:none}
   .cmd:hover .cmd-go,.cmd:focus-within .cmd-go{opacity:1;transform:none}
-  /* 备注名：命令的人话标签，放在命令文本前面 */
-  .cmd .cmd-name{flex:0 1 auto;min-width:0;font-size:13px;font-weight:400;color:var(--ink-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  /* 当前右面板正在看日志的那条命令：整行高亮，免得“右侧是哪条”要靠猜 */
-  .row.cmd.sel{background:rgb(var(--accent-rgb) / .06);box-shadow:inset 2px 0 0 var(--blue)}
-  .row.cmd.sel:hover{background:rgb(var(--accent-rgb) / .09)}
+  /* 备注名：命令的人话标签，放在命令文本前面；字重与墨色跟需求标题对齐（600 / --label） */
+  .cmd .cmd-name{flex:0 1 auto;min-width:0;font-size:13px;font-weight:600;color:var(--label);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 当前右面板正在看日志的那条命令：整行高亮，免得“右侧是哪条”要靠猜；选中样式见 requirements.css 的 .row.sel */
   .run{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;flex:none}
   .run .live{width:6px;height:6px;border-radius:50%;background:currentColor;position:relative}
   .run .live::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:1.5px solid currentColor;opacity:.5;animation:pulse 1.9s ease-out infinite}

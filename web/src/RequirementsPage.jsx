@@ -77,10 +77,11 @@ function actionsFor(r, api) {
   if (r.status === 'todo') {
     return (
       <>
-        <button className="btn sm" onClick={() => api.onStatus(r, 'doing')}>
+        {/* 开始 / 拒绝是同一行里的一组相反动作：绿=推进、红=终止，不靠悬停才看得出区别 */}
+        <button className="btn sm start" onClick={() => api.onStatus(r, 'doing')}>
           开始
         </button>
-        <button className="btn sm danger" onClick={() => api.onStatus(r, 'rejected')}>
+        <button className="btn sm stop" onClick={() => api.onStatus(r, 'rejected')}>
           拒绝
         </button>
       </>
@@ -104,7 +105,7 @@ function actionsFor(r, api) {
             撤销
           </button>
         )}
-        <button className="btn sm danger" onClick={() => api.onStatus(r, 'rejected')}>
+        <button className="btn sm stop" onClick={() => api.onStatus(r, 'rejected')}>
           拒绝
         </button>
       </>
@@ -169,37 +170,45 @@ function BoardCard({ r, sel, onSelect, onStatus, showStatus }) {
         {r.title}
       </h3>
       {r.body ? <p className="bcard-body">{r.body}</p> : null}
-      <div className="bcard-meta">
-        {hasTag ? (
-          <span className="bcard-tags">
-            {r.claim ? (
-              <span
-                className="src claim"
-                title={
-                  '由 ' +
-                  (r.claim.agentName || r.claim.agent) +
-                  ' 于 ' +
-                  fmtDateTime(r.claim.at) +
-                  ' 认领'
-                }
-              >
-                {r.claim.agentName || r.claim.agent}
-              </span>
-            ) : null}
-            {ask.list.length ? (
-              <span className="src ask" title={ask.tip}>
-                {ask.label}
-              </span>
-            ) : null}
-          </span>
-        ) : null}
-        <span className="meta">
-          更新 <b>{fmtDateTime(r.updatedAt)}</b>
-        </span>
-      </div>
+      {/* 终态卡片没有按钮行，更新时间留在底行；其余列把时间挪到按钮行右端，少占一行 */}
+      {hasTag || term ? (
+        <div className="bcard-meta">
+          {hasTag ? (
+            <span className="bcard-tags">
+              {r.claim ? (
+                <span
+                  className="src claim"
+                  title={
+                    '由 ' +
+                    (r.claim.agentName || r.claim.agent) +
+                    ' 于 ' +
+                    fmtDateTime(r.claim.at) +
+                    ' 认领'
+                  }
+                >
+                  {r.claim.agentName || r.claim.agent}
+                </span>
+              ) : null}
+              {ask.list.length ? (
+                <span className="src ask" title={ask.tip}>
+                  {ask.label}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+          {term ? (
+            <span className="meta">
+              更新 <b>{fmtDateTime(r.updatedAt)}</b>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       {term ? null : (
         <div className="bacts" onClick={(e) => e.stopPropagation()}>
           {actionsFor(r, { onStatus })}
+          <span className="meta bacts-time">
+            更新 <b>{fmtDateTime(r.updatedAt)}</b>
+          </span>
         </div>
       )}
     </article>

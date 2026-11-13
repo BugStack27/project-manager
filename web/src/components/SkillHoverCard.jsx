@@ -5,13 +5,13 @@ import { loadAgentList, loadSkills } from '../lib/skill-refs.js';
  * 目录路径与失效原因仍由 chip 自己的原生提示承担 —— 这里再抄一遍就会出现
  * 「两处说法不一样，用户不知道信哪个」。
  */
-export default function SkillHoverCard({ skill, left, top }) {
+export default function SkillHoverCard({ skill, left, top, onEnter, onLeave }) {
   if (!skill) return null;
 
   const agents = skill.agentNames || [];
 
   return (
-    <div className="skhover" style={{ left, top }} role="tooltip">
+    <div className="skhover" style={{ left, top }} onMouseEnter={onEnter} onMouseLeave={onLeave} role="tooltip">
       <div className="sh-name">{skill.name}</div>
       <div className="sh-desc">{skill.description || '（这份技能没有写描述）'}</div>
       <div className="sh-agents">

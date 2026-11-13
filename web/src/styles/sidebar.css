@@ -43,7 +43,8 @@
   .pstack:hover,.pitem:hover .pstack,.ov-row:hover .pstack,.cmdk-row:hover .pstack{opacity:1}
 
   /* 项目行悬停卡片：替代原生 title，信息按「身份 / 技术栈 / 路径 / 计数 / 提醒」分层 */
-  .phover{position:fixed;z-index:75;width:286px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--card);border:1px solid var(--sep);border-radius:12px;box-shadow:var(--sh-sheet);padding:12px;pointer-events:none;color:var(--label-2);animation:phover-in .12s ease-out}
+  /* 悬停卡要能接住鼠标：pointer-events 留默认 auto，鼠标才能从行 / chip 划进卡里读内容、选文字 */
+  .phover{position:fixed;z-index:75;width:286px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--card);border:1px solid var(--sep);border-radius:12px;box-shadow:var(--sh-sheet);padding:12px;color:var(--label-2);animation:phover-in .12s ease-out}
   .ph-head{display:flex;align-items:flex-start;gap:10px}
   .ph-title{flex:1;min-width:0}
   .ph-name{font-size:13px;font-weight:500;line-height:1.35;color:var(--ink-body);word-break:break-word}
@@ -66,7 +67,7 @@
   @keyframes phover-in{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){.phover{animation:none}}
   /* 技能悬停卡：.phover 的同族（同样的定位、外壳与出现节奏），内容只有名字 / 描述 / 归属 */
-  .skhover{position:fixed;z-index:75;width:286px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--card);border:1px solid var(--sep);border-radius:12px;box-shadow:var(--sh-sheet);padding:12px;pointer-events:none;color:var(--label-2);animation:phover-in .12s ease-out}
+  .skhover{position:fixed;z-index:75;width:286px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--card);border:1px solid var(--sep);border-radius:12px;box-shadow:var(--sh-sheet);padding:12px;color:var(--label-2);animation:phover-in .12s ease-out}
   .sh-name{font-size:13px;font-weight:500;line-height:1.35;color:var(--ink-body);word-break:break-all}
   .sh-desc{margin-top:7px;font-size:12px;line-height:1.5;color:var(--label-2)}
   .sh-agents{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:10px;padding-top:9px;border-top:1px solid var(--sep)}
@@ -74,6 +75,26 @@
   .sh-agent{font-size:11px;line-height:18px;padding:0 6px;border-radius:5px;background:var(--blue-tint);color:var(--blue)}
   .sh-agent.none{background:rgb(var(--ink-rgb) / .05);color:var(--label-3)}
   @media (prefers-reduced-motion:reduce){.skhover{animation:none}}
+  /* 需求引用悬停卡：.phover 同族，只摊开编号 / 标题 / 状态 / 正文摘要 */
+  .rqhover{position:fixed;z-index:75;width:320px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--card);border:1px solid var(--sep);border-radius:12px;box-shadow:var(--sh-sheet);padding:12px;color:var(--label-2);animation:phover-in .12s ease-out}
+  .rq-head{display:flex;align-items:baseline;gap:7px;min-width:0}
+  .rq-seq{flex:none;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--blue)}
+  .rq-title{min-width:0;font-size:13px;font-weight:500;line-height:1.35;color:var(--ink-body);word-break:break-word}
+  .rq-status{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+  .rq-badge{flex:none;font-size:11px;line-height:18px;padding:0 7px;border-radius:5px;background:var(--blue-tint);color:var(--blue)}
+  .rq-hint{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--label-3)}
+  .rq-body{margin-top:9px;padding-top:9px;border-top:1px solid var(--sep);font-size:12px;line-height:1.55;color:var(--label-2);word-break:break-word;white-space:normal}
+  @media (prefers-reduced-motion:reduce){.rqhover{animation:none}}
+  /* 文件引用悬停窗：与信息卡一样能接收鼠标，卡内代码区还能滚。
+     宽高由 HoverCardLayer 按锚点剩余空间算好塞进行内 style；代码区复用 .ev-code 的行样式与 hljs 配色 */
+  .fhover{position:fixed;z-index:75;display:flex;flex-direction:column;box-sizing:border-box;max-height:460px;background:var(--card);border:1px solid var(--sep);border-radius:10px;box-shadow:var(--sh-sheet);overflow:hidden;color:var(--label-2);animation:phover-in .12s ease-out}
+  .fhover-hd{flex:none;display:flex;align-items:baseline;gap:8px;min-width:0;padding:8px 10px 7px;border-bottom:1px solid var(--sep)}
+  .fhover-name{flex:none;font-size:12px;font-weight:500;color:var(--ink-body)}
+  .fhover-path{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:11px;color:var(--label-3)}
+  .fhover-empty{flex:1;display:flex;align-items:center;gap:6px;padding:14px 12px;font-size:12px;color:var(--label-3)}
+  .fhover-empty.err{color:var(--red-text)}
+  .fhover-ft{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-top:1px solid var(--sep);font-size:11px;color:var(--label-3)}
+  @media (prefers-reduced-motion:reduce){.fhover{animation:none}}
   /* 纯黑矢量图标在深色界面里看不见：按需反色；纯白图标在浅色界面同理 */
   [data-theme="dark"] .pav-mono-dark img{filter:invert(1)}
   [data-theme="light"] .pav-mono-light img{filter:invert(1)}

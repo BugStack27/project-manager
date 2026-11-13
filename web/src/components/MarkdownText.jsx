@@ -66,18 +66,23 @@ function RefChip({ name, projectId, onOpen }) {
 
 /**
  * 本项目需求引用的 chip：`@{#序号}` → pm-req: 链接。点一下跳到那条需求的详情。
+ * 悬停出信息窗（标题 / 状态 / 正文摘要，见 RequirementHoverCard），出卡即撤掉原生 title。
  * 解析不到（序号写错 / 已归档删除）时标失效态，保留 `#序号` 原文。
  */
 function ReqChip({ seq, reqRef, onOpen }) {
   const title = reqRef && reqRef.exists ? reqRef.title || '' : '';
   const label = '#' + seq + (title ? ' · ' + title : '');
-  if (reqRef && reqRef.exists && typeof onOpen === 'function') {
+  const hover = hoverProps.requirement(reqRef);
+  if (reqRef && reqRef.exists) {
     return (
       <button
         type="button"
         className="ref-chip req-chip"
-        onClick={() => onOpen(reqRef.requirementId)}
-        title={'打开需求 #' + seq + (title ? '「' + title + '」' : '') + '（状态：' + (reqRef.status || '未知') + '）'}
+        onClick={() => {
+          if (typeof onOpen === 'function') onOpen(reqRef.requirementId);
+        }}
+        {...hover}
+        title={hover ? undefined : '打开需求 #' + seq + (title ? '「' + title + '」' : '') + '（状态：' + (reqRef.status || '未知') + '）'}
       >
         {label}
       </button>
@@ -94,10 +99,12 @@ const baseName = (p) => String(p || '').split(/[\\/]/).pop();
 
 /**
  * 本项目文件引用的 chip：`@{file:路径}` → pm-file: 链接。点一下用系统默认程序打开该文件。
+ * 悬停出内容窗（行号 + 语法高亮，见 FileHoverCard），出卡即撤掉原生 title。
  * 不存在 / 越界 / 密钥类文件标失效态（密钥只显示路径不打开），保留原文。
  */
-function FileChip({ path, fileRef, onOpen }) {
+function FileChip({ path, fileRef, projectId, onOpen }) {
   const ok = fileRef && fileRef.exists && !fileRef.restricted;
+  const hover = hoverProps.file(fileRef, projectId);
   const tip = !fileRef
     ? '文件：' + path
     : fileRef.restricted
@@ -105,9 +112,17 @@ function FileChip({ path, fileRef, onOpen }) {
       : fileRef.exists
         ? (fileRef.directory ? '目录：' : '打开文件：') + (fileRef.absPath || path)
         : '文件不存在（可能已改名或删除）：' + path;
-  if (ok && typeof onOpen === 'function') {
+  if (ok) {
     return (
-      <button type="button" className="ref-chip file-chip" onClick={() => onOpen(path)} title={tip}>
+      <button
+        type="button"
+        className="ref-chip file-chip"
+        onClick={() => {
+          if (typeof onOpen === 'function') onOpen(path);
+        }}
+        {...hover}
+        title={hover ? undefined : tip}
+      >
         {baseName(path)}
       </button>
     );
@@ -124,7 +139,8 @@ function FileChip({ path, fileRef, onOpen }) {
  * 各处只传额外的语义类（正文 / 提交说明），不要自己再写一套标签样式。
  *
  * `refs` / `reqRefs` / `fileRefs` / `skills` 传了才启用对应引用与技能关联（服务端给的解析结果），
- * 不传时行为与以前完全一致。技能 chip 的外观与说明见 `SkillChip.jsx`（与往返记录共用）。
+ * 不传时行为与以前完全一致。`projectId` 只给文件引用用：悬停时按项目 id 就地读内容，
+ * 不传就不出文件内容窗（原生 title 仍在）。技能 chip 的外观与说明见 `SkillChip.jsx`（与往返记录共用）。
  */
 export default function MarkdownText({
   children,
@@ -133,6 +149,7 @@ export default function MarkdownText({
   reqRefs,
   fileRefs,
   skills,
+  projectId,
   onOpenProject,
   onOpenRequirement,
   onOpenFile
@@ -167,7 +184,7 @@ export default function MarkdownText({
         }
         if (linkFileRefs) {
           const fr = readFileHref(href);
-          if (fr) return <FileChip path={fr.path} fileRef={findFileRef(fileRefs, fr.path)} onOpen={onOpenFile} />;
+          if (fr) return <FileChip path={fr.path} fileRef={findFileRef(fileRefs, fr.path)} projectId={projectId} onOpen={onOpenFile} />;
         }
         const ref = linkRefs ? readRefHref(href) : null;
         if (ref) {
@@ -176,7 +193,7 @@ export default function MarkdownText({
         return anchorFor({ href, children: label, ...props });
       }
     }),
-    [linkRefs, linkReqRefs, linkFileRefs, linkSkills, reqRefs, fileRefs, skills, onOpenProject, onOpenRequirement, onOpenFile]
+    [linkRefs, linkReqRefs, linkFileRefs, linkSkills, reqRefs, fileRefs, skills, projectId, onOpenProject, onOpenRequirement, onOpenFile]
   );
 
   return (

@@ -57,6 +57,8 @@ export default function Sidebar({
   /** 鼠标停留后的项目信息卡：{ project, color, dirty, behind, left, top } */
   const [hoverCard, setHoverCard] = useState(null);
   const hoverTimer = useRef(null);
+  /** 行 → 卡片之间有一段空隙：延时收起，卡片接住鼠标时由 onMouseEnter 撤掉 */
+  const hoverCloseTimer = useRef(0);
   /* ── 外观 / 皮肤：各一行入口 + 右侧二级菜单 ────────────────────
      平铺会把「界面」组撑得过长；收成行后右侧显示当前值，选项放进二级菜单。
      两行共用一套二级菜单机制（openSub 标记当前展开的是哪行），fixed 定位避免被 .datapop 的 overflow:auto 裁掉。 */
@@ -114,7 +116,10 @@ export default function Sidebar({
 
   // 卸载时清掉延迟器，避免浮层已关还在 setState
   useEffect(() => () => clearTimeout(subCloseTimer.current), []);
-  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+  useEffect(() => () => {
+    clearTimeout(hoverTimer.current);
+    clearTimeout(hoverCloseTimer.current);
+  }, []);
 
   // 悬停卡片是 fixed 定位：列表滚动 / 窗口缩放 / 打开弹层时直接收起，避免悬空
   useEffect(() => {
@@ -383,14 +388,30 @@ export default function Sidebar({
     return lines.join('\n');
   }
 
-  /** 收起悬停卡片与待触发的定时器 */
+  /** 收起悬停卡片与待触发的定时器（点击项目行、滚动、缩放这类明确要关的动作） */
   function clearRowHover() {
     clearTimeout(hoverTimer.current);
+    clearTimeout(hoverCloseTimer.current);
     setHoverCard(null);
+  }
+
+  /** 鼠标划进卡片：撤掉行离开时安排的那次收起，停在卡上看多久都不收 */
+  function cancelRowHoverClose() {
+    clearTimeout(hoverCloseTimer.current);
+  }
+
+  /** 鼠标离开行 / 卡片：留 160ms 过路时间，让鼠标能跨过那点空隙划进卡里 */
+  function scheduleRowHoverClose() {
+    clearTimeout(hoverCloseTimer.current);
+    hoverCloseTimer.current = setTimeout(() => {
+      clearTimeout(hoverTimer.current);
+      setHoverCard(null);
+    }, 160);
   }
 
   /** 停留 240ms 后再出卡，避免鼠标扫过列表时一路闪 */
   function enterRow(e, p) {
+    cancelRowHoverClose();
     clearTimeout(hoverTimer.current);
     setHoverCard(null);
     const row = e.currentTarget;
@@ -503,7 +524,7 @@ export default function Sidebar({
               data-pid={p.id}
               aria-label={rowTitle(p, lights)}
               onMouseEnter={(e) => enterRow(e, p)}
-              onMouseLeave={clearRowHover}
+              onMouseLeave={scheduleRowHoverClose}
               onClick={() => {
                 clearRowHover();
                 onSelect(p.id);
@@ -939,6 +960,8 @@ export default function Sidebar({
           behind={hoverCard.behind}
           left={hoverCard.left}
           top={hoverCard.top}
+          onEnter={cancelRowHoverClose}
+          onLeave={scheduleRowHoverClose}
         />
       ) : null}
     </aside>

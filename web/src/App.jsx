@@ -40,6 +40,13 @@ import Sidebar from './Sidebar.jsx';
 import StatsPage from './StatsPage.jsx';
 import { IdeButton, PageBar, Toast } from './ui.jsx';
 
+/**
+ * 「点抽屉外收起」时算作抽屉内部的节点。
+ * 悬停卡与证据浮层都 portal 到 body，不在 .rpanel 子树里：卡片改成能接鼠标之后，
+ * 点一下卡就会被当成点外面，把抽屉连同正在看的卡一起关掉。点卡片是「读内容」不是「离开抽屉」。
+ */
+const PANEL_INSIDE = '.rpanel, .phover, .skhover, .rqhover, .fhover, .ev-pop';
+
 export default function App() {
   const { layout, setLayout } = useLayout();
   const { pref: themePref, setPref: setThemePref, skin, setSkin } = useTheme();
@@ -134,13 +141,15 @@ export default function App() {
   // click 捕获阶段先复位 reopenGuard，目标 onClick 里若展开抽屉会置位，冒泡到 document 时据此跳过：
   // 点列表行 / 日志 / 改动是「换内容」而非「点外面」，不能先关再开地闪一下。
   // 弹窗 / 命令面板盖在抽屉上时不响应，点它们不算点外面。
+  // portal 到 body 的悬停卡 / 证据浮层不在 .rpanel 子树里，但点它们是「读抽屉里的内容」，
+  // 一并算作内部（PANEL_INSIDE），否则卡片改成能接鼠标后一点就把抽屉收掉。
   // 拖拽（调宽 / 排序 / 选文本）松手会在公共祖先上合成一次 click，靠按下位置与位移豁免，避免拖完就关。
   useEffect(() => {
     if (layout.rightCollapsed) return undefined;
     let press = { inside: false, moved: false, x: 0, y: 0 };
     const onDown = (e) => {
       const t = e.target;
-      press = { inside: !!(t && t.closest && t.closest('.rpanel')), moved: false, x: e.clientX, y: e.clientY };
+      press = { inside: !!(t && t.closest && t.closest(PANEL_INSIDE)), moved: false, x: e.clientX, y: e.clientY };
     };
     const onUp = (e) => {
       press.moved = Math.hypot(e.clientX - press.x, e.clientY - press.y) > 4;
@@ -154,7 +163,7 @@ export default function App() {
       if (skip) return;
       if (modal || paletteOpen || runPaletteOpen || projectPaletteOpen) return;
       const t = e.target;
-      if (t && t.closest && t.closest('.rpanel')) return;
+      if (t && t.closest && t.closest(PANEL_INSIDE)) return;
       closeRight();
     };
     document.addEventListener('pointerdown', onDown, true);

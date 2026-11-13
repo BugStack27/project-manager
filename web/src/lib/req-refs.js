@@ -31,6 +31,15 @@ const REF_TRIGGER_RE = /(^|[\s，。、；：！？,.;:!?（(【[「])$/;
 /** chip 链接协议：`pm-ref:<encodeURIComponent(名字)>:<项目id 或空>` */
 const REF_HREF_RE = /^pm-ref:([^:]*):(.*)$/;
 
+/**
+ * 需求 / 文件引用 token 不算项目名：与服务端 `domain/refs.js` 的 refNames 同口径。
+ * 少了这一步，`@{#34}` / `@{file:a.js}` 会被项目引用的宽匹配先吃掉，
+ * 正文里就只会剩一个 projectId 为空的「没有找到项目」红 chip —— 需求和文件引用同时消失。
+ */
+function isSpecialRef(name) {
+  return /^#\d/.test(name) || /^file:/i.test(name);
+}
+
 /** 正文里引用的名字（去重保序） */
 export function refNames(text) {
   const src = String(text || '');
@@ -40,7 +49,8 @@ export function refNames(text) {
   let m;
   while ((m = REF_RE.exec(src))) {
     const name = String(m[1]).trim();
-    if (name && !out.includes(name)) out.push(name);
+    if (!name || isSpecialRef(name) || out.includes(name)) continue;
+    out.push(name);
   }
   return out;
 }
@@ -49,6 +59,8 @@ export function refNames(text) {
  * 把正文里的引用换成 markdown 链接，供 MarkdownText 渲染成 chip。
  * 代码块原样跳过：那里的 `@{x}` 是给人看的示例，点它会跳走反而碍事。
  * 名字里带方括号时退化成固定 label（`[` `]` 会截断 markdown 链接语法），chip 的名字本来也不读 label。
+ * 需求 / 文件 token 原样留着，让后面的 linkifyReqRefs / linkifyFileRefs 接管 ——
+ * REF_RE 是通用词法，不跳过它们就会先把 `@{#34}` 变成 `pm-ref:` 链接，解析成「没找到项目」。
  */
 export function linkifyRefs(text, refs) {
   const src = String(text || '');
@@ -70,6 +82,7 @@ export function linkifyRefs(text, refs) {
       if (fenced) return line;
       return line.replace(REF_RE, (raw, name) => {
         const clean = String(name).trim();
+        if (isSpecialRef(clean)) return raw;
         const ref = byName.get(clean.toLowerCase());
         const id = ref && ref.projectId ? ref.projectId : '';
         const label = /[[\]]/.test(clean) ? '@ref' : '@' + clean;

@@ -65,9 +65,11 @@ status: accepted
 
 - 鼠标在项目行停留 240ms 后出现，替代原生 `title`：显示主图标 / 首字母、完整技术栈、路径、未完成 / 候选 / 运行计数，以及待审核、待回答、未提交、远程落后、AI 巡检停用等提醒。
 - `fixed` 定位，优先在行右侧弹出，空间不够时翻到左侧；列表滚动、窗口缩放、打开弹层、开始拖拽或点击项目时收起。
-- `pointer-events:none`，纯展示不挡操作；项目行只保留 `aria-label` 摘要，不再触发原生 title。
+- 卡片能接住鼠标（早期设了 `pointer-events:none`：鼠标一从项目行划向卡片，行就 `mouseleave` 把卡收掉，实测很反直觉）。现在行与卡片离开都留 160ms 过路时间，卡片 `enter` 撤掉收起、`leave` 再安排收起；鼠标停在卡上看多久都不收，可以选文字。项目行只保留 `aria-label` 摘要，不再触发原生 title。
 - 需求详情里的「引用项目」（正文 chip 与下方清单）复用同一张卡：由 `components/HoverCardLayer.jsx` 统一持有开关与定位，chip 只把自己解析到的 `projectId` 交进去，项目对象仍按 id 从侧栏那份 5s 轮询的项目视图里现查，两处口径不会分叉。chip 是行内小元素，定位改成优先落在下方、下方不够且上方更宽裕才翻上去；卡片 portal 到 `body`，因为右面板收起态带 `transform` 会让 `fixed` 变成相对面板定位。未提交 / 远程落后两项沿用 `gitSummary`（全项目口径，不只当前项目）。
 - chip 一旦能出卡就不再挂原生 `title`：两套提示同时弹很影响观感。路径与计数本来就在卡上，归档另有行内角标，重名靠卡上的路径认；只有解析不到（`projectId` 为空）这类卡给不出来的原因才保留原生提示。
+- 同一层后来也接管需求引用（信息卡：编号 / 标题 / 状态 / 正文摘要）与文件引用（内容窗：悬停时按需读文件 + 行号 + 语法高亮），见 `doc/requirements-and-agent.md` §2.11。四类卡统一可接鼠标，关闭改 160ms 延时 + 卡片 enter/leave 接管；文件卡内部代码区滚动不收卡，卡宽高按锚点剩余空间算。
+- 卡片能点之后还需把 `App.jsx` 的「点抽屉外收起」判据一并扩到这些 portal 浮层（`PANEL_INSIDE`）：否则点击卡片会被当成点抽屉外，右面板连同卡片一起收掉。证据浮层 `.ev-pop` 同样在判据里；点真正的外部仍照常收起抽屉。
 
 ### 2.5 第二批识别规则（待实现）
 
@@ -93,7 +95,7 @@ Kotlin、Java、Maven、Gradle、npm 已作为项目名后的技术栈图标支�
 | `web/src/assets/icons/{ui,brand,panel}/*.svg` | 图标源文件：单色界面图标 / 品牌与技术栈图标 / 面板开合图标；`icons.jsx` 通过 Vite raw 导入统一渲染，代码里不再平铺 SVG |
 | `web/src/{Sidebar,OverviewPage}.jsx`、`web/src/components/ProjectPalette.jsx` | 项目行、归档分组、总览与切换面板改用 `ProjectIcon` + `ProjectStackIcon`；侧栏行 tooltip 补充技术栈列表 |
 | `web/src/components/ProjectHoverCard.jsx`、`web/src/styles/sidebar.css` | 项目行悬停信息卡：身份 / 技术栈 / 路径 / 计数 / 提醒分层展示；定位、延时与收起逻辑 |
-| `web/src/components/HoverCardLayer.jsx` | 悬停信息卡的唯一实例：延时开 / 立即收、锚点跑位与离开文档时收起、按锚点周围空间定坐标并 portal 到 `body`；需求详情的引用项目 chip 走这里复用同一张卡 |
+| `web/src/components/HoverCardLayer.jsx` + `{RequirementHoverCard,FileHoverCard}.jsx` | 悬停信息卡的唯一实例：延时开 / 收起、锚点跑位与离开文档时收起、按锚点周围空间定坐标并 portal 到 `body`；需求详情的四类引用 chip（项目 / 需求 / 文件 / 技能）都走这里，文件卡额外按需读内容并支持卡内滚动 |
 | `web/src/ides.js`、`web/src/ui.jsx` | 模块级 Promise 记忆化共享扫描；`IdeButton`（主键 + 切换菜单 + 重新扫描） |
 | `web/src/App.jsx` / `web/src/forms.jsx` | `PageBar` 工具槽渲染 `IdeButton`；`openTerminal` 成功静默、失败走警告；归档拆分、恢复与删除；编辑态的恢复指引 |
 | `web/src/Sidebar.jsx` | 终端菜单项；`.parch` 折叠分组、恢复与删除按钮（进行中 id 防重复、`armedId` 两步确认） |

@@ -167,6 +167,20 @@ status: accepted
 | 显示与录入 | `MarkdownText` 增 `pm-req:` / `pm-file:` 两类 chip（需求跳详情、文件用 `shell.openPath` 打开）；`ProjectRefInput` 的 `@` 弹层按「项目 / 需求 / 文件」分组，`#` 只列需求、`file:` 只列文件 | 与项目引用同一套交互；分组让一个 `@` 覆盖三类，不用记多个触发符 |
 | 不做 | 不引用命令、不跨项目引用需求 / 文件、不预读文件内容、需求 / 文件候选清单进程内按项目缓存（新建需求后需重开面板才进候选） | 命令没有稳定锚点；缓存与技能清单同策略，刷新成本不及收益 |
 
+### 2.11 引用 chip 的正确渲染与悬停窗（2026-11-13）
+
+| 决策点 | 结论 | 理由 |
+|---|---|---|
+| 症状 | 正文里的 `@{#序号}` / `@{file:路径}` 显示成红色「没有找到项目」，下方「引用需求 / 引用文件」清单却是对的 | 两份数据源不同：清单直接读服务端解析结果，正文要先过一层 markdown 链接替换 |
+| 根因 | 前端 `linkifyRefs` 的 `REF_RE` 是通用词法且最先执行，却没有像服务端 `refs.js#refNames` 那样跳过 `#数字` / `file:` 前缀，把特殊 token 先换成了 `pm-ref:`（项目 id 空），后两轮 `linkifyReqRefs` / `linkifyFileRefs` 就再也匹配不到 | 一处判据漏同步，两类引用同时失效；不是解析结果错，也不是 chip 组件写错 |
+| 修复 | `web/src/lib/req-refs.js` 加 `isSpecialRef()`，`refNames` 与 `linkifyRefs` 沿用服务端同一判据，特殊 token 原样留给后两轮 | 前后端解析口径必须一处为准；只传 `refs`（如历史消息）时特殊 token 保持原文，也不再变成假项目 chip |
+| 需求引用悬停窗 | 参考项目弹窗（#34），走 `HoverCardLayer` 唯一实例：`.rqhover` 摊开编号 / 标题 / 状态 / 正文摘要（`reqRefs[].body` 已有，不打接口），正文清单与 chip 共用一张卡 | 判断「是不是我要引用的那条」看这四项就够；点 chip 才跳完整需求，卡片不做成第二个入口 |
+| 文件引用悬停窗 | `.fhover` 悬停时才用 `fileSnippet(full)` 读项目内文件，逐行显示行号 + `hlighter.js` 语法高亮，复用 `.ev-code` 的行样式与 hljs 配色；按锚点剩余空间算 `maxHeight`，卡内可滚，滚动不触发收起；每次出卡重读不缓存 | 与备注证据浮层同一套读法与配色，不引入第二套代码视图；「不预读文件内容」只约束 `/next` 载荷，按需预览是界面行为；文件会改，缓存内容会说旧话 |
+| 四类卡共存 | `HoverCardLayer` 从「项目 / 技能」扩到「项目 / 需求 / 文件 / 技能」，同一套开关、定位与 portal；文件卡要接鼠标，关闭改 160ms 延时 + 卡片 enter/leave 接管；出了卡就撤掉 chip 原生 `title`，失效态（不存在 / 密钥 / 目录 / 归档删除）仍用原生提示说明原因 | 一张卡、一套节奏，避免多处各写一套 hover；两套提示同时弹很碍眼 |
+| 悬浮卡接鼠标（验收反馈） | 四类卡（项目 / 技能 / 需求 / 文件）一律去掉 `pointer-events:none`，全部接 `cardEnter` / `cardLeave`；chip 离开与卡片离开共用 160ms 延时收起，卡片 enter 撤掉收起、leave 再安排；鼠标停在卡上不收，锚点因列表重绘消失时也不收；侧栏项目行那张卡同步改成延时收 + 卡片接管 | 反馈「悬浮一会儿就消失了，而且鼠标没办法移动到这些悬浮窗上」：卡不能接鼠标时，鼠标一划过去就触发 chip / 行的 `mouseleave`，卡立刻被收掉，看起来就像自己消失；两套悬停层（侧栏与 HoverCardLayer）必须同口径 |
+| 点击卡片不关右面板（验收反馈） | `App.jsx` 的「点抽屉外收起」判据由 `.rpanel` 扩为 `PANEL_INSIDE`（`.rpanel` + 四类悬停卡 + `.ev-pop`）：`pointerdown` 记按下位置与 `click` 判目标两处都用它 | 卡片 portal 到 body、不在抽屉子树里，能接鼠标后点一下就被当成点外面，把右面板连同正在看的卡一起收掉；两处判据必须同口径，只改一处仍会在另一处漏掉。证据浮层 `.ev-pop` 是同一种 portal 浮层，一并纳入 |
+| 验证 | `npm run check` / `npm run build`；引用链 6 组逻辑断言；vite dev + 无头 Edge CDP 组件冒烟（三类 chip、四类卡出卡 / 静止 2.2s 不自动消失 / 鼠标移进卡不消失 / 划回 chip 不闪 / 移开收起、文件卡 5 行 + 高亮、侧栏项目卡单独冒烟）；完整 App 冒烟核对「点击悬停卡不收右面板 / 点抽屉外仍会收」，临时页跑完删净 | 视觉与交互都要过一遍，逻辑测试看不出定位、配色、鼠标停留与抽屉焦点 |
+
 ## 3. 交付物
 
 | 文件（相对路径） | 职责 |
@@ -176,6 +190,7 @@ status: accepted
 | `electron/services/domain/claim-gate.js` + `auto-claim.js` + `next-waiter.js` | 派发闸门（`doing` / `review` / `dirty` / `path_missing` / `git_timeout`、FIFO 排序、返回自己名下在做的任务）、`claimNextRequirement`（一次）与 `nextRequirement`（长等待）；`next-waiter.js` 的广播信号让新建 / 释放 / 撤销 / 验收 / 提交立即唤醒等待者 |
 | `electron/services/domain/refs.js` + `web/src/lib/req-refs.js` + `web/src/components/{ProjectRefInput,MarkdownText}.jsx` | 三类引用：服务端 `refNames` / `resolveRefs`（项目）、`reqRefSeqs` / `resolveReqRefs`（需求）、`fileRefPaths` / `resolveFileRefs`（文件）→ `reqView.refs` / `reqRefs` / `fileRefs`；前端换 chip（`linkifyRefs` / `linkifyReqRefs` / `linkifyFileRefs`）与分组输入候选（`activeRefQuery` / `classifyRefQuery` / `applyRef` / `applyReqRef` / `applyFileRef` / `refCandidates` / `reqCandidates` / `fileCandidates`） |
 | `electron/services/files.js` + `git.js`（`lsFiles`）+ `domain/system.js`（`projectFiles` / `revealFile`） | 文件候选清单（git ls-files + 遍历回退，过滤密钥、限量）与「用默认程序打开文件」；路径安全复用 `snippet.js` 导出的 `assertRelPath` / `resolveInside` / `DENY_RE` |
+| `web/src/components/{HoverCardLayer,RequirementHoverCard,FileHoverCard}.jsx` + `styles/{sidebar,evidence}.css` | 四类引用 chip 共用的悬停层；需求信息卡（编号 / 标题 / 状态 / 正文摘要）、文件内容窗（`fileSnippet` 按需读 + 行号 + hljs 高亮 + 限高可滚）；见 §2.11 |
 | `electron/services/domain/views.js` + `projects.js` | `reqView.claim` / `completion` / `feedback`（含 `kind`）、`projectView.aiScout` / `reviewCount` / `candidateCount` / `questions` / `reviews`；`createProject` / `updateProject` 读写 `aiScout` |
 | `electron/mcp-http.js` + `dispatch.js` | `GET /claim`、`GET /next`、`POST /complete`、`POST /ask`、`POST /release`（一张路由表，按方法分 query / json）、`GET /prompt/<id>.txt`、端口固定、`initialize.instructions`；409 透出当前认领者 |
 | `electron/prompts.js` + `prompts/{scout,scout-stub,worker}.md` | `createPromptStore` + `REGISTRY`：启动覆盖、清理 `.bak` / `.baseline.json`、读取不缓存；巡检手册与执行手册真源 |

@@ -662,6 +662,7 @@ export default function RequirementDetail({
               reqRefs={reqRefs}
               fileRefs={fileRefs}
               skills={skills}
+              projectId={requirement.projectId}
               onOpenProject={onOpenProject}
               onOpenRequirement={onOpenRequirement}
               onOpenFile={openRefFile}
@@ -708,19 +709,21 @@ export default function RequirementDetail({
           {reqRefs.length ? (
             <div className="rd-refs">
               <span className="rd-refs-lead">引用需求</span>
-              {/* 只引用本项目的需求：点一下跳到那条需求详情；序号对不上（归档/删除/写错）标失效 */}
+              {/* 只引用本项目的需求：点一下跳到那条需求详情；序号对不上（归档/删除/写错）标失效。
+                  与引用项目同一套悬停信息窗（标题 / 状态 / 正文摘要），能出卡就不挂原生 title。 */}
               {reqRefs.map((rq) => (
                 <button
                   key={rq.name}
                   type="button"
                   className={"rd-ref rd-req" + (rq.exists ? "" : " miss")}
                   aria-disabled={!rq.exists}
+                  {...hoverProps.requirement(rq)}
                   onClick={() => {
                     if (rq.exists && onOpenRequirement) onOpenRequirement(rq.requirementId);
                   }}
                   title={
                     rq.exists
-                      ? "#" + rq.seq + " " + (rq.title || "") + " · 状态 " + ((STATUS[rq.status] && STATUS[rq.status].label) || rq.status)
+                      ? undefined
                       : "没有找到本项目需求 #" + rq.seq + "：检查序号是否写错，或该需求已归档/删除"
                   }
                 >
@@ -739,34 +742,41 @@ export default function RequirementDetail({
           {fileRefs.length ? (
             <div className="rd-refs">
               <span className="rd-refs-lead">引用文件</span>
-              {/* 只引用本项目的文件：点一下用系统默认程序打开；不存在/越界/密钥标失效，密钥不打开 */}
-              {fileRefs.map((fr) => (
-                <button
-                  key={fr.name}
-                  type="button"
-                  className={"rd-ref rd-file" + (fr.exists && !fr.restricted ? "" : " miss")}
-                  aria-disabled={!fr.exists || fr.restricted}
-                  onClick={() => {
-                    if (fr.exists && !fr.restricted) openRefFile(fr.path);
-                  }}
-                  title={
-                    fr.restricted
-                      ? "该文件不提供打开（密钥/凭据/依赖目录）：" + fr.path
-                      : fr.exists
-                        ? (fr.directory ? "目录：" : "打开文件：") + (fr.absPath || fr.path)
-                        : "文件不存在（可能已改名或删除）：" + fr.path
-                  }
-                >
-                  <span className="rd-ref-name">{fr.path}</span>
-                  {fr.restricted ? (
-                    <i className="rd-ref-tag">密钥</i>
-                  ) : fr.exists ? (
-                    fr.directory ? <i className="rd-ref-tag">目录</i> : null
-                  ) : (
-                    <i className="rd-ref-tag">不存在</i>
-                  )}
-                </button>
-              ))}
+              {/* 只引用本项目的文件：点一下用系统默认程序打开；悬停就地读内容（行号 + 语法高亮）。
+                  不存在/越界/密钥/目录标失效，这些退回原生 title 说明原因，不出内容窗。 */}
+              {fileRefs.map((fr) => {
+                const fHover = hoverProps.file(fr, requirement.projectId);
+                return (
+                  <button
+                    key={fr.name}
+                    type="button"
+                    className={"rd-ref rd-file" + (fr.exists && !fr.restricted ? "" : " miss")}
+                    aria-disabled={!fr.exists || fr.restricted}
+                    {...fHover}
+                    onClick={() => {
+                      if (fr.exists && !fr.restricted) openRefFile(fr.path);
+                    }}
+                    title={
+                      fHover
+                        ? undefined
+                        : fr.restricted
+                          ? "该文件不提供打开（密钥/凭据/依赖目录）：" + fr.path
+                          : fr.exists
+                            ? (fr.directory ? "目录：" : "打开文件：") + (fr.absPath || fr.path)
+                            : "文件不存在（可能已改名或删除）：" + fr.path
+                    }
+                  >
+                    <span className="rd-ref-name">{fr.path}</span>
+                    {fr.restricted ? (
+                      <i className="rd-ref-tag">密钥</i>
+                    ) : fr.exists ? (
+                      fr.directory ? <i className="rd-ref-tag">目录</i> : null
+                    ) : (
+                      <i className="rd-ref-tag">不存在</i>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           ) : null}
 

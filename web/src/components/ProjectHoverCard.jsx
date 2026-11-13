@@ -2,8 +2,12 @@ import { PROJECT_KIND_LABELS } from '../constants.js';
 import { behindBadge } from '../lib/git-view.js';
 import { ProjectIcon, ProjectStackList } from '../ui.jsx';
 
-/** 项目行悬停卡片：路径、技术栈、需求 / 候选 / 运行数与 git 提醒 */
-export default function ProjectHoverCard({ project, color, dirty, behind, left, top }) {
+/**
+ * 项目行悬停卡片：路径、技术栈、需求 / 候选 / 运行数与 git 提醒。
+ * onEnter / onLeave 由持有开关的一方传入：卡片要能接住鼠标，划进来不能立刻被收掉。
+ * 侧栏项目行与需求详情里的引用项目 chip 共用这一张卡，两边各传自己的开关。
+ */
+export default function ProjectHoverCard({ project, color, dirty, behind, left, top, onEnter, onLeave }) {
   if (!project) return null;
 
   const pending = project.pendingCount || 0;
@@ -21,7 +25,7 @@ export default function ProjectHoverCard({ project, color, dirty, behind, left, 
   const hasStacks = Array.isArray(project.stacks) && project.stacks.length > 0;
 
   return (
-    <div className="phover" style={{ left, top }} role="tooltip">
+    <div className="phover" style={{ left, top }} onMouseEnter={onEnter} onMouseLeave={onLeave} role="tooltip">
       <div className="ph-head">
         <ProjectIcon project={project} color={color} size={30} />
         <div className="ph-title">

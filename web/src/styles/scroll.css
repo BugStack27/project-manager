@@ -1,0 +1,12 @@
+/* 滚动条（L364–368）
+   本文件内容按原 styles.css 顺序搬运；层叠顺序由 index.css 的引入顺序决定。 */
+/* 滚动时才浮现（全局）：thumb 默认透明，容器滚动时由 lib/scroll-reveal.js 挂 .scrolling 显形，
+   停手 ~800ms 后隐去 —— macOS 原生手感。原生 ::-webkit-scrollbar-thumb 不支持 CSS 过渡，
+   故显隐是瞬间切换（非淡变）。保留 11px 透明轨道槽，显隐不引起布局跳动。 */
+  ::-webkit-scrollbar{width:6px;height:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:transparent;border-radius:8px;border:3.5px solid transparent;background-clip:content-box}
+  .scrolling::-webkit-scrollbar-thumb{background:rgba(120,120,128,.34)}
+  .scrolling::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.5);background-clip:content-box;border:3.5px solid transparent}
+  /* 日志区滑块更淡（沿用原观感）；.logs.scrolling 特异性高于通用 hover，故 logs 悬停也保持这一档 */
+  .logs.scrolling::-webkit-scrollbar-thumb{background:rgba(120,120,128,.26);background-clip:content-box;border:3.5px solid transparent}

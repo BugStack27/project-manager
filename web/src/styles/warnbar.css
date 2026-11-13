@@ -1,0 +1,19 @@
+/* 顶部提示条（数据文件损坏 / MCP 服务未启动）：粘在页栏下方，页面滚动时保持可见
+   （z-index 低于 .pagebar，滚上去时从状态栏底下穿过）。
+   粘性挂在容器 .warnstack 上而不是条本身：两条同时出现时要叠在一起，各自 sticky 会重合。 */
+  .warnstack{position:sticky;top:44px;z-index:6}
+  .warnbar{
+    display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px;
+    padding:10px 16px;
+    background:var(--orange-tint);
+    border-bottom:1px solid rgba(255,149,0,.3);
+  }
+  .warnbar .wb-ico{flex:none;display:grid;place-items:center;width:20px;height:20px;color:var(--orange-text);margin-top:1px}
+  .warnbar .wb-main{flex:1;min-width:220px}
+  .warnbar .wb-title{font-size:13px;font-weight:600;color:var(--orange-text)}
+  .warnbar .wb-desc{margin-top:1px;font-size:12px;color:var(--label-2)}
+  .warnbar .wb-actions{flex:none;display:flex;align-items:center;gap:8px;margin-left:auto}
+  .warnbar .wb-actions .btn:not(.primary){background:var(--card-hi)}
+  /* 关闭是「本次运行别再烦我」的次要动作：不做成按钮样式，免得与主按钮并列成两个同等选择 */
+  .warnbar .wb-close{flex:none;display:grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:5px;background:none;color:var(--label-4);cursor:pointer}
+  .warnbar .wb-close:hover{background:rgb(var(--ink-rgb) / .08);color:var(--label)}

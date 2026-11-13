@@ -1,0 +1,184 @@
+/* 右面板：面板壳 / 需求详情 / markdown 正文（L459–508）
+   本文件内容按原 styles.css 顺序搬运；层叠顺序由 index.css 的引入顺序决定。 */
+  /* 右面板 = 覆盖式抽屉：从页栏下沿（44px）起，盖在中区之上，不挤压内容。
+     - top:44px 让开 Windows 的 titleBarOverlay 系统按钮区（右上 138×44），
+       抽屉的关闭按钮因此不会和最小化/最大化/关闭挤在一起；
+     - 页栏恒为全宽，所以它始终要给系统按钮留 150px（见 pagebar.css 的 .has-overlay）；
+     - 关闭时只是移出视口（translateX(100%)），组件常驻挂载，内部状态不重置。 */
+  .rpanel{
+    position:absolute;top:44px;right:0;bottom:0;z-index:30;
+    display:flex;flex-direction:column;
+    width:var(--rp-w,420px);
+    background:var(--bg-float);overflow:hidden;
+    box-shadow:var(--float-edge);
+    transition:transform .24s cubic-bezier(.4,0,.2,1);
+  }
+  .rpanel.closed{transform:translateX(100%)}
+  /* 左缘拖动把手：覆盖 .rz 的 flex 基础样式（shell.css），改为贴在抽屉左缘的绝对定位线 */
+  .rpanel .rz{position:absolute;left:0;top:0;bottom:0;width:1px;background:var(--sep);z-index:6;cursor:col-resize}
+  .rpanel .rz::before{content:"";position:absolute;top:0;bottom:0;left:-4px;right:-4px}
+  .rpanel .rz:hover{background:var(--blue)}
+  .rpanel-body{flex:1;display:flex;flex-direction:column;min-height:0;overflow:auto;padding:8px 10px 14px}
+  /* 详情按内容高度撑开、由面板滚动；改动视图反过来占满面板，滚动条交给内部 diff 区 */
+  .rpanel-body > .rd{flex:none}
+  .rpanel-hint{font-size:12px;color:var(--label-3);padding:8px 4px}
+  /* 关闭按钮：挂在各内容自己第一行的末尾，不使用标题栏 */
+  .rp-x{flex:none;margin-left:4px;color:var(--label-3)}
+  .rp-x:hover{background:rgb(var(--ink-rgb) / .12);color:var(--label)}
+  /* 引导态（还没有选中内容）：提示文字 + 关闭按钮占同一行，抽屉任何时候都有关闭入口 */
+  .rp-hintrow{display:flex;align-items:flex-start;gap:8px}
+  .rp-hintrow .rpanel-hint{flex:1;min-width:0}
+  /* 提交说明那行的次级信息（作者）：与 .gview-src 同排但更弱 */
+  .gview-note{flex:none;font-size:11px;color:var(--label-4);white-space:nowrap}
+
+  /* 右面板 · 需求详情（需求中心）· 扁平直铺，无卡片，区块间用 1px 分隔线 */
+  .rd{display:flex;flex-direction:column;min-width:0}
+  .rd-hd{display:flex;align-items:center;gap:8px;padding:2px 4px 10px;min-width:0;flex-wrap:wrap}
+  .rd-tools{margin-left:auto;display:flex;gap:4px;flex:none}
+  .rd-title{margin:0;padding:2px 4px 0;font-size:15px;font-weight:600;line-height:1.4;word-break:break-word}
+  .rd-meta{display:flex;flex-wrap:wrap;gap:6px;padding:8px 4px 0}
+  /* 候选提示：中性灰底 + 左侧描边，说明「为什么 agent 不动它」，不做警示色（不是错误） */
+  .rd-cand{margin:8px 4px 0;padding:8px 10px;border-radius:8px;background:var(--fill-2);box-shadow:inset 2px 0 0 var(--sep-2);font-size:12px;line-height:1.6;color:var(--label-2)}
+  .rd-sec{margin-top:12px;padding:10px 4px 6px;border-top:1px solid var(--sep);font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--label-3)}
+  .rd-body{padding:0 4px;min-width:0}
+  /* 正文里的跨项目引用 chip：按下不弹起，只占一行文字的基线高度，不把行距顶开 */
+  .ref-chip{display:inline;padding:1px 5px;margin:0 1px;border:0;border-radius:6px;background:var(--blue-tint);color:var(--blue);font:inherit;font-size:12px;font-weight:600;line-height:1.5;cursor:pointer;white-space:nowrap;vertical-align:baseline}
+  .ref-chip:hover{background:rgb(var(--accent-rgb) / .18);text-decoration:none}
+  /* 解析不到项目：红色描边而不是静默消失 —— 名字打错要能一眼看出来 */
+  .ref-chip.miss{background:var(--red-tint);color:var(--red-text);cursor:help;box-shadow:inset 0 0 0 1px rgba(255,59,48,.32)}
+  /* 技能 chip：占的是同一个词法位置，但技能没有可跳转的落地页，所以不做按钮反应（同 .rd-skill） */
+  .ref-chip.skill{background:var(--fill-3);color:var(--label-2);cursor:default}
+  .ref-chip.skill:hover{background:var(--fill-3)}
+  /* 与 .ref-chip 同特异性，失效态必须显式再写一条，否则会被上面的灰底盖掉 */
+  .ref-chip.skill.miss{background:var(--red-tint);color:var(--red-text)}
+  /* 引用清单：正文下方一行，补正文里看不到的「引用了谁、在哪」，也是解析失败的集中提示位 */
+  .rd-refs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 4px 0}
+  .rd-refs-lead{font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--label-3)}
+  .rd-ref{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border:1px solid transparent;border-radius:7px;background:var(--blue-tint);color:var(--blue);font:inherit;font-size:12px;font-weight:500;cursor:pointer;max-width:100%}
+  .rd-ref:hover{background:rgb(var(--accent-rgb) / .18)}
+  .rd-ref.miss{background:var(--red-tint);color:var(--red-text);cursor:not-allowed;box-shadow:inset 0 0 0 1px rgba(255,59,48,.32)}
+  .rd-ref-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rd-ref-tag{font-style:normal;font-size:10px;color:var(--label-3);font-weight:400}
+  .rd-ref.miss .rd-ref-tag{color:var(--red-text)}
+  /* 技能关联是只读信息，不是可点按钮：复用 rd-ref 的尺寸与配色，去掉指针与 hover 反应 */
+  .rd-skill{background:var(--fill-3);color:var(--label-2);cursor:default}
+  .rd-skill:hover{background:var(--fill-3)}
+  /* 需求 / 文件引用：与项目引用同为可点（跳详情 / 打开文件），沿用蓝色不另起色相；文件名用等宽字体便于辨认 */
+  .ref-chip.file-chip{font-family:var(--mono);font-weight:500}
+  .rd-file .rd-ref-name{font-family:var(--mono);font-size:11px}
+  .rd-empty{padding:0 4px;font-size:13px;color:var(--label-3)}
+  .rd-note{padding:0 4px;font-size:13px;color:var(--label-2);line-height:1.62;white-space:pre-wrap;word-break:break-word}
+  .rd-foot{display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px 4px 0;border-top:1px solid var(--sep)}
+  .rd-actions{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none}
+  .rd-actions .btn{flex:none}
+  .rd-actions .btn.claimed{max-width:220px}
+  .rd-actions .btn.claimed span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 解锁后的读状态：不做成胶囊按钮（一行里出现第二个带底色的圆角块会被读成按钮） */
+  .rd-lock-state{flex:none;font-size:12px;color:var(--label-3);white-space:nowrap}
+  .rd-foot .rd-err{margin:0;flex:1;min-width:0}
+  .rd-err{margin:8px 4px 0;font-size:12px;color:var(--red-text)}
+  .rd-edit{padding:10px 4px 0}
+  .rd-edit textarea{min-height:130px;resize:vertical}
+  /* 备注比正文短：默认 3 行即可，靠 resize 手动拉高（特异性高于上面的 .rd-edit textarea） */
+  .rd-edit .rd-note-input{min-height:58px}
+  /* 编辑区里的说明文字：.hintline 原本只在弹窗 .field 下定义，面板里要自己给一份 */
+  .rd-edit .field .hintline{margin-top:5px;font-size:11px;color:var(--label-3)}
+
+  /* 详情 · 待回答提问：agent 卡在等用户，橙色底把「该你了」和只读信息分开。
+     提问与待审核区块钉在滚动区顶部，下面记录再长也能随手回复或验收；
+     底色叠在 --bg-sidebar 上，滚动内容不会从半透明底透出来 */
+  /* 多条提问共用一个钉住的容器：每条各自卡在 top:0 会互相压住，改由容器整体吸顶。
+     容器限高并自己滚动，问得再多也不会把下面的往返记录挤没 */
+  .rd-asks{position:sticky;top:0;z-index:3;margin:12px 4px 0;display:flex;flex-direction:column;gap:8px;max-height:72vh;overflow:auto}
+  .rd-asks .rd-ask{position:static;margin:0}
+  .rd-ask{position:sticky;top:0;z-index:3;margin:12px 4px 0;padding:10px 12px;border-radius:10px;background-color:var(--bg-sidebar);background-image:linear-gradient(var(--orange-tint),var(--orange-tint));border:1px solid rgba(255,149,0,.28)}
+  .rd-ask-hd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;line-height:1.5;color:var(--label-2)}
+  .rd-ask-ico{display:inline-flex;color:var(--orange-text)}
+  .rd-ask-hd b{color:var(--label);font-weight:600}
+  .rd-ask-wait{color:var(--orange-text);font-weight:600}
+  .rd-ask-hd .meta{margin-left:auto}
+  .rd-ask-q{margin:8px 0 0;font-size:13px;line-height:1.62;color:var(--label);white-space:pre-wrap;word-break:break-word}
+  .rd-ask-q.md-body{white-space:normal}
+  .rd-ask-hint{margin:6px 0 0;font-size:12px;line-height:1.5;color:var(--orange-text)}
+  /* 候选：点一下填进下面的回答框，是动作不是状态，所以用带边框的小按钮 */
+  .rd-ask-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .rd-ask-opt{max-width:100%;padding:4px 10px;border-radius:8px;border:1px solid var(--sep-2);background:var(--card-hi);font:inherit;font-size:12px;line-height:1.5;color:var(--label);text-align:left;cursor:pointer}
+  .rd-ask-opt:hover{border-color:var(--orange)}
+  .rd-ask-opt.sel{border-color:var(--orange);background:var(--orange-tint);color:var(--orange-text);font-weight:500}
+  .rd-ask .field{margin-top:8px}
+  .rd-ask .field textarea{min-height:64px;background:var(--card-hi)}
+  .rd-ask-foot{display:flex;justify-content:flex-end;margin-top:8px}
+  /* 待审核区的「通过 / 继续回复」是两个并列动作，按钮之间留一口气 */
+  .rd-review .rd-ask-foot{gap:8px}
+  .rd-ask-tip{display:inline-flex}
+  .rd-ask .rd-err{margin:6px 0 0}
+
+  /* 详情 · 往返记录：按轮次分组；agent 左侧青色气泡、我右侧蓝色气泡，类型各带图标与配色 */
+  .rd-thread{display:flex;flex-direction:column;gap:14px;padding:2px 4px 0}
+  .rd-round{display:flex;flex-direction:column;gap:8px}
+  .rd-round-hd{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:600;color:var(--label-3);letter-spacing:.02em}
+  .rd-round-hd::after{content:'';flex:1;height:1px;background:var(--sep)}
+  .rd-msg{display:flex;min-width:0}
+  .rd-msg.me{justify-content:flex-end}
+  .rd-bubble{max-width:88%;min-width:0;padding:7px 10px 8px;border-radius:10px 10px 10px 3px;background:var(--teal-tint)}
+  .rd-msg.me .rd-bubble{border-radius:10px 10px 3px 10px;background:var(--blue-tint)}
+  .rd-msg-hd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;line-height:1.4;color:var(--label-3)}
+  .rd-msg-ico{display:inline-flex;color:var(--tc,var(--label-2))}
+  .rd-msg-ico svg{width:12px;height:12px}
+  .rd-msg-who{max-width:110px;font-weight:600;color:var(--label-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rd-msg-kind{display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:6px;background:var(--card-hi);color:var(--tc,var(--label-2));font-size:10.5px;font-weight:600;box-shadow:inset 0 0 0 1px var(--sep)}
+  .rd-msg-hd .meta{margin-left:auto;font-variant-numeric:tabular-nums}
+  .rd-msg-text{margin:4px 0 0;font-size:13px;line-height:1.62;color:var(--label);white-space:pre-wrap;word-break:break-word}
+  /* 气泡改由 markdown 渲染后，换行交给 <p> / <pre>，pre-wrap 会把段落内的软换行也当硬换行 */
+  .rd-msg-text.md-body{white-space:normal}
+  /* 类型配色：图标与类型标签共用 --tc，气泡底色只负责区分谁说的 */
+  .tone-delivery{--tc:var(--teal-text)}
+  .tone-approval{--tc:var(--green-text)}
+  .tone-rejection{--tc:var(--orange-text)}
+  .tone-rejected{--tc:var(--red-text)}
+  .tone-question{--tc:var(--orange-text)}
+  .tone-answer{--tc:var(--blue)}
+  .tone-muted{--tc:var(--label-3)}
+  /* 往返记录已承载对话：事件明细收成一行入口，完整记录去审计日志看 */
+  .rd-events{display:flex;align-items:center;gap:8px;margin-top:2px;padding:0 4px;font-size:11.5px;color:var(--label-3)}
+  .rd-events .btn{margin-left:auto}
+
+  /* 详情正文 · markdown 渲染（react-markdown 输出） */
+  .md-body{font-size:13px;line-height:1.66;color:var(--label);word-break:break-word}
+  .md-body > :first-child{margin-top:0}
+  .md-body > :last-child{margin-bottom:0}
+  .md-body p{margin:0 0 10px}
+  .md-body h1,.md-body h2,.md-body h3,.md-body h4{margin:14px 0 8px;font-weight:600;line-height:1.35}
+  .md-body h1{font-size:16px}
+  .md-body h2{font-size:15px}
+  .md-body h3,.md-body h4{font-size:14px}
+  .md-body ul,.md-body ol{margin:0 0 10px;padding-left:20px}
+  .md-body li{margin:2px 0}
+  .md-body li > p{margin:0}
+  .md-body a{color:var(--blue);text-decoration:none}
+  .md-body a:hover{text-decoration:underline}
+  .md-body strong{font-weight:600}
+  .md-body code{font-family:var(--mono);font-size:12px;background:var(--fill-3);border-radius:5px;padding:1px 5px}
+  .md-body pre{margin:0 0 10px;padding:10px 12px;background:var(--bg-sidebar);border-radius:8px;box-shadow:inset 0 0 0 1px var(--sep);overflow:auto}
+  .md-body pre code{background:none;padding:0;font-size:12px;line-height:1.6;white-space:pre}
+  .md-body blockquote{margin:0 0 10px;padding:2px 0 2px 12px;border-left:3px solid var(--sep-2);color:var(--label-2)}
+  .md-body hr{margin:14px 0;border:0;border-top:1px solid var(--sep)}
+  .md-body img{max-width:100%;height:auto;border-radius:8px}
+
+  /* 需求详情时间线：右面板窄列，按天分组 + 左侧点线 */
+  .rd-tl{margin-top:2px}
+  .rd-tl-day{margin-top:2px}
+  .rd-tl-dayhd{padding:4px 4px 2px;font-size:10.5px;font-weight:600;color:var(--label-3);letter-spacing:.02em}
+  .rd-tl-item{position:relative;display:flex;gap:8px;padding:4px 4px 6px}
+  .rd-tl-item:not(:last-child)::before{content:'';position:absolute;left:11px;top:16px;bottom:-2px;width:1px;background:var(--sep)}
+  .rd-tl-dot{width:7px;height:7px;flex:none;margin:5px 0 0 4px;border-radius:50%;background:var(--blue);position:relative;z-index:1}
+  .rd-tl-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .rd-tl-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11.5px;line-height:1.4}
+  .rd-tl-line b{font-weight:600;color:var(--label)}
+  .rd-tl-actor{max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--label-3)}
+  .rd-tl-time{margin-left:auto;color:var(--label-3);font-variant-numeric:tabular-nums}
+  .rd-tl-sum{font-size:11.5px;line-height:1.5;color:var(--label-2);word-break:break-word}
+  .rd-tl-hint{padding:3px 4px 0;font-size:11px;color:var(--label-3)}
+  .rd-tl-loading{display:flex;align-items:center;gap:6px;padding:6px 4px;font-size:11.5px;color:var(--label-3)}
+  .rd-tl-more{margin-top:6px}
+

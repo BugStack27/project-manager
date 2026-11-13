@@ -1,0 +1,478 @@
+'use strict';
+
+/**
+ * MCP 服务（本地 HTTP）：给 AI agent 用的工具通道。
+ *
+ * 设计要点：
+ * - 跑在 GUI 主进程内，请求直接走 dispatch()，与渲染端同一入口——单一写入者天然成立。
+ * - 工具面只留巡检真正需要的 4 个：列项目、看单个项目、看需求、提需求。
+ *   2026-11-06 收窄：删除 pm_set_requirement_status（绕过认领的第二条写路径）、
+ *   pm_list_commands / pm_start_command / pm_stop_command / pm_read_logs（两份手册都禁止
+ *   agent 碰命令，代码里也没有调用方；启停与日志仍在启动台里做）。
+ * - 只绑 127.0.0.1；端口固定 7318。不做顺延：agent 客户端配置里写死了这个 URL，
+ *   顺延只会让已注册的配置静默失联，比直接报错更糟。
+ * - 无状态 Streamable HTTP：POST 收 JSON-RPC 直接回 JSON（无服务端推送，不需要 SSE）；
+ *   通知（无 id）回 202；GET/DELETE 回 405（/prompt/* 与下面几个动作端点除外）。
+ * - 提示词统一按 id 寻址：resources/read 与 GET /prompt/<id>.txt 指向同一份注册表
+ *   （electron/prompts.js），热更新后 agent 端无需任何改动。加新提示词只需在注册表里加一项，
+ *   这里不用改。
+ * - 动作端点分两种方法（2026-11-06 起）：只带 id 与名字的用 GET（/claim、/next），
+ *   带正文的用 POST + JSON（/complete、/ask、/release）—— 正文不再经过 percent-encode，
+ *   中文只按 UTF-8 写进 body，少一道 GBK 手拼 URL 的坑。
+ *   /next 取即认领，没有活时在服务端长等（默认 5 分钟，`wait=秒` 可调），有变更立即返回；
+ *   /release 把做不下去的任务放回未开始；/ask 把「要人拍板的问题」
+ *   （可带候选与超时默认，也可同时挂多条）写进往返记录，并在服务端等最多 1 小时；/complete 交付后
+ *   同样挂起，最多等 2 小时验收——用户通过就结束，继续回复就带回意见让 agent 接着改并再次交付。
+ * - URI 统一加 project-manager 命名空间：pm:// 是最常见的缩写之一，裸 pm://prompt/scout 容易撞名。
+ */
+
+const http = require('http');
+const { PRIMARY_ID } = require('./prompts');
+const { ASK_TIMEOUT } = require('./services/domain/ask-waiter');
+const { REVIEW_TIMEOUT } = require('./services/domain/review-waiter');
+
+/** MCP 握手对外报的应用版本：跟 package.json 同源，避免再出现一处硬编码版本漂移 */
+const VERSION = require('../package.json').version;
+const PORT = 7318;
+const BODY_LIMIT = 1024 * 1024;
+
+/** 资源 URI 前缀：resources/list 按注册表动态生成 */
+const RESOURCE_PREFIX = 'pm://project-manager/prompt/';
+const RESOURCE_RE = /^pm:\/\/project-manager\/prompt\/([A-Za-z0-9._-]+)$/;
+
+/** 给 agent 的握手引导：部分客户端会把它注入系统提示，属于免费增强，不作为唯一通道 */
+const INSTRUCTIONS =
+  '项目管理台（project-manager）。执行项目巡检前，先 GET http://127.0.0.1:7318/prompt/' +
+  PRIMARY_ID +
+  '.txt 获取当前的执行手册并严格按它执行。';
+
+const TOOLS = [
+  {
+    name: 'pm_list_projects',
+    description:
+      '列出项目管理台里的项目（默认不含已归档），包含需求与命令的计数、AI 巡检开关（aiScout=false 表示该项目已停用 AI 提需求）。',
+    inputSchema: {
+      type: 'object',
+      properties: { includeArchived: { type: 'boolean', description: '是否包含已归档项目' } },
+      additionalProperties: false
+    },
+    method: 'projects',
+    params: (a) => ({ includeArchived: !!a.includeArchived })
+  },
+  {
+    name: 'pm_get_project',
+    description: '按项目 id 取单个项目的详情（含 AI 巡检开关 aiScout 与各项需求计数）。',
+    inputSchema: {
+      type: 'object',
+      properties: { projectId: { type: 'string' } },
+      required: ['projectId'],
+      additionalProperties: false
+    },
+    method: 'project',
+    params: (a) => ({ id: a.projectId })
+  },
+  {
+    name: 'pm_list_requirements',
+    description:
+      '列出某个项目的需求，可按状态过滤（candidate/todo/doing/review/done/rejected；review 为 agent 交付待用户审核；candidate 为候选池，只有显式传 candidate 才返回）或只看未完成的。不传状态时不含候选池。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        status: { type: 'string', description: '逗号分隔的状态，如 "todo,doing,review"' },
+        pending: { type: 'boolean', description: '只看未完成（未开始 / 进行中 / 待审核）的需求' }
+      },
+      required: ['projectId'],
+      additionalProperties: false
+    },
+    method: 'allRequirements',
+    params: (a) => ({ projectId: a.projectId, status: a.status, pending: !!a.pending })
+  },
+  {
+    name: 'pm_create_requirement',
+    description:
+      '给项目提一条新需求。AI 提交的需求（source=ai）会进「候选池」，不直接开工，等用户在需求中心采纳后才进入未开始、才会被 agent 认领。一个项目可以同时有多条未完成需求，不限制条数。若项目 aiScout=false（已停用 AI 提需求），巡检应跳过，不要提交。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        title: { type: 'string' },
+        body: { type: 'string', description: '需求正文（可选）' },
+        note: { type: 'string', description: '备注（可选）' },
+        source: { type: 'string', enum: ['manual', 'ai'], description: '来源，AI 巡检建议填 ai' }
+      },
+      required: ['projectId', 'title'],
+      additionalProperties: false
+    },
+    method: 'createRequirement',
+    params: (a) => ({
+      id: a.projectId,
+      data: { title: a.title, body: a.body, note: a.note, source: a.source || 'ai' }
+    })
+  }
+];
+
+const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
+
+function rpcError(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  return e;
+}
+
+async function toolCall(dispatch, params) {
+  const name = params && params.name;
+  const args = (params && params.arguments) || {};
+  const def = TOOL_MAP.get(name);
+  if (!def) {
+    return { content: [{ type: 'text', text: '未知工具：' + name }], isError: true };
+  }
+
+  const res = await dispatch(def.method, def.params(args));
+  if (!res || !res.ok) {
+    const text = (res && res.message) || '调用失败';
+    const code = res && res.code ? ' [' + res.code + ']' : '';
+    return { content: [{ type: 'text', text: text + code }], isError: true };
+  }
+  const data = def.mapResult ? def.mapResult(res.data) : res.data;
+  return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], isError: false };
+}
+
+async function handle(dispatch, msg, prompts) {
+  switch (msg.method) {
+    case 'initialize':
+      return {
+        protocolVersion: (msg.params && msg.params.protocolVersion) || '2025-06-18',
+        capabilities: { tools: {}, resources: {}, prompts: {} },
+        serverInfo: { name: 'project-manager', version: VERSION },
+        instructions: INSTRUCTIONS
+      };
+    case 'ping':
+      return {};
+    case 'tools/list':
+      return {
+        tools: TOOLS.map((t) => ({
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema
+        }))
+      };
+    case 'tools/call':
+      return toolCall(dispatch, msg.params);
+    case 'resources/list':
+      return {
+        resources: (prompts ? prompts.list() : []).map((p) => ({
+          uri: RESOURCE_PREFIX + p.id,
+          name: p.name,
+          description: p.description,
+          mimeType: 'text/markdown'
+        }))
+      };
+    case 'resources/read': {
+      const uri = msg.params && msg.params.uri;
+      const m = RESOURCE_RE.exec(String(uri || ''));
+      const r = m && prompts ? prompts.read(m[1]) : null;
+      if (!r) throw rpcError(-32002, '未知资源：' + uri);
+      return { contents: [{ uri, mimeType: 'text/markdown', text: r.text }] };
+    }
+    case 'prompts/list':
+      return {
+        prompts: (prompts ? prompts.list() : []).map((p) => ({
+          name: p.id,
+          title: p.name,
+          description: p.description,
+          arguments: []
+        }))
+      };
+    case 'prompts/get': {
+      const name = msg.params && msg.params.name;
+      const r = prompts ? prompts.read(name) : null;
+      if (!r) throw rpcError(-32602, '未知提示词：' + name);
+      return {
+        description: r.name,
+        messages: [{ role: 'user', content: { type: 'text', text: r.text } }]
+      };
+    }
+    default:
+      throw rpcError(-32601, '不支持的方法：' + msg.method);
+  }
+}
+
+function json(res, status, obj) {
+  const body = obj === undefined ? '' : JSON.stringify(obj);
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(body);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > BODY_LIMIT) {
+        reject(Object.assign(new Error('请求体过大'), { code: -32600 }));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+/** 浏览器跨站发起的请求会带 Origin；MCP 客户端一般不带。非本机来源一律拒绝。 */
+function originAllowed(origin) {
+  if (!origin) return true;
+  try {
+    const u = new URL(origin);
+    return u.hostname === '127.0.0.1' || u.hostname === 'localhost' || u.hostname === '[::1]';
+  } catch (_) {
+    return false;
+  }
+}
+
+/** 不支持 MCP 工具/resources 的 agent 的兜底通道：GET /prompt/<id>.txt 直接拿纯文本 */
+const PROMPT_ROUTE_RE = /^\/prompt\/([A-Za-z0-9._-]+)\.txt$/;
+
+/**
+ * 单条技能查询：`GET /skill/<source>/<name>`（也接受裸名）。
+ * AGENT_ROUTES 是精确路径表，表达不了带参路径，所以单独一条正则兜住。
+ * 与 `/skills`、`/skills/rescan` 不冲突：那条表在前，且都带不上的才落到这里。
+ */
+const SKILL_ROUTE_RE = /^\/skill\/([^/?#]+(?:\/[^/?#]+)?)$/;
+
+function servePrompt(res, prompts, id) {
+  const r = prompts ? prompts.read(id) : null;
+  if (!r) return json(res, 404, { error: 'unknown prompt: ' + id });
+  res.writeHead(200, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Prompt-Id': r.id
+  });
+  res.end(r.text);
+}
+
+/**
+ * 给执行 agent 的动作端点：失败透出 status/code/message（冲突时附带当前认领者），
+ * 成功回 { ok, ...data }。两种方法分开读参数：
+ * - GET + query：只传 id 与名字的动作（/claim、/next），一条 URL 就能调；
+ * - POST + JSON body：带正文的动作（/complete、/ask、/release），正文不必再 percent-encode。
+ * 两者都先校验方法，再交给 dispatch。
+ */
+async function respond(dispatch, res, { method, params, failMsg }) {
+  const out = await dispatch(method, params);
+  if (!out || !out.ok) {
+    return json(res, (out && out.status) || 500, {
+      ok: false,
+      code: (out && out.code) || 'internal_error',
+      message: (out && out.message) || failMsg,
+      ...(out && out.claim ? { claim: out.claim } : {})
+    });
+  }
+  return json(res, 200, { ok: true, ...out.data });
+}
+
+async function agentGet(dispatch, req, res, route) {
+  if (req.method !== 'GET') {
+    return json(res, 405, { ok: false, code: 'method_not_allowed', message: '这个端点只支持 GET' });
+  }
+  const q = new URL(req.url, 'http://127.0.0.1').searchParams;
+  return respond(dispatch, res, { method: route.method, params: route.params(q), failMsg: route.failMsg });
+}
+
+async function agentPost(dispatch, req, res, route) {
+  if (req.method !== 'POST') {
+    return json(res, 405, { ok: false, code: 'method_not_allowed', message: '这个端点只支持 POST' });
+  }
+  const ctype = String(req.headers['content-type'] || '');
+  if (!ctype.includes('application/json')) {
+    return json(res, 415, { ok: false, code: 'unsupported_media_type', message: '请求体必须是 application/json' });
+  }
+  let body;
+  try {
+    body = JSON.parse((await readBody(req)) || '{}');
+  } catch (_) {
+    return json(res, 400, { ok: false, code: 'bad_json', message: '请求体不是合法 JSON' });
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return json(res, 400, { ok: false, code: 'bad_json', message: '请求体必须是 JSON 对象' });
+  }
+  return respond(dispatch, res, { method: route.method, params: route.params(body), failMsg: route.failMsg });
+}
+
+/**
+ * 给执行 agent 的动作端点：路径 → 领域方法、入参与方法。
+ * mode=query 走 GET（只有 id 与名字），mode=json 走 POST + JSON body（带正文）。
+ */
+const AGENT_ROUTES = {
+  '/claim': {
+    mode: 'query',
+    method: 'claimRequirement',
+    params: (q) => ({ rid: q.get('taskId'), agent: q.get('agent') }),
+    failMsg: '认领失败'
+  },
+  '/complete': {
+    mode: 'json',
+    method: 'completeRequirement',
+    // note 是给用户的会话回复，commitMessage 是独立的 git 提交信息：两者不共用一条通道
+    params: (b) => ({
+      rid: b.taskId,
+      agent: b.agent,
+      note: b.note,
+      commitMessage: b.commitMessage
+    }),
+    failMsg: '提交完成失败'
+  },
+  '/next': {
+    mode: 'query',
+    method: 'nextRequirement',
+    params: (q) => ({ agent: q.get('agent'), wait: q.get('wait') }),
+    failMsg: '取任务失败'
+  },
+  '/ask': {
+    mode: 'json',
+    method: 'askRequirement',
+    // default 是超时兜底（与手册同名，也接受 fallback）；wait 是秒，可缩短单次等待
+    params: (b) => ({
+      rid: b.taskId,
+      agent: b.agent,
+      text: b.text,
+      options: b.options,
+      fallback: b.default !== undefined ? b.default : b.fallback,
+      waitMs:
+        b.wait === undefined || b.wait === null || b.wait === '' ? undefined : Number(b.wait) * 1000
+    }),
+    failMsg: '提问失败'
+  },
+  '/release': {
+    mode: 'json',
+    method: 'releaseRequirement',
+    params: (b) => ({ rid: b.taskId, agent: b.agent, note: b.note }),
+    failMsg: '释放任务失败'
+  },
+  /**
+   * 技能清单：需求正文里的 `{UseSkill:x}` 由服务端解析，正常情况下 agent 从 `/next`
+   * 返回的 `requirement.skills` 就能拿到目录，这两个端点是对账与重扫用的。
+   */
+  '/skills': {
+    mode: 'query',
+    method: 'skills',
+    params: () => ({}),
+    failMsg: '读取技能清单失败'
+  },
+  '/skills/rescan': {
+    mode: 'query',
+    method: 'rescanSkills',
+    params: () => ({}),
+    failMsg: '重新扫描技能失败'
+  },
+  /** 本机装了哪些客户端（候选列表，不建 Agent、不扫技能） */
+  '/clients': {
+    mode: 'query',
+    method: 'clients',
+    params: () => ({}),
+    failMsg: '读取本机客户端失败'
+  }
+};
+
+/**
+ * @param {(method: string, params: object) => Promise<any>} dispatch
+ * @param {(msg: string) => void} log
+ * @param {{read: Function, list: Function, ids: Function, seed: Function, dir: Function}} prompts 提示词存贮
+ */
+function startMcpHttp(dispatch, log, prompts) {
+  const server = http.createServer(async (req, res) => {
+    const url = (req.url || '').split('?')[0];
+    if (!originAllowed(req.headers.origin)) return json(res, 403, { error: 'forbidden origin' });
+    const promptMatch = PROMPT_ROUTE_RE.exec(url);
+    if (promptMatch) {
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        return json(res, 405, { error: 'method not allowed, use GET' });
+      }
+      return servePrompt(res, prompts, promptMatch[1]);
+    }
+
+    // 执行 agent 的动作端点：认领 / 交付 / 自动派发 / 提问 / 释放
+    const route = AGENT_ROUTES[url];
+    if (route) return (route.mode === 'json' ? agentPost : agentGet)(dispatch, req, res, route);
+
+    // 单条技能查询：带上目录与 entry，缺技能时 agent 靠它去读 SKILL.md
+    const skillMatch = SKILL_ROUTE_RE.exec(url);
+    if (skillMatch) {
+      if (req.method !== 'GET') {
+        return json(res, 405, { ok: false, code: 'method_not_allowed', message: '这个端点只支持 GET' });
+      }
+      let id = skillMatch[1];
+      try {
+        id = decodeURIComponent(id);
+      } catch (_) {
+        /* 编码坏了就按原文查，查不到自然会回 found:false */
+      }
+      return respond(dispatch, res, { method: 'skill', params: { id }, failMsg: '查询技能失败' });
+    }
+
+    if (url !== '/mcp') return json(res, 404, { error: 'not found' });
+
+    if (req.method !== 'POST') {
+      // 无状态模式：不接受 SSE 流（GET）与 Session 结束（DELETE）
+      return json(res, 405, { error: 'method not allowed, use POST /mcp' });
+    }
+
+    const ctype = String(req.headers['content-type'] || '');
+    if (!ctype.includes('application/json')) {
+      return json(res, 415, { error: 'unsupported media type, use application/json' });
+    }
+
+    let msg;
+    try {
+      msg = JSON.parse(await readBody(req));
+    } catch (e) {
+      return json(res, 400, { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' } });
+    }
+
+    // 通知（无 id）：无需响应体，202 Accepted
+    if (msg.id === undefined || msg.id === null) return json(res, 202, undefined);
+
+    try {
+      const result = await handle(dispatch, msg, prompts);
+      json(res, 200, { jsonrpc: '2.0', id: msg.id, result });
+    } catch (e) {
+      json(res, 200, {
+        jsonrpc: '2.0',
+        id: msg.id,
+        error: { code: e.code || -32603, message: e.message || 'internal error' }
+      });
+    }
+  });
+
+  // /ask 最多等 1 小时、/complete 最多等 2 小时：Node 默认 requestTimeout 只有 300s，
+  // 必须按最长等待抬上去再留余量，否则一次正常等待会被请求级超时提前掐断。
+  // 只影响「收请求」，不影响并发。
+  server.requestTimeout = Math.max(ASK_TIMEOUT, REVIEW_TIMEOUT) + 10 * 60 * 1000;
+  server.timeout = 0;
+
+  return new Promise((resolve, reject) => {
+    // 失败时把尝试的端口挂到 error 上：界面要原样显示「哪个端口」，不该从文案里抠数字
+    const onError = (e) => {
+      if (e.code === 'EADDRINUSE') {
+        reject(Object.assign(new Error('端口已被其他程序占用'), { port: PORT }));
+        return;
+      }
+      reject(Object.assign(e, { port: PORT }));
+    };
+    server.once('error', onError);
+    server.listen(PORT, '127.0.0.1', () => {
+      server.removeListener('error', onError);
+      log('[main] MCP HTTP 服务：http://127.0.0.1:' + PORT + '/mcp');
+      resolve({
+        port: PORT,
+        url: 'http://127.0.0.1:' + PORT + '/mcp',
+        close: () => new Promise((r) => server.close(r))
+      });
+    });
+  });
+}
+
+module.exports = { startMcpHttp, TOOLS, handle };

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>项目管理台</title>
+    <script>
+      /* 主题经 loadFile 的 query 带进来：此刻渲染进程尚未运行，主进程只能知道系统主题。
+         因此启动窗在「系统暗 + 用户手选浅色」这一组合下会与主窗口短暂不一致，这是已知取舍。 */
+      (function () {
+        var t = new URLSearchParams(location.search).get('theme');
+        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <style>
+      :root {
+        --card-bg: #fff;
+        --fg: #1D1D1F;
+        --ver: #6F6F75;
+        --status: #5F5F64;
+        --mark: #007AFF;
+        --ring: rgba(60,60,67,.07);
+        --shade: rgba(20,30,50,.35);
+        --mark-glow: rgba(0,122,255,.45);
+      }
+      html[data-theme="dark"] {
+        --card-bg: #242426;
+        --fg: #F5F5F7;
+        --ver: #A1A1A6;
+        --status: #C7C7CC;
+        --mark: #0A84FF;
+        --ring: rgba(255,255,255,.10);
+        --shade: rgba(0,0,0,.60);
+        --mark-glow: rgba(10,132,255,.45);
+      }
+      /* 独立启动窗：透明背景只浮一张卡片，避免 Windows 无边框窗口的灰底/圆角不一致 */
+      html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+      body {
+        display: grid; place-items: center;
+        font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+        color: var(--fg); -webkit-font-smoothing: antialiased;
+        -webkit-app-region: drag;
+      }
+      .card {
+        width: 268px; background: var(--card-bg); border-radius: 16px; padding: 26px 22px 24px; text-align: center;
+        box-shadow: 0 14px 30px -10px var(--shade), 0 2px 8px rgba(0,0,0,.06), 0 0 0 1px var(--ring);
+      }
+      .mark {
+        width: 46px; height: 46px; border-radius: 14px; background: var(--mark); display: grid; place-items: center;
+        margin: 0 auto; box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 6px 16px -6px var(--mark-glow);
+      }
+      .name { font-size: 15px; font-weight: 650; letter-spacing: .01em; margin-top: 14px; }
+      .ver { font-size: 10.5px; color: var(--ver); margin-top: 3px; letter-spacing: .03em; font-variant-numeric: tabular-nums; }
+      .ver:empty { display: none; }
+      .status {
+        font-size: 12px; color: var(--status); margin-top: 13px; height: 18px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .dots { display: inline-block; width: 13px; text-align: left; margin-left: 1px; }
+      .dots i { font-style: normal; opacity: 0; animation: dot 1.2s infinite; }
+      .dots i:nth-child(2) { animation-delay: .2s; }
+      .dots i:nth-child(3) { animation-delay: .4s; }
+      @keyframes dot { 0% { opacity: 0 } 15% { opacity: 1 } 70% { opacity: 1 } 85% { opacity: 0 } 100% { opacity: 0 } }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="mark">
+        <svg width="23" height="23" viewBox="0 0 27 27" fill="none">
+          <rect x="4" y="6.5" width="5" height="14" rx="1.6" fill="#fff" opacity=".95"/>
+          <rect x="11" y="4.5" width="5" height="16" rx="1.6" fill="#fff" opacity=".75"/>
+          <rect x="18" y="9.5" width="5" height="11" rx="1.6" fill="#fff" opacity=".55"/>
+        </svg>
+      </div>
+      <div class="name">项目管理台</div>
+      <div class="ver" id="ver"></div>
+      <div class="status">正在加载项目<span class="dots"><i>.</i><i>.</i><i>.</i></span></div>
+    </div>
+    <script>
+      (function () {
+        var v = new URLSearchParams(location.search).get('v');
+        if (v) document.getElementById('ver').textContent = 'v' + v;
+      })();
+    </script>
+  </body>
+</html>

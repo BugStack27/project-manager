@@ -1,0 +1,71 @@
+/* 需求备注里的证据坐标（AI 巡检 note）与悬停预览浮层。
+   chip 在右面板内正常流式排布；浮层 createPortal 到 body——
+   .rpanel-body 的 overflow:auto 会把 position:fixed 的后代一起裁掉。
+   层级压在弹窗(60)/toast(90)之下、pagebar(7)之上。 */
+
+/* 头：`AI 巡检 2026-10-26` */
+.ev-head{color:var(--label-3)}
+
+/* 证据 chip：类别 + 文件名 + 行号。cursor:help 是「悬停能看详情」的唯一暗示，
+   不做成按钮样式——它没有点击动作，做成按钮会被当成第三个操作按钮。 */
+.ev-chip{display:inline-flex;align-items:baseline;gap:4px;min-width:0;max-width:100%;
+  padding:1px 6px;border-radius:5px;background:var(--fill-3);
+  border-bottom:1px dashed var(--sep-2);cursor:help;
+  font-size:12.5px;line-height:1.55;color:var(--label);vertical-align:baseline;
+  transition:background .12s ease,border-color .12s ease}
+.ev-chip:hover,.ev-chip:focus-visible{background:var(--blue-tint);border-bottom-color:var(--blue);outline:none}
+.ev-kind{flex:none;font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--label-3)}
+.ev-file{min-width:0;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev-loc{flex:none;color:var(--label-2);font-variant-numeric:tabular-nums}
+.ev-sep{color:var(--label-4)}
+.ev-plain{color:var(--label-2)}
+
+/* ── 悬停浮层 ────────────────────────────────── */
+/* max-height 这里只是兜底：真实值由 place() 按锚点那侧的剩余空间算好塞进行内 style。
+   不写 64vh —— 视口高度和锚点位置才是决定因素，vh 只会让两边口径不一致。 */
+.ev-pop{position:fixed;z-index:50;display:flex;flex-direction:column;
+  max-height:460px;background:var(--card);border-radius:10px;
+  box-shadow:var(--sh-sheet);overflow:hidden;font-size:12px}
+
+.ev-pop-hd{flex:none;display:flex;align-items:baseline;gap:6px;min-width:0;
+  padding:8px 10px 7px;border-bottom:1px solid var(--sep)}
+.ev-pop-path{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-family:var(--mono);font-size:11.5px;color:var(--label-2)}
+.ev-pop-path b{color:var(--blue);font-weight:600}
+
+/* 代码区：等宽、横向可滚、纵向交给整个浮层的 max-height */
+.ev-code{flex:1;min-height:0;overflow:auto;padding:6px 0;font-family:var(--mono);font-size:11.5px;line-height:1.6}
+.ev-line{display:flex;min-width:max-content;padding-right:12px}
+.ev-ln{flex:none;width:44px;padding-right:9px;text-align:right;color:var(--label-4);
+  user-select:none;font-variant-numeric:tabular-nums}
+.ev-tx{white-space:pre;color:var(--label)}
+/* 命中行：底色 + 加粗行号，不加左侧竖条——逐行都有竖条会变成视觉噪声 */
+.ev-line.hit{background:var(--blue-tint)}
+.ev-line.hit .ev-ln{color:var(--blue);font-weight:600}
+
+.ev-pop-empty{flex:1;display:flex;align-items:center;gap:6px;padding:14px 12px;
+  font-size:12px;color:var(--label-3)}
+.ev-pop-empty.err{color:var(--red-text)}
+
+.ev-pop-ft{flex:none;display:flex;align-items:center;gap:8px;padding:6px 10px;
+  border-top:1px solid var(--sep);font-size:11px;color:var(--label-3)}
+.ev-pop-meta{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev-pop-btn{flex:none}
+
+/* ── 代码高亮（highlight.js 的 token 类）────────────────
+   不引 hljs 自带主题：那些主题各带一套底色和字号，会把浮层的 11.5px 网格顶掉。
+   这里只上色，取 Xcode 浅色的色相，亮暗由 --label-* 兜住的其余部分保持一致。 */
+.ev-code .hljs-comment,.ev-code .hljs-quote{color:var(--hl-comment);font-style:italic}
+.ev-code .hljs-keyword,.ev-code .hljs-selector-tag{color:var(--hl-keyword)}
+.ev-code .hljs-string,.ev-code .hljs-regexp,.ev-code .hljs-addition{color:var(--hl-string)}
+.ev-code .hljs-number,.ev-code .hljs-literal,.ev-code .hljs-built_in,.ev-code .hljs-symbol,
+.ev-code .hljs-bullet,.ev-code .hljs-link{color:var(--hl-number)}
+.ev-code .hljs-title,.ev-code .hljs-section,.ev-code .hljs-name{color:var(--hl-title)}
+.ev-code .hljs-type,.ev-code .hljs-title.class_,.ev-code .hljs-selector-class{color:var(--hl-type)}
+.ev-code .hljs-attr,.ev-code .hljs-attribute,.ev-code .hljs-variable,.ev-code .hljs-template-variable{color:var(--hl-attr)}
+.ev-code .hljs-meta,.ev-code .hljs-selector-id,.ev-code .hljs-tag,.ev-code .hljs-doctag{color:var(--hl-meta)}
+.ev-code .hljs-deletion{color:var(--red-text)}
+.ev-code .hljs-emphasis{font-style:italic}
+.ev-code .hljs-strong{font-weight:600}
+/* 命中行底色变蓝时，注释/字符串的红蓝要够暗才压得住，统一加深一档 */
+.ev-line.hit .hljs-comment,.ev-line.hit .hljs-quote{color:var(--hl-comment-hit)}

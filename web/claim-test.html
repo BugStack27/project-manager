@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>认领界面测试</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      window.__copied = null;
+      try {
+        Object.defineProperty(navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: async (t) => { window.__copied = t; } }
+        });
+      } catch (_) {}
+
+      const now = new Date().toISOString();
+      // 数据里仍是 AgentID，多带一个 agentName 模拟后端视图：界面应显示名称
+      const AGENT_ID = 'a_mw5demo001';
+      const AGENT_NAME = 'Claude Code';
+      const query = new URLSearchParams(location.search);
+      // 提交信息是 agent 单独给的一条标准 git 文案，与上面的会话回复 note 不同源；
+      // ?commit=none 可切到「老交付没有独立提交信息」的回落形态
+      const commitMessage = query.get('commit') === 'none'
+        ? ''
+        : (query.get('commitMessage') || 'feat: 调整导出失败提示位置\n\n- 提示移到按钮下方并加断行\n- 改动 ExportBar.tsx\n- 验证 npm run build');
+      const status = query.get('status') || 'doing';
+      const unfinished = ['todo', 'doing', 'review'].includes(status);
+      // 技能解析结果：与服务端 reqView.skills 同形，用来核对正文 / 气泡里的 chip
+      const SKILL = {
+        name: 'pdf',
+        skillId: 'workbuddy/pdf',
+        source: 'workbuddy',
+        dir: 'C:\\skills\\pdf',
+        entry: 'C:\\skills\\pdf\\SKILL.md',
+        description: 'PDF 处理',
+        exists: true,
+        ambiguous: false,
+        candidates: ['workbuddy/pdf'],
+        reason: null
+      };
+      const req = {
+        id: 'r_test1',
+        projectId: 'p_test',
+        seq: 7,
+        title: '测试认领需求',
+        body: '这是需求正文，使用 {UseSkill:pdf}',
+        skills: [SKILL],
+        note: '这是需求备注',
+        source: 'ai',
+        status,
+        claim: query.get('claim') === 'none' ? null : { agent: AGENT_ID, agentName: AGENT_NAME, at: now },
+        completion:
+          status === 'review' || status === 'done'
+            ? { agent: AGENT_ID, agentName: AGENT_NAME, at: now, note: query.get('note') || '已完成导出按钮，构建通过', commitMessage }
+            : null,
+        feedback:
+          status === 'doing' || status === 'review'
+            ? { at: now, note: '打回原因示例：导出按钮缺少错误提示', kind: 'rejection' }
+            : null,
+        createdAt: now,
+        updatedAt: now
+      };
+      // 往返记录演示：覆盖提问 / 回答 / 两轮交付与打回，用来核对轮次分组与气泡样式；
+      // 加 ?thread=none 可回到无往返记录的老需求，核对时间线兜底
+      const at = (minutesAgo) => new Date(Date.now() - minutesAgo * 60000).toISOString();
+      req.thread = query.get('thread') === 'none' ? undefined : [
+        { id: 't1', at: at(60), role: 'agent', kind: 'question', agent: AGENT_ID, agentName: AGENT_NAME, text: '导出按钮失败时是弹 toast 还是行内提示？' },
+        { id: 't2', at: at(58), role: 'user', kind: 'answer', agent: null, text: '用行内提示，别弹窗。' },
+        { id: 't3', at: at(40), role: 'agent', kind: 'delivery', agent: AGENT_ID, agentName: AGENT_NAME, text: '已完成导出按钮\n\n- 新增导出按钮与失败提示\n- 改动 ExportBar.tsx\n- 验证 npm run build' },
+        { id: 't4', at: at(35), role: 'user', kind: 'rejection', agent: null, text: '错误提示太靠下，用户看不到，改成按钮下方紧贴，并用 {UseSkill:pdf} 重做。', skills: [SKILL] },
+        { id: 't5', at: at(20), role: 'agent', kind: 'delivery', agent: AGENT_ID, agentName: AGENT_NAME, text: '错误提示移到按钮下方\n\n- 调整提示位置并加断行\n- 改用 {UseSkill:pdf} 生成的对齐方案\n- 验证 npm run build', skills: [SKILL] }
+      ];
+      // 与后端口径对齐：feedback 是最近一次打回的快照、与 thread 里的打回同刻，去重后只显示一条；
+      // 待审核 / 已完成时 completion 指向最后一次交付，避免验收区与往返记录重复
+      if (req.thread) {
+        req.feedback = { at: req.thread[3].at, note: req.thread[3].text, kind: 'rejection' };
+        if (status === 'review' || status === 'done') {
+          req.completion = { agent: AGENT_ID, agentName: AGENT_NAME, at: req.thread[4].at, note: query.get('note') || req.thread[4].text, commitMessage };
+        }
+      }
+      // ?ask=1：模拟进行中的待回答提问，核对回复框吸顶与记录的滚动
+      if (status === 'doing' && query.get('ask') === '1') {
+        req.question = {
+          at: at(3),
+          agent: AGENT_ID,
+          agentName: AGENT_NAME,
+          text: '导出按钮失败时是弹 toast 还是行内提示？',
+          expiresAt: new Date(Date.now() + 5 * 60000).toISOString(),
+          options: ['用行内提示', '弹 toast'],
+          default: '用行内提示'
+        };
+      }
+      const project = {
+        id: 'p_test',
+        name: 'Demo',
+        path: 'D:\\demo',
+        archived: false,
+        aiScout: true,
+        createdAt: now,
+        updatedAt: now,
+        requirementCount: 1,
+        pendingCount: unfinished ? 1 : 0,
+        todoCount: status === 'todo' ? 1 : 0,
+        doingCount: status === 'doing' ? 1 : 0,
+        reviewCount: status === 'review' ? 1 : 0,
+        doneCount: status === 'done' ? 1 : 0,
+        rejectedCount: status === 'rejected' ? 1 : 0,
+        commandCount: 0,
+        runningCount: 0,
+        commands: []
+      };
+      const data = {
+        projects: { projects: [project] },
+        project: { project },
+        requirements: { requirements: [req] },
+        pendingRequirements: { requirements: [req] },
+        commands: { commands: [] },
+        ides: { ides: [], lastIdeId: null, diagnostics: [] },
+        mcpInfo: { port: 7318, url: 'http://127.0.0.1:7318/mcp' },
+        scoutPrompt: { stub: '' },
+        gitSummary: { total: 1, repoCount: 0, dirtyCount: 0, projects: [] },
+        gitCommits: { isRepo: false, branch: null, commits: [], hasMore: false },
+        gitChanges: { isRepo: false, branch: null, clean: true, counts: { total: 0 }, files: [] },
+        gitRemote: { isRepo: false, hasUpstream: false, commits: [] },
+        // 审计日志演示：详情里的「事件记录 · 查看全部」会读这份数据
+        events: {
+          events: [
+            { id: 'e2', at: at(20), type: 'requirement.completed', projectId: 'p_test', requirementId: 'r_test1', actor: { kind: 'agent', name: AGENT_NAME }, data: { agent: AGENT_ID, agentName: AGENT_NAME, note: '错误提示移到按钮下方' } },
+            { id: 'e1', at: at(60), type: 'requirement.created', projectId: 'p_test', requirementId: 'r_test1', actor: { kind: 'user', name: '我' }, data: {} }
+          ],
+          hasMore: false,
+          nextBefore: null
+        }
+      };
+      window.pm = {
+        invoke: async (method, params) => {
+          if (method === 'setRequirementStatus') {
+            req.status = params.status;
+            // 与后端一致：打回（doing）/ 撤销（todo）都会清掉本次交付记录，撤销还会释放认领
+            if (params.status === 'doing' || params.status === 'todo') req.completion = null;
+            if (params.status === 'todo') req.claim = null;
+            // 原因存独立字段：打回（→ doing）与撤销已完成（→ todo）都写，kind 区分两者
+            if (params.feedback !== undefined) {
+              const at = new Date().toISOString();
+              const kind = params.status === 'todo' ? 'reopen' : 'rejection';
+              const thread = req.thread || [];
+              req.feedback = { at, note: params.feedback, kind };
+              req.thread = thread.concat([
+                { id: 'm' + thread.length, at, role: 'user', kind, agent: null, text: params.feedback }
+              ]);
+            }
+            return { ok: true, data: { requirement: req } };
+          }
+          if (method === 'updateRequirement') return { ok: true, data: { requirement: req } };
+          return { ok: true, data: data[method] || {} };
+        }
+      };
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

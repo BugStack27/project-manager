@@ -1,0 +1,203 @@
+/* 左栏：品牌 / 导航 / 项目列表 / 收起窄栏（L54–122, 379–396, 437–448）
+   本文件内容按原 styles.css 顺序搬运；层叠顺序由 index.css 的引入顺序决定。 */
+  /* ── sidebar · iOS/macOS grouped rail ─────────── */
+  .side{width:244px;flex:none;display:flex;flex-direction:column;background:var(--bg-sidebar);padding:14px 10px 10px;overflow:hidden;transition:width .24s cubic-bezier(.4,0,.2,1)}
+  /* 开合动画期间内容淡出，避免宽度变化引发的重排观感 */
+  .side > *{transition:opacity .12s ease}
+  .side.animating > *{opacity:0}
+  /* 展开方向：动画期间内容保持隐藏（无过渡），宽度到位后再淡入，避免文字在窄栏里闪现 */
+  .side.animating:not(.collapsed) > *{transition:none}
+  .brand{display:flex;gap:10px;align-items:center;padding:4px 8px 16px}
+  .logo{width:28px;height:28px;border-radius:8px;background:var(--blue);color:#fff;display:grid;place-items:center;flex:none;box-shadow:0 1px 3px rgb(var(--accent-rgb) / .35)}
+  .brand-name{font-weight:600;font-size:14px}
+  .brand-ver{font-size:11px;color:var(--label-3);margin-top:1px;user-select:none;letter-spacing:.02em}
+  .brand .toggle{margin-left:auto;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--label-3);cursor:pointer;display:grid;place-items:center;flex:none;transition:background .12s,color .12s}
+  .brand .toggle:hover{background:rgb(var(--ink-rgb) / .10);color:var(--label)}
+  .nav{display:flex;flex-direction:column;gap:1px}
+  /* 图标槽固定 20px：导航图标与项目头像同一左缘(18)、同一文字左缘(47) */
+  .nav-item{display:flex;align-items:center;gap:9px;height:32px;padding:0 8px;border-radius:8px;color:var(--ink-body);cursor:pointer;font-size:13px;transition:background .12s,color .12s}
+  .nav-item:hover{background:rgb(var(--ink-rgb) / .06)}
+  .nav-item.active{background:rgb(var(--accent-rgb) / .12);color:var(--blue);font-weight:600}
+  .nav-item .ico{width:20px;height:20px;flex:none;display:grid;place-items:center;color:var(--ink-icon);transition:color .12s}
+  .nav-item:hover .ico{color:var(--label)}
+  .nav-item.active .ico{color:var(--blue)}
+  .nav-item .cnt{margin-left:auto;font-size:11px;color:var(--label-2);font-variant-numeric:tabular-nums;min-width:18px;height:18px;border-radius:999px;background:rgba(120,120,128,.14);display:grid;place-items:center;padding:0 5px}
+  .nav-item.active .cnt{background:var(--on-accent-soft);color:var(--blue);font-weight:600}
+
+  .side-sec{display:flex;justify-content:space-between;align-items:center;padding:20px 8px 6px;font-size:11px;color:var(--label-3);font-weight:600;letter-spacing:.02em}
+  .side-sec .hint{font-weight:400;color:var(--label-4)}
+  .side-sec .addbtn{width:20px;height:20px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--label-3);display:grid;place-items:center;cursor:pointer;transition:background .12s,color .12s}
+  .side-sec .addbtn:hover{background:rgb(var(--ink-rgb) / .10);color:var(--blue)}
+  .side-sec .addbtn:active{background:rgb(var(--ink-rgb) / .16)}
+  .plist{flex:1;overflow:auto;display:flex;flex-direction:column;gap:1px;margin:0 -2px;padding:0 2px 6px}
+  .pitem{display:flex;align-items:center;gap:9px;min-height:32px;padding:4px 8px;border-radius:8px;cursor:pointer;color:var(--ink-body);font-size:13px;transition:background .12s}
+  .pitem:hover{background:rgb(var(--ink-rgb) / .06)}
+  .pitem.active{background:rgb(var(--ink-rgb) / .09);color:var(--label);font-weight:600}
+  .pav{width:20px;height:20px;border-radius:6px;flex:none;display:grid;place-items:center;color:#fff;font-size:10px;}
+  /* 仓库里的真实图标（launcher / 插件图标 / exe 图标）：裁成与头像一致的圆角方块 */
+  .pav-img{background:rgb(var(--ink-rgb) / .06);overflow:hidden}
+  .pav-img img{width:100%;height:100%;object-fit:contain;display:block}
+  /* 项目名称后的技术栈图标：默认略淡，悬停变清晰 */
+  .pstack{display:inline-grid;place-items:center;flex:none;line-height:0;opacity:.82;transition:opacity .12s}
+  .pstack svg{display:block}
+  .pstack:hover,.pitem:hover .pstack,.ov-row:hover .pstack,.cmdk-row:hover .pstack{opacity:1}
+
+  /* 项目行悬停卡片：替代原生 title，信息按「身份 / 技术栈 / 路径 / 计数 / 提醒」分层 */
+  .phover{position:fixed;z-index:75;width:286px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--card);border:1px solid var(--sep);border-radius:12px;box-shadow:var(--sh-sheet);padding:12px;pointer-events:none;color:var(--label-2);animation:phover-in .12s ease-out}
+  .ph-head{display:flex;align-items:flex-start;gap:10px}
+  .ph-title{flex:1;min-width:0}
+  .ph-name{font-size:13px;font-weight:500;line-height:1.35;color:var(--ink-body);word-break:break-word}
+  .ph-kind{display:block;margin-top:4px;font-size:11px;color:var(--label-3)}
+  .ph-path{margin-top:9px;padding-top:9px;border-top:1px solid var(--sep);font-family:var(--mono);font-size:11px;line-height:1.45;color:var(--label-3);word-break:break-all}
+  .ph-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+  .ph-stat{padding:6px 4px;border-radius:7px;background:rgb(var(--ink-rgb) / .05);text-align:center}
+  .ph-stat-num{display:block;font-size:14px;font-weight:500;line-height:1.2;color:var(--label-2);font-variant-numeric:tabular-nums}
+  .ph-stat-label{display:block;margin-top:1px;font-size:11px;color:var(--label-3)}
+  .ph-flags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+  .ph-flag{font-size:11px;line-height:18px;padding:0 6px;border-radius:5px;background:rgba(120,120,128,.10);color:var(--label-2)}
+  .ph-flag.hot{background:var(--blue-tint);color:var(--blue)}
+  .ph-flag.warn{background:var(--orange-tint);color:var(--orange-text)}
+  .ph-flag.alert{background:var(--red-tint);color:var(--red-text)}
+  .ph-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:8px;border-top:1px solid var(--sep);font-size:11px;color:var(--label-3)}
+  .ph-chev{display:grid;place-items:center;color:var(--label-3)}
+  .pstack-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+  .pstack-item{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border-radius:5px;background:rgb(var(--ink-rgb) / .05);font-size:11px;color:var(--label-2);white-space:nowrap}
+  .pstack-item svg{display:block;width:11px;height:11px}
+  @keyframes phover-in{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.phover{animation:none}}
+  /* 纯黑矢量图标在深色界面里看不见：按需反色；纯白图标在浅色界面同理 */
+  [data-theme="dark"] .pav-mono-dark img{filter:invert(1)}
+  [data-theme="light"] .pav-mono-light img{filter:invert(1)}
+  .pitem .pname{flex:1;min-width:0;display:flex;align-items:center;gap:5px}
+  .pitem .pname .pname-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 项目行 · 状态灯：形态照抄总览「运行中」(.ov-live) —— 实心 6px 点 + 向外扩散消失的环，
+     用的是 launch.css 里那个 @keyframes pulse（与 .ov-live / 启动台 .run .live 同一套，别再另写一份）。
+     颜色即类别（橙＝有未提交 / 蓝＝需求 / 绿＝服务在跑）；蓝灯再按需求状态换形态（见 controls.css）。
+     多盏时错开相位，避免整体一起闪。 */
+  /* 项目行 · 状态灯（灯的样式在 controls.css，这里只管排布）：
+     gap 12px 让中心距 18px 接近环的最大直径 19.2px，三盏并排不会交叠成一条横带。 */
+  .pitem .plights{flex:none;display:flex;align-items:center;gap:12px}
+  /* 灯是入口：按钮与点同宽（6px）不吃布局，用 ::before 把命中区扩到 16px */
+  .pitem .plight-btn{position:relative;flex:none;display:block;width:6px;height:6px;padding:0;border:0;background:transparent;cursor:pointer;overflow:visible}
+  .pitem .plight-btn::before{content:"";position:absolute;inset:-5px;border-radius:50%}
+  .pitem .plight-btn:hover .plight{transform:scale(1.3)}
+  /* 错相必须挂在按钮上：每盏灯现在都是自己按钮里的第一个子元素，直接数 .plight 的 nth-child 永远是 1 */
+  .pitem .plight-btn:nth-child(2) .plight::after{animation-delay:.32s}
+  .pitem .plight-btn:nth-child(3) .plight::after{animation-delay:.64s}
+  .pitem .pai{font-size:11px;line-height:16px;color:var(--label-3);background:rgba(120,120,128,.10);border-radius:5px;padding:0 4px;flex:none;letter-spacing:.02em}
+  /* 候选池角标：只有数字，用描边而不是实底 —— 它是计数，不是警告，
+     也和需求中心里候选徽标的「中性灰 + 细描边」保持同一套视觉语言。
+     定宽 + 居中让 1 位与 2 位数的角标宽度变化不至于抖动项目名 */
+  .pitem .pcand{font-size:11px;line-height:16px;min-width:18px;padding:0 3px;text-align:center;color:var(--label-3);background:transparent;box-shadow:inset 0 0 0 1px var(--sep-2);border-radius:5px;flex:none;letter-spacing:.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  .side-sec .acts{display:flex;gap:4px;align-items:center}
+  /* 侧栏 · 底部「设置与数据」：单一入口 + 向上分组浮层（不挤压项目列表） */
+  .side-data{flex:none;margin-top:6px;padding-top:4px;border-top:1px solid var(--sep)}
+  .side-data-toggle{display:flex;align-items:center;gap:9px;width:100%;height:30px;padding:0 9px;border:0;border-radius:7px;background:transparent;color:var(--ink-body);font:inherit;font-size:12px;text-align:left;cursor:pointer;transition:background .12s,color .12s}
+  .side-data-toggle:hover,.side-data-toggle.on{background:rgb(var(--ink-rgb) / .06)}
+  .side-data-toggle .ico{width:18px;height:18px;flex:none;display:grid;place-items:center;color:var(--label-3);transition:color .12s}
+  .side-data-toggle:hover .ico,.side-data-toggle.on .ico{color:var(--label)}
+  .side-data-toggle .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .side-data-toggle .chev{flex:none;display:grid;place-items:center;color:var(--label-3);transition:transform .16s}
+  .side-data-toggle.on .chev{transform:rotate(180deg)}
+  /* 有新版本的提示点：入口与「检查更新」行共用 */
+  .side-data-dot{width:6px;height:6px;flex:none;border-radius:50%;background:var(--blue)}
+  .side-data-toggle .side-data-dot{margin-left:auto}
+  /* 有代码没拉的提示点：橙与左栏「修改记录」灯同色，两处指的是同一件事。
+     两个点同时出现时只有第一个吃 margin-left:auto，否则 flex 会把剩余空间平分，
+     两点之间被拉开一大段，看起来像两个不相干的东西。 */
+  .side-data-dot.is-git{background:var(--orange)}
+  .side-data-toggle .side-data-dot + .side-data-dot{margin-left:-3px}
+  /* 浮层用 fixed：不占列表高度，也不会被 .side 的 overflow:hidden 裁掉 */
+  .datapop{position:fixed;z-index:80;width:232px;max-height:calc(100vh - 80px);overflow:auto;background:var(--card);border-radius:12px;box-shadow:var(--sh-sheet);padding:6px}
+  .datapop-group + .datapop-group{margin-top:4px;padding-top:2px;border-top:1px solid var(--sep)}
+  .datapop-hd{padding:7px 10px 3px;font-size:11px;font-weight:600;letter-spacing:.03em;color:var(--label-4)}
+  .datapop-item{display:flex;align-items:center;gap:9px;width:100%;height:30px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:var(--label);font:inherit;font-size:12.5px;text-align:left;cursor:pointer;transition:background .12s}
+  .datapop-item:hover{background:rgb(var(--ink-rgb) / .08)}
+  .datapop-item .ico{width:17px;height:17px;flex:none;display:grid;place-items:center;color:var(--label-2)}
+  .datapop-item:hover .ico{color:var(--label)}
+  .datapop-item .tail{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--label-4);font-variant-numeric:tabular-nums}
+  /* 外观二级菜单：与 .datapop 同族，向右弹出。用 fixed 是因为 .datapop 是 overflow:auto，
+     在它内部用绝对定位会被裁剪；z-index 高于 .datapop（80）压住主浮层。 */
+  .theme-sub{position:fixed;z-index:81;width:168px;background:var(--card);border-radius:10px;box-shadow:var(--sh-sheet);padding:4px}
+  /* 选中项：不做底色胶囊，靠右侧勾选图标 + 字重（颜色只作辅助） */
+  .datapop-item.theme-opt[aria-checked="true"]{font-weight:600}
+  .datapop-item.theme-opt .tail{color:var(--blue)}
+  /* 皮肤选项的双色色板：左上该皮肤底色、右下强调色，一眼看出配色取向 */
+  .skin-sw{width:14px;height:14px;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18);background:linear-gradient(135deg,var(--sw-bg) 0 50%,var(--sw-ac) 50% 100%)}
+  .skin-sw-crisp{--sw-bg:#EDF0F4;--sw-ac:#0A6CFF}
+  .skin-sw-warm{--sw-bg:#F4F1EA;--sw-ac:#B5560E}
+  .skin-sw-vivid{--sw-bg:#FFFFFF;--sw-ac:#2B5CFF}
+  /* 皮肤子菜单脚注：说明只作用于浅色，不参与键盘项导航 */
+  .theme-sub-hint{padding:5px 10px 3px;margin-top:2px;border-top:1px solid var(--sep);font-size:11px;color:var(--label-4)}
+
+  /* 项目行：「更多操作」按钮从 0 宽展开、占住行尾，把状态灯挤向左（灯不消失）。
+     margin-left 负 9px 抵消它前方那个 gap，收起时行尾才贴齐；展开时归零，位移由宽度过渡带动。 */
+  .pitem{position:relative}
+  .pitem .pmenu{width:0;min-width:0;height:20px;margin-left:-9px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--label-3);cursor:pointer;display:grid;place-items:center;flex:none;opacity:0;overflow:hidden;transition:width .18s cubic-bezier(.4,0,.2,1),margin-left .18s cubic-bezier(.4,0,.2,1),opacity .12s,background .12s,color .12s}
+  .pitem:hover .pmenu{width:20px;margin-left:0;opacity:1}
+  .pitem .pmenu:focus-visible{width:20px;margin-left:0;opacity:1}
+  .pitem .pmenu:hover{background:rgb(var(--ink-rgb) / .12);color:var(--label)}
+
+  /* 项目拖拽排序：只有图标是拖动把手，避免悬停整行都变成抓手；拖起时行淡出，落点用贴行内边缘的蓝线标出 */
+  .pdrag{display:flex;flex:none;border-radius:6px}
+  .pdrag[draggable="true"]{cursor:grab}
+  .pdrag[draggable="true"]:active{cursor:grabbing}
+  .pitem.dragging{opacity:.45}
+  .pitem.drop-before::after,.pitem.drop-after::after{content:"";position:absolute;left:8px;right:8px;height:2px;border-radius:1px;background:var(--blue);pointer-events:none;z-index:1}
+  .pitem.drop-before::after{top:0}
+  .pitem.drop-after::after{bottom:0}
+
+  /* 项目行 · 更多操作（悬浮菜单） */
+  .pmenu-pop{position:fixed;z-index:80;background:var(--card);border-radius:8px;box-shadow:var(--sh-sheet);padding:4px;display:flex;flex-direction:column;gap:1px;font-weight:400}
+  .pmenu-item{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 8px;border:0;border-radius:6px;background:transparent;font:inherit;font-size:13px;color:var(--label);text-align:left;cursor:pointer;white-space:nowrap}
+  .pmenu-item:hover{background:rgb(var(--ink-rgb) / .08)}
+  .pmenu-item .ico{display:grid;place-items:center;flex:none;width:18px;height:18px;color:var(--label-2)}
+  .pmenu-item .ico svg{width:16px;height:16px}
+  .pmenu-item:hover .ico{color:var(--label)}
+  .pmenu-item.pmenu-term .ico{color:var(--label)}
+  .pmenu-item.pmenu-folder .ico{color:var(--folder)}
+  .pmenu-item.pmenu-folder:hover .ico{color:var(--folder-hover)}
+
+  /* 侧栏 · 已归档分组：找回入口，不参与搜索 */
+  .parch{margin-top:10px;padding-top:6px;border-top:1px solid var(--sep)}
+  .parch-toggle{display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 8px;border:0;border-radius:7px;background:transparent;color:var(--label-3);font:inherit;font-size:11px;font-weight:600;letter-spacing:.02em;text-align:left;cursor:pointer;transition:background .12s,color .12s}
+  .parch-toggle:hover{background:rgb(var(--ink-rgb) / .06);color:var(--label)}
+  .parch-toggle .chev{width:14px;height:14px;flex:none;display:grid;place-items:center;transform:rotate(-90deg);transition:transform .16s}
+  .parch-toggle[aria-expanded="true"] .chev{transform:none}
+  .parch-toggle .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .parch-toggle .cnt{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:rgba(120,120,128,.10);font-variant-numeric:tabular-nums;display:grid;place-items:center}
+  .parch-list{display:flex;flex-direction:column;gap:1px;margin-top:1px}
+  .parch-item{cursor:default;color:var(--label-2)}
+  .parch-restore{flex:none;height:22px;padding:0 7px;border:0;border-radius:6px;background:transparent;color:var(--label-2);font:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:background .12s,color .12s}
+  .parch-restore:hover{background:var(--blue-tint);color:var(--blue)}
+  .parch-restore:disabled{background:transparent;color:var(--label-3);cursor:default}
+  /* 已归档行 · 彻底删除登记：图标按钮，类名单独带 parch- 前缀，避免撞上通用的 .btn */
+  .parch-tip{flex:none;display:flex;align-items:center}
+  .parch-del{width:22px;height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--label-3);display:grid;place-items:center;cursor:pointer;transition:width .12s,background .12s,color .12s}
+  .parch-del svg{width:14px;height:14px}
+  .parch-del:hover{background:var(--red-tint);color:var(--red-text)}
+  /* 两步确认的确认态：图标没有文字可换，只能靠「变红实心 + 加宽」给出信号 */
+  .parch-del.armed{width:28px;background:var(--red);color:#fff}
+  .parch-del.armed:hover{background:var(--red-press);color:#fff}
+  .parch-del:disabled{background:transparent;color:var(--label-3);cursor:default}
+  .parch-wait{font-size:11px;font-weight:600;line-height:1}
+
+  .side.collapsed{border-right:1px solid var(--sep);padding:14px 6px 10px}
+  .side.collapsed .brand{flex-direction:column;justify-content:center;gap:8px;padding:4px 0 14px}
+  .side.collapsed .brand-txt{display:none}
+  .side.collapsed .brand .toggle{margin:0}
+  .side.collapsed .nav-item{justify-content:center;padding:0;gap:0}
+  .side.collapsed .nav-item .label,.side.collapsed .nav-item .cnt{display:none}
+  .side.collapsed .side-sec{justify-content:center;padding:20px 0 6px}
+  .side.collapsed .side-sec .lbl{display:none}
+  .side.collapsed .pitem{justify-content:center;padding:4px 0}
+  .side.collapsed .pitem .pname,.side.collapsed .pitem .plights,.side.collapsed .pitem .pai,.side.collapsed .pitem .pcand,.side.collapsed .pitem .pmenu{display:none}
+  .side.collapsed .parch{display:none}
+  /* 收起成窄栏时底部保留齿轮入口：只显示图标，更新点叠在右上角 */
+  .side.collapsed .side-data{padding-top:4px}
+  .side.collapsed .side-data-toggle{position:relative;justify-content:center;padding:0}
+  .side.collapsed .side-data-toggle .lbl,.side.collapsed .side-data-toggle .chev{display:none}
+  .side.collapsed .side-data-toggle .side-data-dot{position:absolute;top:5px;right:5px;margin:0}
+  /* 收起时两点都绝对定位会完全重叠：把「有代码没拉」那点向左让开一格 */
+  .side.collapsed .side-data-toggle .side-data-dot.is-git{right:13px}

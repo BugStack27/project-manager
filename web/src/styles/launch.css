@@ -1,0 +1,99 @@
+/* 启动台：命令行 / 运行态徽标 / 运行日志 / 日志搜索（L257–275, 284–322, 386–389, 413–415, 432）
+   本文件内容按原 styles.css 顺序搬运；层叠顺序由 index.css 的引入顺序决定。 */
+  /* command row */
+  .cmd{display:flex;gap:14px;align-items:center}
+  /* 整行可点 = 打开这条命令的运行日志；键盘焦点也要看得见 */
+  .row.cmd{cursor:pointer}
+  .row.cmd:focus-visible{outline:2px solid rgb(var(--accent-rgb) / .55);outline-offset:-2px}
+  .cmd .body{min-width:0;flex:1}
+  .cmd .body:focus-visible{outline:2px solid rgb(var(--accent-rgb) / .55);outline-offset:2px;border-radius:6px}
+  .cmd .row1{display:flex;align-items:center;gap:10px;min-width:0}
+  .cmd-code{font-family:var(--mono);font-size:13px;line-height:1;background:var(--fill-3);border-radius:7px;padding:0 10px;height:24px;color:var(--label);display:inline-flex;align-items:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cmd .row2{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .cmd .path{font-family:var(--mono);font-size:12px;color:var(--label-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .cmd .acts{flex:none;display:flex;gap:6px;align-items:center}
+  /* 行尾箭头：鼠标进到行里才出现，暗示「整行可展开日志」 */
+  .cmd .cmd-go{flex:none;display:grid;place-items:center;color:var(--label-4);opacity:0;transform:translateX(-2px);transition:opacity .12s,transform .12s;pointer-events:none}
+  .cmd:hover .cmd-go,.cmd:focus-within .cmd-go{opacity:1;transform:none}
+  /* 备注名：命令的人话标签，放在命令文本前面 */
+  .cmd .cmd-name{flex:0 1 auto;min-width:0;font-size:13px;font-weight:400;color:var(--ink-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 当前右面板正在看日志的那条命令：整行高亮，免得“右侧是哪条”要靠猜 */
+  .row.cmd.sel{background:rgb(var(--accent-rgb) / .06);box-shadow:inset 2px 0 0 var(--blue)}
+  .row.cmd.sel:hover{background:rgb(var(--accent-rgb) / .09)}
+  .run{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;flex:none}
+  .run .live{width:6px;height:6px;border-radius:50%;background:currentColor;position:relative}
+  .run .live::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:1.5px solid currentColor;opacity:.5;animation:pulse 1.9s ease-out infinite}
+  .run.running{color:var(--green-text);background:var(--green-tint)}
+  /* 已分离：应用不再托管，但进程还在后台跑 —— 不能用「运行中」的绿，也不能用「已停止」的灰 */
+  .run.detached{color:var(--orange-text);background:var(--orange-tint)}
+  .run.stopped{color:var(--label-2);background:var(--fill-2)}
+  @keyframes pulse{0%{transform:scale(.55);opacity:.6}100%{transform:scale(1.6);opacity:0}}
+
+  /* ── 启动台右面板 · 运行日志（无卡片，直接铺内容） ── */
+  .rlogs{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .dhead{padding:10px 4px 8px;display:flex;align-items:flex-start;gap:10px}
+  .dhead .ttl{font-family:var(--mono);font-size:13px;color:var(--label);background:var(--fill-3);border-radius:7px;padding:4px 9px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block}
+  .dhead .cmd-name{font-size:13px;font-weight:400;color:var(--ink-body);margin-bottom:3px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dhead .dmeta{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;min-width:0}
+  .dhead .dmeta .meta{min-width:0}
+  .dhead .x{margin-left:auto;flex:none}
+  .dhead .dacts{margin-left:auto;flex:none;display:flex;align-items:center;gap:4px}
+  .logs{flex:1;overflow:auto;padding:10px 0;border-top:1px solid var(--sep)}
+  .druns{display:flex;gap:4px;padding:2px 4px 10px;overflow-x:auto;align-items:center}
+  .druns .lab{font-size:12px;color:var(--label-3);margin-right:4px;flex:none}
+  .druns button{flex:none;height:26px;padding:0 9px;border-radius:7px;border:0;background:rgba(120,120,128,.10);font:inherit;font-size:12px;font-weight:500;color:var(--label-2);cursor:pointer;display:inline-flex;gap:5px;align-items:center;transition:background .12s,color .12s}
+  .druns button:hover{color:var(--label)}
+  .druns button.active{background:var(--card-hi);color:var(--label);font-weight:600;box-shadow:0 3px 8px rgba(0,0,0,.10),0 3px 1px rgba(0,0,0,.04),0 0 0 .5px rgba(0,0,0,.04)}
+  .druns button .e{font-size:11px;color:var(--label-4)}
+  .druns button.active .e{color:var(--label-2)}
+  /* 日志内搜索（Ctrl+F）：输入框 + 命中计数 + 上下跳 */
+  .findbar{display:flex;align-items:center;gap:6px;padding:0 4px 8px}
+  .findbar input{flex:1;min-width:0;height:26px;border:1px solid transparent;border-radius:8px;background:var(--fill-3);padding:0 9px;font:inherit;font-size:12px;color:var(--label);outline:none;transition:border-color .12s,box-shadow .12s,background .12s}
+  .findbar input:focus{background:var(--card-hi);border-color:var(--blue);box-shadow:0 0 0 3px rgb(var(--accent-rgb) / .15)}
+  .findbar .findn{flex:none;font-size:11px;color:var(--label-3);font-variant-numeric:tabular-nums;min-width:38px;text-align:right}
+  .findbar .findn.none{color:var(--red-text)}
+  .findbar .btn{width:24px;padding:0;justify-content:center}
+  /* 日志不换行：行宽随内容展开，由 .logs 提供横向滚动条 */
+  .log{display:flex;gap:10px;padding:1.5px 4px;font-family:var(--mono);font-size:12px;line-height:1.75;width:max-content;min-width:100%}
+  .log:hover{background:rgba(120,120,128,.05)}
+  .log .t{color:var(--label-3);flex:none;font-variant-numeric:tabular-nums}
+  .log .lv{flex:none;width:40px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--label-3)}
+  .log .lv.ok{color:var(--green-text)}
+  .log .lv.warn{color:var(--orange-text)}
+  .log .lv.err{color:var(--red-text)}
+  .log .msg{color:var(--label);white-space:pre;flex:none}
+  /* 日志里的 http/https 地址可直接点开，由系统浏览器承接 */
+  .log .msg a{color:var(--blue);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+  .log .msg a:hover{color:var(--blue-hover)}
+  /* ANSI SGR：颜色走 CSS 变量，粗体/斜体等走类，便于命中高亮覆盖前景色 */
+  .log .msg .ansi-fg{color:var(--ansi-fg)}
+  .log .msg .ansi-bg{background-color:var(--ansi-bg)}
+  .log .msg .ansi-bold{font-weight:600}
+  .log .msg .ansi-dim{opacity:.62}
+  .log .msg .ansi-italic{font-style:italic}
+  .log .msg .ansi-underline{text-decoration:underline}
+  .log .msg .ansi-strike{text-decoration:line-through}
+  .log .msg .ansi-underline.ansi-strike{text-decoration:underline line-through}
+  .log.hit-on{background:rgba(255,149,0,.10)}
+  .log .msg mark{background:rgba(255,204,0,.36);color:inherit;border-radius:3px}
+  .log .msg mark.on{background:var(--orange);color:#fff}
+  .log .msg mark a{color:inherit}
+  /* 命中段优先保证高亮可读：压掉子段的 ANSI 前景/底色 */
+  .log .msg mark span.ansi-fg{color:inherit}
+  .log .msg mark.on span.ansi-fg{color:#fff}
+  .log .msg mark span.ansi-bg{background-color:transparent}
+  .log .msg mark.on span.ansi-dim{opacity:1}
+  .dfoot{padding:10px 4px;border-top:1px solid var(--sep);display:flex;align-items:center;gap:8px}
+  .dfoot .note{font-size:12px;color:var(--label-3);margin-right:auto}
+
+  /* 命令行：hover 显示设置入口（与操作按钮同一行、同一右缘） */
+  .cmd .acts .cmenu{width:26px;height:26px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--label-3);cursor:pointer;display:grid;place-items:center;flex:none;opacity:0;transition:opacity .12s,background .12s,color .12s}
+  .cmd:hover .cmenu,.cmd:focus-within .cmenu{opacity:1}
+  .cmd .acts .cmenu:hover{background:rgb(var(--ink-rgb) / .08);color:var(--label)}
+
+  /* 日志面板补充 */
+  .dhead .x{width:26px;height:26px;padding:0;justify-content:center}
+  .rlogs .logs{overscroll-behavior:contain}
+
+  .dmeta .meta.cwd{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

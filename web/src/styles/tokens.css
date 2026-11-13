@@ -1,0 +1,142 @@
+/* 设计 token 与基础重置（原 styles.css L1–52 + 全局 #root/button）
+   本文件内容按原 styles.css 顺序搬运；层叠顺序由 index.css 的引入顺序决定。 */
+/* ══════════════════════════════════════════════════════════════
+     Apple Design System · tokens
+     色彩   System colors + semantic labels（HIG, Light）
+     字体   system-ui / SF Pro Text · macOS 桌面字号阶
+     间距   4 / 8 / 12 / 16 / 20 / 24 / 32 / 40（8pt grid）
+     圆角   pill 999 · control 9 · card 14 · sheet 20
+     层级   card(1) / sheet(2) / toast(3)
+     ══════════════════════════════════════════════════════════════ */
+  :root{
+    /* — System colors — */
+    --blue:#007AFF;      --blue-hover:#0A84FF;  --blue-tint:rgb(var(--accent-rgb) / .10);
+    --green:#34C759;     --green-text:#248A3D;  --green-tint:rgba(52,199,89,.14);
+    --orange:#FF9500;    --orange-text:#C93400; --orange-tint:rgba(255,149,0,.14);
+    --red:#FF3B30;       --red-text:#D70015;    --red-tint:rgba(255,59,48,.10);
+    --indigo:#5856D6;    --indigo-tint:rgba(88,86,214,.10);
+    --teal:#30B0C7;      --teal-text:#0E7490; --teal-tint:rgba(48,176,199,.12);
+
+    /* — Semantic labels — */
+    --label:#1D1D1F;
+    --label-2:#5F5F64;
+    --label-3:#6F6F75;
+    --label-4:#8E8E93;
+
+    /* — ANSI log colors（浅色主题下可读的前景 / 浅底色） — */
+    --ansi-default-fg:var(--label);
+    --ansi-default-bg:#FFFFFF;
+    --ansi-fg-black:#3B3B3D;         --ansi-fg-red:#C5221F;
+    --ansi-fg-green:#1A7F37;         --ansi-fg-yellow:#8A6200;
+    --ansi-fg-blue:#0B57D0;          --ansi-fg-magenta:#A21CAF;
+    --ansi-fg-cyan:#0E7490;          --ansi-fg-white:#6E6E73;
+    --ansi-fg-bright-black:#8E8E93;  --ansi-fg-bright-red:#D70015;
+    --ansi-fg-bright-green:#16803C;  --ansi-fg-bright-yellow:#9A7400;
+    --ansi-fg-bright-blue:#007AFF;   --ansi-fg-bright-magenta:#C026D3;
+    --ansi-fg-bright-cyan:#0891B2;   --ansi-fg-bright-white:#1D1D1F;
+    --ansi-bg-black:#1D1D1F;         --ansi-bg-red:#FFD7D5;
+    --ansi-bg-green:#D7F5DC;         --ansi-bg-yellow:#FFF1C2;
+    --ansi-bg-blue:#DCE8FF;          --ansi-bg-magenta:#F9D8FF;
+    --ansi-bg-cyan:#D5F3F9;          --ansi-bg-white:#FFFFFF;
+    --ansi-bg-bright-black:#48484A;  --ansi-bg-bright-red:#FFB3AE;
+    --ansi-bg-bright-green:#A8EDB4;  --ansi-bg-bright-yellow:#FFE58A;
+    --ansi-bg-bright-blue:#B8D4FF;   --ansi-bg-bright-magenta:#F2B3FF;
+    --ansi-bg-bright-cyan:#A6E8F2;   --ansi-bg-bright-white:#F2F2F7;
+
+    /* — Surfaces — */
+    --bg:#FDFDFE;
+    --bg-sidebar:#F7F7FA;
+    --card:#FFFFFF;
+    --fill-1:rgba(120,120,128,.20);
+    --fill-2:rgba(120,120,128,.12);
+    --fill-3:rgba(120,120,128,.08);
+    --sep:rgba(60,60,67,.10);
+    --sep-2:rgba(60,60,67,.16);
+
+    /* — Neutral channels（中性叠色通道）
+       暗色只翻这三个通道值，alpha 一个字不改，浅色值逐字符等于改造前的字面量。
+       用法：rgb(var(--ink-rgb) / .06)  ← 等价于 rgba(60,60,67,.06) */
+    --ink-rgb:60 60 67;
+    --accent-rgb:0 122 255;
+
+    /* — Raised / sunken surfaces（比 --card 更亮/更暗的面） — */
+    --card-hi:#FFFFFF;
+    --bg-sunken:#F7F7FA;
+    --bg-press:#F0F0F3;
+    --bg-hover:#F6F6F9;
+    --bg-hover-sel:#EDF4FF;
+    --bg-hover-sel-soft:#F6F9FE;
+    --bg-glass:rgba(253,253,254,.9);
+    --on-accent-soft:rgba(255,255,255,.85);
+
+    /* — 浮起面（右面板抽屉）：比页面亮一档 + 一圈边界环，不靠投影分层 —
+       暗色反过来要提亮才浮得起来，深底上纯黑投影几乎不可见（见 theme-dark.css）。 */
+    --bg-float:#FFFFFF;
+    --float-edge:0 0 0 1px rgba(60,60,67,.12), -8px 0 24px -14px rgba(0,0,0,.20);
+
+    /* — Edges（控件边框；暗色要换成白色，故不能用 --ink-rgb） — */
+    --edge:rgba(0,0,0,.09);
+    --edge-strong:rgba(0,0,0,.14);
+
+    /* — 比 --label 略浅的墨色 — */
+    --ink-body:#3C3C43;
+    --ink-icon:#5B5B60;
+
+    /* — Scrim / selection / toast — */
+    --scrim:rgba(0,0,0,.30);
+    --scrim-soft:rgba(0,0,0,.26);
+    --selection:rgb(var(--accent-rgb) / .18);
+    --toast-bg:rgba(29,29,31,.94);
+    --toast-fg:#FFFFFF;
+    --toast-warn-bg:rgba(50,32,8,.94);
+
+    /* — 按下态 / 杂项语义色 — */
+    --blue-press:#0069DE;
+    --red-press:#E5332A;
+    --folder:#E5A000;
+    --folder-hover:#C98A00;
+    --teal-text-soft:#1F8A9D;
+
+    /* — 代码高亮（diff 面板与证据浮层共用同一套；此前是两份手抄的相同字面值） — */
+    --hl-comment:#6C7986;
+    --hl-comment-hit:#4B5768;
+    --hl-keyword:#AD3DA4;
+    --hl-string:#C41A16;
+    --hl-number:#1C00CF;
+    --hl-title:#326D74;
+    --hl-type:#0B4F79;
+    --hl-attr:#6C36A9;
+    --hl-meta:#643820;
+
+    /* — Elevation — */
+    --sh-card:0 0 0 1px rgba(60,60,67,.11), 0 1px 2px rgba(0,0,0,.03), 0 8px 22px -14px rgba(0,0,0,.18);
+    --sh-hover:0 0 0 1px rgba(60,60,67,.10), 0 2px 6px rgba(0,0,0,.05), 0 14px 30px -16px rgba(0,0,0,.22);
+    --sh-sheet:0 24px 68px rgba(0,0,0,.22), 0 2px 8px rgba(0,0,0,.06);
+
+    /* — Type scale — */
+    --font: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font:13px/1.53 var(--font);
+    color:var(--label); background:var(--bg);
+    text-rendering:optimizeLegibility;
+  }
+  /* 灰度抗锯齿是 macOS 的观感；Windows 上会关掉 ClearType 次像素渲染，13px 中文发虚 */
+  html[data-platform="darwin"] body{-webkit-font-smoothing:antialiased}
+  /* 强调语义默认只到中等字重并跟随上下文颜色；不要浏览器默认的 bolder + 黑色。
+     按钮 / 状态徽标需要的 600 由各自类名保留。 */
+  b,strong{font-weight:500;color:inherit}
+  ::selection{background:var(--selection)}
+  /* 主题切换：一次性换色，禁用逐元素过渡。
+     多数控件带 transition:background .12s，放任渐变会让 backdrop-filter 层（.pagebar/.toast/.datapop）
+     与半透明叠色区出现互相错位的中间态。
+     不要用 prefers-reduced-motion 开关这条 —— 本机该媒体查询恒为 true（Windows 关了界面动画），
+     挂上去等于给所有用户换一条分支，且会造成「同一套视觉一半动一半不动」。 */
+  html.theme-switching *,html.theme-switching *::before,html.theme-switching *::after{transition:none!important}
+  .app{display:flex;height:100vh;overflow:hidden;position:relative}
+
+  #root{height:100%}
+  button{font-family:inherit}

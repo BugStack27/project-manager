@@ -1,0 +1,16 @@
+/* 壳层：中区容器与拖拽分隔条（L124–127, 450–457）
+   本文件内容按原 styles.css 顺序搬运；层叠顺序由 index.css 的引入顺序决定。 */
+  /* ── main ────────────────────────────────────── */
+  .main{flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;background:var(--bg)}
+  /* 中区内容直铺：不限宽，两侧仅留窄边距，内容密度优先 */
+  .wrap{padding:20px 16px 100px}
+
+  /* 左栏分隔条：1px 视觉线 + 左右各 4px 命中区。
+     右抽屉的把手是另一份（.rpanel .rz，绝对定位在抽屉左缘，见 panel.css）。 */
+  .rz{flex:none;width:1px;background:var(--sep);position:relative;z-index:6;cursor:col-resize}
+  .rz::before{content:"";position:absolute;top:0;bottom:0;left:-4px;right:-4px}
+  .rz:hover{background:var(--blue)}
+  /* 拖拽调宽时关掉过渡，面板实时跟手不拖影 */
+  body.resizing .side,body.resizing .rpanel,body.resizing .pagebar-in{transition:none}
+  body.resizing{cursor:col-resize;user-select:none}
+  body.resizing *{cursor:col-resize !important}

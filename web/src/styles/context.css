@@ -1,0 +1,57 @@
+/* 项目信息条 / 未完成计数胶囊 / IDE 按钮（L163–208, 433）
+   本文件内容按原 styles.css 顺序搬运；层叠顺序由 index.css 的引入顺序决定。 */
+  /* ── hero / context（扁平直铺，无卡片） ───────── */
+  .ctx{display:flex;align-items:center;gap:14px;padding:8px 4px 12px;border-bottom:1px solid var(--sep);margin-bottom:14px}
+  .ctx .who{min-width:0;flex:1;display:flex;align-items:center;gap:12px}
+  /* 访问远程仓库：图标按钮 + 悬停展开的远程列表 */
+  .visit{position:relative;display:inline-flex}
+  .visit-menu{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:80;min-width:220px;max-width:320px;background:var(--card);border-radius:10px;box-shadow:var(--sh-sheet);padding:4px;flex-direction:column;gap:1px}
+  .visit:hover .visit-menu,
+  .visit:focus-within .visit-menu{display:flex}
+  .visit-menu button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:5px 8px;border:0;background:transparent;border-radius:7px;font:inherit;cursor:pointer;text-align:left;min-width:0;width:100%}
+  .visit-menu button:hover{background:rgb(var(--ink-rgb) / .07)}
+  .visit-menu .rn{font-size:12px;font-weight:600;color:var(--label)}
+  .visit-menu .ru{max-width:100%;font-size:11px;color:var(--label-3);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 远程状态文字：只在「没有上游分支」时出现，刻意不画胶囊——否则会被当成又一个按钮 */
+  .ctx-remote{flex:0 1 auto;min-width:0;display:inline-flex;align-items:center;gap:5px;max-width:min(240px,30vw);color:var(--label-3);font-size:12px;white-space:nowrap;overflow:hidden}
+  .ctx-remote svg{flex:none;color:var(--label-4)}
+  .ctx-remote.muted{color:var(--label-4)}
+  /* 拉取 / 推送：图标 + ↑n / ↓n 的紧凑按钮，常驻；不可操作时由 .btn:disabled 统一置灰 */
+  .ctx-sync{padding:0 7px;gap:4px;min-width:30px;justify-content:center}
+  .ctx-sync .up{color:var(--orange-text);font-weight:700;font-variant-numeric:tabular-nums}
+  .ctx-sync .down{color:var(--blue);font-weight:700;font-variant-numeric:tabular-nums}
+  /* 确认推送时按钮变蓝：里面的箭头与 spinner 跟着转白 */
+  .ctx-sync.primary .up,
+  .ctx-sync.primary .down{color:#fff}
+  .ctx-sync.primary .spinner{border-color:rgba(255,255,255,.35);border-top-color:#fff}
+  .ctx .who > div{min-width:0}
+  .ctx .pav{width:34px;height:34px;border-radius:9px;font-size:14px}
+  .ctx .pname{font-size:17px;font-weight:600;display:flex;align-items:center;gap:9px;min-width:0}
+  .ctx .pname .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ctx .ppath{font-family:var(--mono);font-size:12px;color:var(--label-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .quota{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 9px;border-radius:999px;font-weight:600;white-space:nowrap;flex:none}
+  .quota i{width:6px;height:6px;border-radius:50%;background:currentColor;display:block}
+  .quota.busy{color:var(--orange-text);background:var(--orange-tint)}
+  .quota.muted{color:var(--label-2);background:var(--fill-3)}
+
+  /* 状态栏「在 IDE 中打开」拆分组按钮（主键 + 切换箭头），位于右侧操作槽 */
+  .ide{position:relative;display:flex;align-items:center;gap:8px;flex:none;-webkit-app-region:no-drag}
+  .ide-err{font-size:11px;color:var(--red-text);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ide-split{display:inline-flex;align-items:stretch}
+  .ide-split .btn.ide-main{border-top-right-radius:0;border-bottom-right-radius:0;max-width:230px}
+  .ide-main .lbl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 图标来自 exe 内嵌资源（主进程抽成 PNG dataURL），取不到时退回代码图标 */
+  .ide-ico{width:14px;height:14px;flex:none;object-fit:contain;display:inline-block}
+  .ide-main .ide-ico{width:13px;height:13px}
+  .ide-menu .ide-ico{width:14px;height:14px;margin-right:1px}
+  .ide-split .btn.ide-caret{width:24px;padding:0;justify-content:center;border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;color:var(--label-2)}
+  .ide-split .btn.ide-caret:hover{color:var(--label)}
+  .ide-split .btn:disabled{opacity:.5;cursor:default;background:var(--card-hi)}
+  .ide-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:80;min-width:200px;background:var(--card);border-radius:10px;box-shadow:var(--sh-sheet);padding:4px;display:flex;flex-direction:column;gap:1px}
+  .ide-menu button{display:flex;align-items:center;gap:7px;height:30px;padding:0 8px;border:0;background:transparent;border-radius:7px;font:inherit;font-size:12px;color:var(--label);cursor:pointer;text-align:left}
+  .ide-menu button:hover{background:rgb(var(--ink-rgb) / .07)}
+  .ide-menu button.on{color:var(--blue);font-weight:600}
+  .ide-menu .ck{width:12px;height:12px;flex:none;display:grid;place-items:center;color:var(--label-3)}
+  .ide-menu button.on .ck{color:var(--blue)}
+  .ide-menu .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ide-menu .sep{height:1px;background:var(--sep);margin:4px 2px}

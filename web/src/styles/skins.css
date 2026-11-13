@@ -1,0 +1,50 @@
+/* 浅色皮肤：清透 / 暖纸 / 活力（默认活力，见 lib/skin.js）。
+   只作用于浅色 —— 选择器带 [data-theme="light"]，暗色完全不受影响（暗色取值仍只在 theme-dark.css）。
+   每套只覆盖「表面 / 文字 / 强调 / 阴影」这些去灰杠杆；语义色（绿/橙/红）、ANSI、代码高亮等共用 :root。
+   --blue-tint / --selection 在 :root 里由 --accent-rgb 派生，故这里只改 --accent-rgb 与 --blue 家族即可联动。
+   层叠：本文件在 tokens.css 之后引入；选择器特异性(0,2,1) 高于 :root(0,1,0)，浅色下稳定覆盖。 */
+
+/* ── A · 清透分层：略深冷灰底 + 纯白卡片强分层 + 主文更黑 ── */
+html[data-theme="light"][data-skin="crisp"]{
+  --bg:#EDF0F4; --bg-sidebar:#E7EBF1; --card:#FFFFFF; --card-hi:#FFFFFF;
+  --bg-sunken:#F3F6F9; --bg-press:#E6EBF1; --bg-hover:#F3F6F9;
+  --bg-hover-sel:#E6EFFE; --bg-hover-sel-soft:#F1F6FE;
+  --bg-glass:rgba(237,240,244,.9); --bg-float:#FFFFFF;
+  --float-edge:0 0 0 1px rgba(28,34,52,.12), -8px 0 24px -14px rgba(20,25,40,.22);
+  --label:#111114; --label-2:#494950; --label-3:#67676E; --label-4:#8A8A90;
+  --ink-body:#2A2A30; --ink-icon:#565660;
+  --blue:#0A6CFF; --blue-hover:#0A84FF; --blue-press:#0057D6; --accent-rgb:10 108 255;
+  --sh-card:0 0 0 1px rgba(28,34,52,.08), 0 2px 6px rgba(20,25,40,.06), 0 12px 28px -16px rgba(20,25,40,.24);
+  --sh-hover:0 0 0 1px rgba(28,34,52,.10), 0 4px 10px rgba(20,25,40,.08), 0 18px 36px -18px rgba(20,25,40,.28);
+}
+
+/* ── B · 暖白纸感：暖纸底 + 暖墨字 + 琥珀强调（中性通道也转暖） ── */
+html[data-theme="light"][data-skin="warm"]{
+  --bg:#F4F1EA; --bg-sidebar:#EDE7DB; --card:#FFFFFF; --card-hi:#FFFFFF;
+  --bg-sunken:#F8F5EE; --bg-press:#EFE9DD; --bg-hover:#F8F5EE;
+  --bg-hover-sel:#F6EEE2; --bg-hover-sel-soft:#FAF5EC;
+  --bg-glass:rgba(244,241,234,.9); --bg-float:#FFFFFF;
+  --float-edge:0 0 0 1px rgba(84,68,44,.14), -8px 0 24px -14px rgba(90,70,40,.22);
+  --label:#1C1A16; --label-2:#544E45; --label-3:#7A7266; --label-4:#9A9082;
+  --ink-body:#3A352C; --ink-icon:#6A6254; --ink-rgb:84 68 44;
+  --sep:rgba(84,68,44,.13); --sep-2:rgba(84,68,44,.22);
+  --edge:rgba(84,68,44,.16); --edge-strong:rgba(84,68,44,.26);
+  --fill-1:rgba(120,98,64,.20); --fill-2:rgba(120,98,64,.13); --fill-3:rgba(120,98,64,.08);
+  --blue:#B5560E; --blue-hover:#C96A1A; --blue-press:#9A4708; --accent-rgb:181 86 14;
+  --sh-card:0 0 0 1px rgba(84,68,44,.10), 0 2px 6px rgba(90,70,40,.06), 0 12px 26px -16px rgba(90,70,40,.22);
+  --sh-hover:0 0 0 1px rgba(84,68,44,.12), 0 4px 10px rgba(90,70,40,.08), 0 18px 34px -18px rgba(90,70,40,.26);
+}
+
+/* ── C · 冷冽活力（默认）：纯白 + 电光蓝强调 + 最强景深 ── */
+html[data-theme="light"][data-skin="vivid"]{
+  --bg:#FFFFFF; --bg-sidebar:#EEF2F8; --card:#FFFFFF; --card-hi:#FFFFFF;
+  --bg-sunken:#F4F8FD; --bg-press:#E9F0FA; --bg-hover:#F4F8FD;
+  --bg-hover-sel:#E9EFFE; --bg-hover-sel-soft:#F2F6FE;
+  --bg-glass:rgba(255,255,255,.9); --bg-float:#FFFFFF;
+  --float-edge:0 0 0 1px rgba(20,30,60,.12), -8px 0 24px -14px rgba(20,40,90,.24);
+  --label:#0A0A0F; --label-2:#3B3B45; --label-3:#61616B; --label-4:#85858F;
+  --ink-body:#26262E; --ink-icon:#4E4E58;
+  --blue:#2B5CFF; --blue-hover:#4A74FF; --blue-press:#1E4AE0; --accent-rgb:43 92 255;
+  --sh-card:0 0 0 1px rgba(20,30,60,.09), 0 2px 8px rgba(20,40,90,.07), 0 14px 30px -16px rgba(20,40,90,.26);
+  --sh-hover:0 0 0 1px rgba(20,30,60,.11), 0 4px 12px rgba(20,40,90,.09), 0 20px 40px -18px rgba(20,40,90,.30);
+}

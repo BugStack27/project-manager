@@ -1,0 +1,118 @@
+/* 修改记录：提交树 / 改动内容 / diff（L509–568）
+   本文件内容按原 styles.css 顺序搬运；层叠顺序由 index.css 的引入顺序决定。 */
+  /* ── 修改记录 · 中区提交树 ───────────────────── */
+  .gtree{display:flex;flex-direction:column;padding-bottom:6px}
+  .grow{position:relative;display:flex;align-items:center;gap:7px;min-width:0;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--label-2);transition:background .12s}
+  .grow:hover{background:rgb(var(--ink-rgb) / .06)}
+  .grow.active{background:rgb(var(--accent-rgb) / .12);color:var(--blue)}
+  .grow.grp{margin-top:2px;padding:7px 8px;font-weight:600;color:var(--label)}
+  .grow.grp .ico{flex:none;display:grid;place-items:center;color:var(--label-3)}
+  /* 「当前改动」标题行右侧的操作按钮组（提交 / 刷新 / 拉取 / 推送 / 访问远程） */
+  .grow.grp .gactions{flex:none;display:flex;align-items:center;gap:6px}
+  .grow.grp .gactions .ctx-tip{display:inline-flex}
+  .gtw{flex:none;display:grid;place-items:center;color:var(--label-4);transition:transform .14s}
+  .gtw.open{transform:rotate(90deg)}
+  .gtitle{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gn{flex:none;font-size:11px;color:var(--label-3);font-variant-numeric:tabular-nums;min-width:18px;height:18px;border-radius:999px;background:rgba(120,120,128,.14);display:grid;place-items:center;padding:0 5px}
+  /* 缩进连线：容器左边框为竖线，子行 ::before 画横肘，末行 ::after 收口 */
+  .gchildren{position:relative;margin-left:9px;padding-left:9px;border-left:1px solid var(--sep-2)}
+  .gchildren > .grow::before{content:"";position:absolute;left:-9px;top:15px;width:9px;height:1px;background:var(--sep-2)}
+  .gchildren > .grow:last-child::after,
+  .gchildren > .gstate:last-child::after,
+  .gchildren > .gchildren:last-child::after{content:"";position:absolute;left:-10px;top:16px;bottom:0;width:3px;background:var(--bg)}
+  .gstate{position:relative;padding:10px 8px;font-size:12px;color:var(--label-3);display:flex;align-items:center;gap:7px}
+  .gstate.sm{padding:8px 10px}
+  .gmore{padding:8px 0;text-align:center}
+
+  /* 提交行 / 文件行 */
+  .gsha{flex:none;font-family:var(--mono);font-size:11px;color:var(--blue);background:var(--blue-tint);padding:1px 6px;border-radius:6px}
+  .gsubj{flex:1 1 auto;min-width:0;color:var(--label);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gref{flex:0 1 auto;min-width:0;font-size:11px;color:var(--label-3);background:var(--fill-3);padding:1px 6px;border-radius:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 上游引用用 indigo 区分，避免和本地分支 / HEAD -> main 混淆 */
+  .gref.remote{color:var(--indigo);background:var(--indigo-tint)}
+  /* 只在远程、本地还没有的提交：整行压暗 + 左侧虚线竖线（padding 让内容与其它行对齐），悬停/展开时恢复可读 */
+  .grow.gcmt.remote{opacity:.58;border-left:1px dashed var(--sep-2);padding-left:7px;border-radius:0 8px 8px 0}
+  .grow.gcmt.remote:hover,
+  .grow.gcmt.remote.active{opacity:1}
+  /* 远程头与本地提交之间的分界：虚线 + 「远程在此」小字 */
+  .gdivider{position:relative;display:flex;margin:8px 8px 4px 18px;font-size:11px;color:var(--label-3)}
+  .gdivider::before{content:"";position:absolute;left:-9px;right:0;top:50%;border-top:1px dashed var(--sep-2)}
+  .gdivider span{position:relative;padding-right:6px;background:var(--bg)}
+  .gtime{flex:none;font-size:11px;color:var(--label-3);font-variant-numeric:tabular-nums}
+  .grow.gfile .st{flex:none;font-size:11px;font-weight:600;padding:1px 7px;border-radius:6px}
+  .gpath{flex:1 1 auto;min-width:0;font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gren{flex:0 1 auto;min-width:0;font-size:11px;color:var(--label-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gstat{flex:none;display:flex;gap:6px;font-size:11px;font-variant-numeric:tabular-nums}
+  .gstat .add{color:var(--green-text)}
+  .gstat .del{color:var(--red-text)}
+  .gstat .bin{color:var(--label-4)}
+  .st-mod{color:var(--orange-text);background:var(--orange-tint)}
+  .st-add{color:var(--green-text);background:var(--green-tint)}
+  .st-del{color:var(--red-text);background:var(--red-tint)}
+  .st-untracked{color:var(--label-3);background:var(--fill-2)}
+  .st-ren{color:var(--indigo);background:var(--indigo-tint)}
+  .st-conf{color:var(--red-text);background:var(--red-tint)}
+
+  /* ── 修改记录 · 右面板改动内容（扁平直铺，无卡片外壳） ── */
+  /* 占满面板：头部固定，diff 区自己滚（否则横向滚动条会落在整个 diff 的最底部，永远看不见） */
+  .gview{flex:1;min-height:0;display:flex;flex-direction:column;min-width:0}
+  /* 滚动交在这一层：pre 按内容撑宽后自己不再滚，所以横向滚动条仍贴在这块区域的底部。
+     底色也挂在这层——短 diff 时 pre 只有内容那么高，下面留白要跟着是浅灰而不是面板白 */
+  .gview .diff-scroll{flex:1;min-height:0;overflow:auto;background:var(--bg-sunken)}
+  .gview-head{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;padding:11px 8px;border-bottom:1px solid var(--sep)}
+  .gview-head .st{flex:none;font-size:11px;font-weight:600;padding:1px 7px;border-radius:6px}
+  .gview-path{flex:1 1 auto;min-width:0;font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gview-src{flex:none;font-size:11px;color:var(--label-2);background:var(--fill-3);border-radius:6px;padding:2px 7px;white-space:nowrap}
+
+  /* ── 提交详情（右面板）─────────────────────────────
+     上半是提交说明，下半是本次改动的文件清单；说明区限高自己滚，
+     文件多时不会把说明挤没。正文按 markdown 渲染，排版复用 .md-body（panel.css），这里只调密度。 */
+  .cview-msg{flex:none;max-height:min(42vh,340px);overflow:auto;padding:11px 8px;border-bottom:1px solid var(--sep)}
+  .msg-title{margin:0;font-size:14px;font-weight:600;line-height:1.4;color:var(--label);word-break:break-word}
+  .msg-meta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:5px;font-size:11px;color:var(--label-3)}
+  .msg-author{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 断行由正文预处理（commit-message.js 的 keepLineBreaks）负责给行尾补硬换行，
+     这里不要用 white-space:pre-wrap —— 它会把 <ul>/<li>/<p> 之间的源码换行也渲染成空行 */
+  .msg-body{margin-top:10px;font-size:12.5px;line-height:1.62}
+  .gview-none{margin-top:10px;font-size:12px;color:var(--label-3)}
+
+  /* 文件清单：整块可滚；行下的 diff 自己限高，展开一个时其余文件仍可见 */
+  .cview-files{flex:1;min-height:0;overflow:auto;padding:4px 0 10px}
+  .cfile{display:flex;flex-direction:column;min-width:0}
+  .cfile-head{padding:6px 8px}
+  .cfile-diff{min-width:0}
+  .cfile-diff .diff-scroll{max-height:min(50vh,420px);overflow:auto;background:var(--bg-sunken);border-top:1px solid var(--sep);border-bottom:1px solid var(--sep)}
+  .cfile-diff .diff-empty{padding:12px 8px;background:var(--bg-sunken);border-top:1px solid var(--sep)}
+
+  /* 差异内容
+     pre 用 max-content 撑到「最长那一行」的宽度，min-width 兜住短 diff 铺满面板：
+     行底色靠 .diff-line（block，宽度＝pre 的内容宽度）铺满整行，
+     长行横向滚到右边时绿/红底才不会断在小半截上。 */
+  .diff-head{padding:7px 8px;font-size:11px;color:var(--label-3);border-bottom:1px solid var(--sep);background:var(--bg-sunken)}
+  .diff-head .warn{color:var(--orange-text)}
+  .diff-body{margin:0;padding:7px 0;font-family:var(--mono);font-size:12px;line-height:1.62;background:var(--bg-sunken);
+    width:max-content;min-width:100%}
+  .diff-line{display:block;padding:0 8px;white-space:pre;color:var(--label-2)}
+  .diff-line.add{color:var(--green-text);background:var(--green-tint)}
+  .diff-line.del{color:var(--red-text);background:var(--red-tint)}
+  .diff-line.hunk{color:var(--blue);background:var(--blue-tint)}
+  .diff-line.meta{color:var(--label-3)}
+  /* 行首的 +/-/空格 单独一颗：开了代码高亮后行内文字是彩色的，
+     增删语义就全靠这颗强色标记和行底色，标记必须比正文更醒目 */
+  .diff-sign{color:var(--label-3);font-weight:600;user-select:none}
+  .diff-line.add .diff-sign{color:var(--green-text)}
+  .diff-line.del .diff-sign{color:var(--red-text)}
+  /* 代码高亮（highlight.js 的 token 类）：只上色，不引主题——
+     主题自带底色和字号，会把 diff 的 12px 网格和绿/红行底色顶掉。色相与证据浮层保持一致 */
+  .diff-body .hljs-comment,.diff-body .hljs-quote{color:var(--hl-comment);font-style:italic}
+  .diff-body .hljs-keyword,.diff-body .hljs-selector-tag{color:var(--hl-keyword)}
+  .diff-body .hljs-string,.diff-body .hljs-regexp{color:var(--hl-string)}
+  .diff-body .hljs-number,.diff-body .hljs-literal,.diff-body .hljs-built_in,.diff-body .hljs-symbol,
+  .diff-body .hljs-bullet,.diff-body .hljs-link{color:var(--hl-number)}
+  .diff-body .hljs-title,.diff-body .hljs-section,.diff-body .hljs-name{color:var(--hl-title)}
+  .diff-body .hljs-type,.diff-body .hljs-title.class_,.diff-body .hljs-selector-class{color:var(--hl-type)}
+  .diff-body .hljs-attr,.diff-body .hljs-attribute,.diff-body .hljs-variable,.diff-body .hljs-template-variable{color:var(--hl-attr)}
+  .diff-body .hljs-meta,.diff-body .hljs-selector-id,.diff-body .hljs-tag,.diff-body .hljs-doctag{color:var(--hl-meta)}
+  .diff-body .hljs-emphasis{font-style:italic}
+  .diff-body .hljs-strong{font-weight:600}
+  .diff-empty{padding:16px 8px;font-size:12px;color:var(--label-3);display:flex;align-items:center;gap:7px}

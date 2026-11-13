@@ -1,0 +1,149 @@
+/* 暗色主题：全部暗色取值的**唯一定义处**。
+   ─────────────────────────────────────────────────────────────
+   规则：
+   1. 只在这里写暗色值；其余样式文件一律引用 tokens.css 的变量，不写第二套规则。
+   2. 覆盖的全是变量，不是选择器 —— 新增组件只要用了 var() 就自动获得双主题。
+   3. 例外只有三类：按类挂的变量（.t-* 的 --tc/--tb）、伪元素（滚动条）、
+      以及 color-mix 派生出来的 ANSI 背景。
+   4. 本文件由 index.css 在 palette.css 之后、responsive.css 之前引入。
+   ───────────────────────────────────────────────────────────── */
+
+html[data-theme="dark"]{
+  /* 原生控件（<select> 下拉、日期选择、自动填充、系统滚动条）跟随主题。
+     漏了这一行，界面是深色但下拉框是白色，是最典型的漏网处。 */
+  color-scheme:dark;
+
+  /* — 中性通道 — */
+  --ink-rgb:235 235 245;
+  --accent-rgb:10 132 255;
+
+  /* — 强调色（iOS 暗色版，色相与浅色同一支） — */
+  --blue:#0A84FF;      --blue-hover:#409CFF;  --blue-tint:rgba(10,132,255,.18);
+  --green:#30D158;     --green-text:#30D158;  --green-tint:rgba(48,209,88,.20);
+  --orange:#FF9F0A;    --orange-text:#FF9F0A; --orange-tint:rgba(255,159,10,.20);
+  --red:#FF453A;       --red-text:#FF453A;    --red-tint:rgba(255,69,58,.18);
+  /* --indigo 浅色 #5E5CE6 压 #1C1C1E 只有 3.3:1，必须提亮到 5.0:1 */
+  --indigo:#7D7AFF;    --indigo-tint:rgba(94,92,230,.22);
+  --teal:#40C8E0;      --teal-text:#40C8E0;   --teal-tint:rgba(64,200,224,.18);
+  --teal-text-soft:#40C8E0;
+
+  /* — 文字阶（--label-4 对 --bg 为 5.2:1，小字号仍过 AA） — */
+  --label:#F5F5F7;
+  --label-2:#C7C7CC;
+  --label-3:#A1A1A6;
+  --label-4:#8E8E93;
+  --ink-body:#EBEBF0;
+  --ink-icon:#A1A1A6;
+
+  /* — 面：保持「侧栏 < 页面 < 卡片 < 浮起面」的明度单调关系 — */
+  --bg:#1C1C1E;
+  --bg-sidebar:#161618;
+  --card:#242426;
+  --card-hi:#3A3A3C;
+  --bg-sunken:#1A1A1C;
+  --bg-press:#2C2C2E;
+  --bg-hover:#262628;
+  --bg-hover-sel:#1E2A3D;
+  --bg-hover-sel-soft:#1B2028;
+  --bg-glass:rgba(28,28,30,.92);
+  --on-accent-soft:rgba(10,132,255,.22);
+
+  /* — 浮起面（右面板抽屉）：比页面亮一档；暗色下"浮"靠提亮，不靠投影 —
+     亮环只有 6%，刚好把边界从深底上勾出来，再多就变成一张漂着的卡片。 */
+  --bg-float:#242426;
+  --float-edge:0 0 0 1px rgba(255,255,255,.06), -6px 0 16px -14px rgba(0,0,0,.45);
+
+  /* — 填充：同一 alpha 在深底上的感知比亮底弱，按约 +60% 提 — */
+  --fill-1:rgba(120,120,128,.30);
+  --fill-2:rgba(120,120,128,.20);
+  --fill-3:rgba(120,120,128,.14);
+
+  /* — 分隔与边框（边框翻白，否则纯黑边框在深底上等于不存在） — */
+  --sep:rgba(84,84,88,.50);
+  --sep-2:rgba(84,84,88,.72);
+  --edge:rgba(255,255,255,.26);
+  --edge-strong:rgba(255,255,255,.38);
+
+  /* — 层级：深底上纯黑阴影几乎不可见，必须加 1px 亮环才分得开 — */
+  --sh-card:0 0 0 1px rgba(255,255,255,.08), 0 1px 2px rgba(0,0,0,.30), 0 10px 26px -16px rgba(0,0,0,.60);
+  --sh-hover:0 0 0 1px rgba(255,255,255,.12), 0 2px 6px rgba(0,0,0,.34), 0 16px 34px -18px rgba(0,0,0,.66);
+  --sh-sheet:0 0 0 1px rgba(255,255,255,.10), 0 24px 68px rgba(0,0,0,.62), 0 2px 8px rgba(0,0,0,.40);
+
+  /* — 遮罩 / 选中 / Toast — */
+  --scrim:rgba(0,0,0,.55);
+  --scrim-soft:rgba(0,0,0,.48);
+  --selection:rgba(10,132,255,.34);
+  --toast-bg:rgba(58,58,60,.94);
+  --toast-fg:#F5F5F7;
+  --toast-warn-bg:rgba(66,44,10,.94);
+
+  /* — 按下态：深底上"按下去"要变亮，不是变暗 — */
+  --blue-press:#0060DF;
+  --red-press:#E33B31;
+  --folder:#FFB340;
+  --folder-hover:#FFC76B;
+
+  /* — 代码高亮：换成深色代码面板上可读的亮版，色相与浅色同支 — */
+  --hl-comment:#7F8C99;
+  --hl-comment-hit:#9AA6B2;
+  --hl-keyword:#FF7AB2;
+  --hl-string:#FF8170;
+  --hl-number:#A5A0FF;
+  --hl-title:#5FD3C4;
+  --hl-type:#77C4FF;
+  --hl-attr:#D5A6FF;
+  --hl-meta:#E0B48A;
+
+  /* — ANSI 日志（16 前景 + 16 背景） —
+     前景换成亮版保证在深色日志底上可读；背景用 color-mix 从对应前景派生，
+     省掉 16 行手抄值，且改前景时背景自动跟着变。 */
+  --ansi-default-fg:var(--label);
+  --ansi-default-bg:#1A1A1C;
+  --ansi-fg-black:#7C7C80;         --ansi-fg-red:#FF6B6B;
+  --ansi-fg-green:#7DD87D;         --ansi-fg-yellow:#E5C07B;
+  --ansi-fg-blue:#6CB6FF;          --ansi-fg-magenta:#D19AFF;
+  --ansi-fg-cyan:#56D4DD;          --ansi-fg-white:#C7C7CC;
+  --ansi-fg-bright-black:#9A9AA0;  --ansi-fg-bright-red:#FF8A80;
+  --ansi-fg-bright-green:#A5E8A5;  --ansi-fg-bright-yellow:#FFD479;
+  --ansi-fg-bright-blue:#8FC9FF;   --ansi-fg-bright-magenta:#E5B8FF;
+  --ansi-fg-bright-cyan:#7AE7EF;   --ansi-fg-bright-white:#FFFFFF;
+
+  --ansi-bg-black:color-mix(in srgb, var(--ansi-fg-black) 22%, var(--ansi-default-bg));
+  --ansi-bg-red:color-mix(in srgb, var(--ansi-fg-red) 22%, var(--ansi-default-bg));
+  --ansi-bg-green:color-mix(in srgb, var(--ansi-fg-green) 22%, var(--ansi-default-bg));
+  --ansi-bg-yellow:color-mix(in srgb, var(--ansi-fg-yellow) 22%, var(--ansi-default-bg));
+  --ansi-bg-blue:color-mix(in srgb, var(--ansi-fg-blue) 22%, var(--ansi-default-bg));
+  --ansi-bg-magenta:color-mix(in srgb, var(--ansi-fg-magenta) 22%, var(--ansi-default-bg));
+  --ansi-bg-cyan:color-mix(in srgb, var(--ansi-fg-cyan) 22%, var(--ansi-default-bg));
+  --ansi-bg-white:#D8D8DC;
+  --ansi-bg-bright-black:color-mix(in srgb, var(--ansi-fg-bright-black) 30%, var(--ansi-default-bg));
+  --ansi-bg-bright-red:color-mix(in srgb, var(--ansi-fg-bright-red) 30%, var(--ansi-default-bg));
+  --ansi-bg-bright-green:color-mix(in srgb, var(--ansi-fg-bright-green) 30%, var(--ansi-default-bg));
+  --ansi-bg-bright-yellow:color-mix(in srgb, var(--ansi-fg-bright-yellow) 30%, var(--ansi-default-bg));
+  --ansi-bg-bright-blue:color-mix(in srgb, var(--ansi-fg-bright-blue) 30%, var(--ansi-default-bg));
+  --ansi-bg-bright-magenta:color-mix(in srgb, var(--ansi-fg-bright-magenta) 30%, var(--ansi-default-bg));
+  --ansi-bg-bright-cyan:color-mix(in srgb, var(--ansi-fg-bright-cyan) 30%, var(--ansi-default-bg));
+  --ansi-bg-bright-white:#F2F2F7;
+}
+
+/* 提交类型标签：--tc 是文字色、--tb 是底色。
+   浅色那套（#8C6D46 棕、#5E5CE6 靛）压深色 tint 撑不到 4.5:1，逐类换亮版。
+   .t-chore / .t-none 走 --label-3，自动跟随文字阶，无需覆盖。 */
+html[data-theme="dark"] .commit-type-btn.t-feat,
+html[data-theme="dark"] .commit-type-menu .opt.t-feat{--tc:#409CFF;--tb:rgba(10,132,255,.18)}
+html[data-theme="dark"] .commit-type-btn.t-test,
+html[data-theme="dark"] .commit-type-menu .opt.t-test{--tc:#D08BFF;--tb:rgba(175,82,222,.20)}
+html[data-theme="dark"] .commit-type-btn.t-build,
+html[data-theme="dark"] .commit-type-menu .opt.t-build{--tc:#D0A876;--tb:rgba(162,132,94,.22)}
+html[data-theme="dark"] .commit-type-btn.t-ci,
+html[data-theme="dark"] .commit-type-menu .opt.t-ci{--tc:#8E8CFF;--tb:rgba(94,92,230,.20)}
+html[data-theme="dark"] .commit-type-btn.t-revert,
+html[data-theme="dark"] .commit-type-menu .opt.t-revert{--tc:#FF6482;--tb:rgba(255,45,85,.18)}
+
+/* 滚动条：rgba(120,120,128,α) 在深底上的可见度略低，只提一档，不换色系。
+   放在这里而不是 scroll.css，避免同一文件里混杂两个主题的取值。
+   与浅色一致：默认透明、.scrolling 时才显形（见 scroll.css / lib/scroll-reveal.js）。 */
+html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:transparent;background-clip:content-box}
+html[data-theme="dark"] .scrolling::-webkit-scrollbar-thumb{background:rgba(120,120,128,.44);background-clip:content-box}
+html[data-theme="dark"] .scrolling::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.60);background-clip:content-box}
+html[data-theme="dark"] .logs.scrolling::-webkit-scrollbar-thumb{background:rgba(120,120,128,.34);background-clip:content-box}

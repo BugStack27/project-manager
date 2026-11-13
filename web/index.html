@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>项目管理台</title>
+    <script>
+      /* 首帧定色：必须在 React 挂载前把 data-theme / data-skin 写对，否则暗色用户每次启动都会白闪一帧。
+         键名与判断与 web/src/lib/theme.js、web/src/lib/skin.js 同源 —— 内联脚本无法 import，改动时必须同步。 */
+      (function () {
+        var pref = 'system';
+        try { pref = window.localStorage.getItem('pm.ui.theme') || 'system'; } catch (e) { /* 读不到就按跟随系统 */ }
+        if (pref !== 'light' && pref !== 'dark') {
+          pref = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = pref;
+        var skin = 'vivid';
+        try { skin = window.localStorage.getItem('pm.ui.skin') || 'vivid'; } catch (e) { /* 读不到就按默认 */ }
+        if (skin !== 'crisp' && skin !== 'warm' && skin !== 'vivid') skin = 'vivid';
+        document.documentElement.dataset.skin = skin;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

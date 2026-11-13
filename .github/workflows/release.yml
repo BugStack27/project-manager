@@ -1,0 +1,64 @@
+name: Release
+
+# 推 v 前缀 tag 触发：v2.0.1 → 构建 Windows 安装包并把 exe / blockmap / latest.yml
+# 挂到同名 GitHub Release。客户端 electron-updater（electron/services/updater.js）
+# 靠这份 latest.yml 判断「有新版本」，没有 release 资产它就永远停在 up-to-date。
+on:
+  push:
+    tags:
+      - 'v*'
+
+# electron-builder 需要写 Release 的权限；GITHUB_TOKEN 够用，不必配个人 PAT
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22：Vite 8 要求 ≥20.19 / ≥22.12，20.x 早期的镜像会直接报 engine 不匹配
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      # latest.yml 里的版本来自 package.json，tag 对不上就会发出一个装不上的更新
+      - name: 校验 tag 与 package.json 版本一致
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::tag $GITHUB_REF_NAME 与 package.json version $PKG_VERSION 不一致"
+            exit 1
+          fi
+
+      - name: 安装主进程依赖
+        run: npm ci
+
+      - name: 安装前端依赖
+        working-directory: web
+        run: npm ci
+
+      # 语法自检先跑一遍：坏文件到打包阶段才炸，发布 tag 已经推出去了，回滚更麻烦
+      - name: 语法自检
+        run: npm run check
+
+      - name: 构建前端
+        run: npm run build
+
+      # --publish always 才会传 release 资产；默认的 npm run dist 只写本地 release/
+      - name: 打包并发布
+        run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

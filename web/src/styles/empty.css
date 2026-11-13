@@ -1,0 +1,10 @@
+/* 空状态（L277–282, 418）
+   本文件内容按原 styles.css 顺序搬运；层叠顺序由 index.css 的引入顺序决定。 */
+  /* ── empty（扁平直铺，无卡片） ───────────────── */
+  .empty{padding:52px 20px;text-align:center}
+  .empty .ico{width:48px;height:48px;margin:0 auto 14px;border-radius:8px;display:grid;place-items:center;color:var(--blue);background:var(--blue-tint)}
+  .empty .ico svg{width:20px;height:20px}
+  .empty h3{margin:0 0 4px;font-size:14px;font-weight:600}
+  .empty p{margin:0 auto;color:var(--label-2);font-size:13px;max-width:460px}
+
+  .empty .actions{margin-top:14px;display:flex;justify-content:center;gap:8px}

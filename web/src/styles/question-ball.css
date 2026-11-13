@@ -1,0 +1,95 @@
+/* 强提醒悬浮球：固定在右下角，不占版面。
+   鼠标悬浮即展开单行列表，条目长度随内容变化，最宽占中间面板的 2/3。
+   z-index 55：压住页面内容与页栏（7），低于弹窗（60）与 toast（90）。 */
+  .qball-wrap{position:fixed;bottom:20px;z-index:55;transition:right .24s cubic-bezier(.4,0,.2,1)}
+  .qball{
+    position:relative;display:grid;place-items:center;width:44px;height:44px;
+    padding:0;border:0;border-radius:50%;
+    background:var(--orange);color:#1D1D1F;cursor:pointer;
+    box-shadow:0 8px 20px rgba(0,0,0,.22);
+    transition:transform .12s,box-shadow .12s;
+  }
+  .qball:hover{transform:scale(1.06);box-shadow:0 10px 24px rgba(0,0,0,.28)}
+  .qball:active{transform:scale(.97)}
+  .qball:focus-visible{outline:2px solid var(--orange);outline-offset:3px}
+  /* 向外扩散的呼吸环，与侧栏 / 总览共用 @keyframes pulse，别再写第二份 */
+  .qball::after{
+    content:"";position:absolute;inset:-4px;border-radius:50%;
+    border:2px solid var(--orange);opacity:.45;
+    animation:pulse 1.9s ease-out infinite;pointer-events:none;
+  }
+  .qball .qball-ico{display:grid;place-items:center}
+  .qball .qball-ico svg{width:20px;height:20px}
+  /* 计数角标用卡片色而不是红色：球本身已是橙色，叠红点会糊成一片 */
+  .qball .qball-badge{
+    position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 5px;
+    border-radius:999px;border:1.5px solid var(--orange);
+    background:var(--card);color:var(--orange-text);
+    font-size:10px;font-weight:700;line-height:1;
+    display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.18);
+  }
+
+  /* 悬浮展开的浮层：从球向上展开，右边缘与球对齐。
+     width:max-content 让短条目收起、长条目变宽；上限是中间面板的 2/3（由 App 传入 CSS 变量）。 */
+  .qpop{
+    position:absolute;right:0;bottom:calc(100% + 10px);
+    width:max-content;
+    max-width:var(--qpop-max,min(560px,calc(100vw - 40px)));
+    min-width:min(240px,var(--qpop-max,240px));
+    max-height:min(420px,60vh);
+    display:flex;flex-direction:column;overflow:hidden;
+    background:var(--card);border:1px solid var(--sep);border-radius:12px;
+    box-shadow:var(--sh-sheet);transform-origin:100% 100%;
+    animation:pop .16s cubic-bezier(.32,.72,0,1) both;
+  }
+  /* 透明桥：把球与浮层之间的 10px 空隙算进浮层的命中区域，鼠标过去不会触发收起 */
+  .qpop::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px}
+  .qpop-hd{
+    flex:none;padding:8px 12px;border-bottom:1px solid var(--sep);
+    font-size:11.5px;font-weight:600;line-height:1.4;color:var(--label-3);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .qpop-list{flex:1;min-height:0;overflow:auto;padding:4px;display:flex;flex-direction:column;gap:2px}
+  /* 每项一行：图标 / 项目 / 内容 / 倒计时 / 箭头。内容超出用 ...，不再折成多行。
+     三块各有一套视觉：项目是中性底标签，内容是正文层级（标题重、发言人浅），倒计时是强调药丸。 */
+  .qpop-row{
+    display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;
+    border:0;border-radius:8px;background:none;
+    font:inherit;font-size:12px;line-height:1.4;text-align:left;
+    color:var(--label);cursor:pointer;white-space:nowrap;
+  }
+  .qpop-row:hover{background:var(--fill-2)}
+  .qpop-row:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
+  .qpop-ico{flex:none;display:grid;place-items:center;width:20px;height:20px;border-radius:6px}
+  .qpop-ico svg{width:14px;height:14px}
+  .qpop-ico.question{background:var(--orange-tint);color:var(--orange-text)}
+  .qpop-ico.review{background:var(--green-tint);color:var(--green-text)}
+  .qpop-ico.other{background:var(--blue-tint);color:var(--blue)}
+  /* 项目：中性底色的小标签，与正文字阶拉开一档 */
+  .qpop-proj{
+    flex:none;max-width:9em;overflow:hidden;text-overflow:ellipsis;
+    padding:2px 6px;border-radius:5px;
+    background:var(--fill-2);color:var(--label-2);
+    font-size:11px;font-weight:600;line-height:1.45;
+  }
+  /* 内容：编号（浅）→ 标题（重）→ 发言人/正文（浅），整体单行省略 */
+  .qpop-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .qpop-text .qpop-rid{margin-right:4px;font-family:var(--mono);font-size:11px;color:var(--label-4)}
+  .qpop-text .qpop-title{color:var(--ink-body);font-weight:400}
+  .qpop-text .qpop-title::after{content:"·";margin:0 5px;color:var(--label-4);font-weight:400}
+  .qpop-text .qpop-tail{color:var(--label-3)}
+  /* 倒计时：等宽数字 + 高对比药丸，一眼能看出还剩多久；超时翻红 */
+  .qpop-remain{
+    flex:none;padding:2px 6px;border-radius:6px;
+    background:var(--orange-tint);color:var(--orange-text);
+    font-family:var(--mono);font-size:12px;font-weight:700;
+    font-variant-numeric:tabular-nums;letter-spacing:.01em;line-height:1.35;
+  }
+  .qpop-remain.over{background:var(--red-tint);color:var(--red-text)}
+  /* 没有截止时间时只显示发生时刻，退回普通次要文字，不抢眼 */
+  .qpop-remain.plain{
+    padding:0;background:none;color:var(--label-3);
+    font-family:var(--font);font-size:11px;font-weight:500;
+  }
+  .qpop-chev{flex:none;display:grid;place-items:center;color:var(--label-4)}
+  .qpop-chev svg{width:12px;height:12px}

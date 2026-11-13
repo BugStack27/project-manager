@@ -39,6 +39,7 @@ export default function Sidebar({
   onNewProject,
   onReorderProjects,
   onEditProject,
+  onArchiveProject,
   onRestoreProject,
   onDeleteProject,
   onReveal,
@@ -564,6 +565,7 @@ export default function Sidebar({
                 onEdit={onEditProject}
                 onOpenTerminal={onOpenTerminal}
                 onReveal={onReveal}
+                onArchive={onArchiveProject}
               />
             </div>
           );

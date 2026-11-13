@@ -98,7 +98,7 @@ function CmdButton({ items, label, tone, busy, onPick }) {
   );
 }
 
-function ProjectRow({ p, projects, git, onOpen, onStart, onStop, onEditProject, onReveal, onOpenTerminal }) {
+function ProjectRow({ p, projects, git, onOpen, onStart, onStop, onEditProject, onArchiveProject, onReveal, onOpenTerminal }) {
   const cmds = p.commands || [];
   /** 在跑的（含分离仍存活）：既能展示也都能停 —— 分离的按库里 hostPid 结束进程树 */
   const running = cmds.filter(isCommandActive);
@@ -274,6 +274,7 @@ function ProjectRow({ p, projects, git, onOpen, onStart, onStop, onEditProject, 
           onEdit={onEditProject}
           onOpenTerminal={onOpenTerminal}
           onReveal={onReveal}
+          onArchive={onArchiveProject}
         />
       </div>
     </div>
@@ -291,6 +292,7 @@ export default function OverviewPage({
   onStart,
   onStop,
   onEditProject,
+  onArchiveProject,
   onReveal,
   onOpenTerminal,
   onCreateProject
@@ -361,7 +363,16 @@ export default function OverviewPage({
     );
   }
 
-  const rowProps = { projects, onOpen, onStart, onStop, onEditProject, onReveal, onOpenTerminal };
+  const rowProps = {
+    projects,
+    onOpen,
+    onStart,
+    onStop,
+    onEditProject,
+    onArchiveProject,
+    onReveal,
+    onOpenTerminal
+  };
 
   return (
     <div className="wrap">

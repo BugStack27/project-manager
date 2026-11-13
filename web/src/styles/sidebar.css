@@ -158,6 +158,11 @@
   .pmenu-item.pmenu-term .ico{color:var(--label)}
   .pmenu-item.pmenu-folder .ico{color:var(--folder)}
   .pmenu-item.pmenu-folder:hover .ico{color:var(--folder-hover)}
+  /* 归档项：与打开类操作分隔；确认态整行标红，避免误点 */
+  .pmenu-sep{height:1px;margin:3px 4px;flex:none;background:var(--sep)}
+  .pmenu-item.pmenu-archive.armed{background:var(--red-tint);color:var(--red-text);font-weight:600}
+  .pmenu-item.pmenu-archive.armed:hover{background:var(--red-tint)}
+  .pmenu-item.pmenu-archive.armed .ico{color:var(--red-text)}
 
   /* 侧栏 · 已归档分组：找回入口，不参与搜索 */
   .parch{margin-top:10px;padding-top:6px;border-top:1px solid var(--sep)}

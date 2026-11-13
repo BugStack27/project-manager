@@ -41,7 +41,8 @@ status: accepted
 | 数据拆分 | `loadProjects` 一次取回后拆成未归档 / 已归档两份，`projects` 只含未归档 | 总览、侧栏、`pid` 兜底等既有消费者语义不变 |
 | 分组显隐 | 有归档才显示、默认收起、展开态仅本会话；侧栏收成窄栏时整组隐藏 | 无归档不占位，与其它分组一致 |
 | 恢复行为 | `updateProject(id, { archived:false })`；不切当前项目、不切页，只弹 Toast | 恢复是找回动作，不该打断当前工作 |
-| 归档指引 | 项目设置编辑态底部说明「归档后可在侧栏『已归档』恢复；需求、命令与日志会保留」 | 归档前知道退路 |
+| 归档入口 | 项目设置弹窗底部，或侧栏 / 总览项目行的「更多操作」菜单；两处共用 `archiveProject`，菜单项就地两步确认（5 秒撤销） | 归档不必先打开设置弹窗，又不降低防误点的门槛 |
+| 归档指引 | 项目设置编辑态底部说明「归档后可在侧栏『已归档』恢复；需求、命令与日志会保留」；菜单项 tooltip 同样说明 | 归档前知道退路 |
 | 彻底删除 | 仅归档项目；两步确认；只删登记、需求、命令与日志文件，不碰代码目录 | 与「删除项目」区分，绝不误删源码 |
 | 删除前置 | 有命令运行中时拒绝删除（409） | 退出会把内存旧库写回 |
 
@@ -93,6 +94,7 @@ Kotlin、Java、Maven、Gradle、npm 已作为项目名后的技术栈图标支�
 | `web/src/ides.js`、`web/src/ui.jsx` | 模块级 Promise 记忆化共享扫描；`IdeButton`（主键 + 切换菜单 + 重新扫描） |
 | `web/src/App.jsx` / `web/src/forms.jsx` | `PageBar` 工具槽渲染 `IdeButton`；`openTerminal` 成功静默、失败走警告；归档拆分、恢复与删除；编辑态的恢复指引 |
 | `web/src/Sidebar.jsx` | 终端菜单项；`.parch` 折叠分组、恢复与删除按钮（进行中 id 防重复、`armedId` 两步确认） |
+| `web/src/components/ProjectMenu.jsx`、`web/src/styles/sidebar.css` | 侧栏 / 总览共用的项目菜单增加「归档项目」：分隔线隔开、就地两步确认、确认态标红 |
 | `web/src/styles/{tokens,sidebar,context,modal}.css` | `--teal`、`.parch*`、`.arch-note` |
 
 ## 4. 关键修正与教训

@@ -80,6 +80,18 @@ export default function App() {
     openDataDir
   } = useProjects({ notify, setModal, onProjectsChanged: invalidateStats });
 
+  /** 项目菜单里的归档：与设置弹窗复用同一领域动作；失败（如仍有命令在运行）转成警告 */
+  const archiveProjectFromMenu = useCallback(
+    async (p) => {
+      try {
+        await archiveProject(p);
+      } catch (e) {
+        notify(e.message, 'warn');
+      }
+    },
+    [archiveProject, notify]
+  );
+
   /** 自动默认选中「每次进入只做一次」的标记，key = page|pid */
   const autoPick = useRef('');
 
@@ -623,6 +635,7 @@ export default function App() {
         onNewProject={openCreateProject}
         onReorderProjects={reorderProjects}
         onEditProject={(p) => setModal({ type: 'project', mode: 'edit', project: p })}
+        onArchiveProject={archiveProjectFromMenu}
         onRestoreProject={restoreProject}
         onDeleteProject={deleteProject}
         onReveal={revealProject}
@@ -689,6 +702,7 @@ export default function App() {
             onStart={startFromOverview}
             onStop={stopFromOverview}
             onEditProject={(p) => setModal({ type: 'project', mode: 'edit', project: p })}
+            onArchiveProject={archiveProjectFromMenu}
             onReveal={revealProject}
             onOpenTerminal={openTerminal}
             onCreateProject={openCreateProject}

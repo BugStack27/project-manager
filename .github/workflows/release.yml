@@ -72,40 +72,58 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="$GITHUB_REF_NAME"
+          VER="${TAG#v}"
           ls -l release
 
-          if ! gh release view "$TAG" >/dev/null 2>&1; then
-            # 正文取自 annotated tag；轻量 tag 没有注释，退回空正文
-            if [ "$(git cat-file -t "$TAG")" = "tag" ]; then
-              gh release create "$TAG" --title "${TAG#v}" --verify-tag --latest --notes-from-tag
-            else
-              echo "::notice::$TAG 不是 annotated tag，Release 正文留空"
-              gh release create "$TAG" --title "${TAG#v}" --verify-tag --latest --notes ""
-            fi
+          # 正文取自 annotated tag；轻量 tag 没有注释，退回空正文
+          BODY="$(git tag -l --format='%(contents)' "$TAG")"
+
+          # 必须用带 token 的列表：/releases/tags/:tag 查不到草稿，而我们的历史 Release
+          # 很可能已经是草稿——之前反复删 / 重推同名 tag，已发布的 Release 会被摘成
+          # untagged 草稿（html_url 变成 /releases/tag/untagged-xxxx），页面上看不见，
+          # /releases/download/<tag>/latest.yml 就 404。
+          ID=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --paginate \
+                 --jq ".[] | select(.tag_name==\"$TAG\") | .id" | head -n1)
+
+          if [ -z "$ID" ]; then
+            echo "没有现存 Release，新建 $TAG"
+            ID=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+                   -f tag_name="$TAG" -f name="$VER" -f body="$BODY" \
+                   -F draft=false -F make_latest=true --jq .id)
           else
-            echo "Release $TAG 已存在，只补传资产"
+            echo "复用 Release $ID，重新绑定 tag 并确保处于已发布状态"
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$ID" \
+              -f tag_name="$TAG" -f name="$VER" -f body="$BODY" \
+              -F draft=false -F make_latest=true >/dev/null
           fi
 
           # --clobber：重发同一版本时覆盖同名旧资产，不会卡在 422
           gh release upload "$TAG" release/*.exe release/*.exe.blockmap release/latest.yml --clobber
 
           # 客户端只认 latest.yml，缺了必然 404，宁可这里失败也别发个装不上的版本
-          assets=$(gh release view "$TAG" --json assets --jq '.assets[].name')
-          echo "$assets"
-          echo "$assets" | grep -qx "latest.yml" || { echo "::error::Release 缺少 latest.yml"; exit 1; }
-          echo "$assets" | grep -q '\.exe$'      || { echo "::error::Release 缺少安装包 exe"; exit 1; }
+          draft=$(gh api "repos/$GITHUB_REPOSITORY/releases/$ID" --jq .draft)
+          rtag=$(gh api "repos/$GITHUB_REPOSITORY/releases/$ID" --jq .tag_name)
+          assets=$(gh api "repos/$GITHUB_REPOSITORY/releases/$ID" --jq '[.assets[].name]|join(",")')
+          echo "release $ID: draft=$draft tag=$rtag assets=$assets"
 
-      # 收尾去重：只删一个资产都没有的空壳 Release，带资产的一律不自动删
-      - name: 清理空壳 Release
+          [ "$draft" = "false" ] || { echo "::error::Release 仍是草稿，下载地址不会生效"; exit 1; }
+          [ "$rtag" = "$TAG" ]   || { echo "::error::Release 绑定的 tag 是 $rtag，不是 $TAG"; exit 1; }
+          case "$assets" in *latest.yml*) ;; *) echo "::error::Release 缺少 latest.yml"; exit 1 ;; esac
+          case "$assets" in *.exe*)       ;; *) echo "::error::Release 缺少安装包 exe"; exit 1 ;; esac
+
+      # 收尾：同一个 tag 只留上面那个 Release，历史遗留的草稿 / 重复一并删掉
+      # （它们的资产是旧的，留着只会让 Release 页和 latest.yml 指向错的地方）
+      - name: 清理同名重复 Release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="$GITHUB_REF_NAME"
-          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --paginate \
-            --jq ".[] | select(.tag_name==\"$TAG\") | select((.assets|length)==0) | .id" |
-          while read -r id; do
+          ids=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --paginate \
+                  --jq ".[] | select(.tag_name==\"$TAG\") | .id")
+          keep=$(echo "$ids" | head -n1)
+          echo "$ids" | tail -n +2 | while read -r id; do
             [ -z "$id" ] && continue
-            echo "删除空壳 Release $id"
+            echo "删除重复 Release $id（保留 $keep）"
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
           done

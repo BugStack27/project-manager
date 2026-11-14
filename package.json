@@ -1,7 +1,7 @@
 {
   "name": "project-manager",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "个人项目管理台：需求中心 + 启动台 + 修改记录（Electron 桌面版，IPC + MCP）",
   "author": "BugStack27",
   "repository": {

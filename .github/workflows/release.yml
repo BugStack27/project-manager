@@ -57,69 +57,55 @@ jobs:
       - name: 构建前端
         run: npm run build
 
-      # 先建好 Release：exe / blockmap / latest.yml 是并发上传的，electron-builder 的
-      # 发布器缓存有竞态（PublishManager.getOrCreatePublisher 先查缓存再 await 创建），
-      # 多个上传任务同时起跑会各建一个发布器，各自「查不到就建」，于是发版必出两个
-      # 同名 Release。预先建好，两个发布器都能查到同一个，资产就不会分裂。
-      - name: 预建 Release
+      # electron-builder 自带的发布器有竞态：exe / blockmap / latest.yml 并发上传时，
+      # 每个上传任务各起一个发布器，各自「查不到就建」，于是同一个 tag 建出两三个
+      # Release，资产还被拆散——latest.yml 落进没人下载的那份里，客户端就 404。
+      # 因此这里不用 --publish：只让 electron-builder 打包，Release 交给 gh 建与传。
+      - name: 打包
+        run: npx electron-builder --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 建 Release 并上传资产
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="$GITHUB_REF_NAME"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG 已存在，直接复用"
-            exit 0
-          fi
-          # 注释取自 annotated tag；轻量 tag 没有注释内容，退回空正文
-          if [ "$(git cat-file -t "$TAG")" = "tag" ]; then
-            NOTE_ARGS=(--notes-from-tag)
+          ls -l release
+
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            # 正文取自 annotated tag；轻量 tag 没有注释，退回空正文
+            if [ "$(git cat-file -t "$TAG")" = "tag" ]; then
+              gh release create "$TAG" --title "${TAG#v}" --verify-tag --latest --notes-from-tag
+            else
+              echo "::notice::$TAG 不是 annotated tag，Release 正文留空"
+              gh release create "$TAG" --title "${TAG#v}" --verify-tag --latest --notes ""
+            fi
           else
-            echo "::notice::$TAG 不是 annotated tag，Release 正文留空"
-            NOTE_ARGS=(--notes "")
+            echo "Release $TAG 已存在，只补传资产"
           fi
-          gh release create "$TAG" \
-            --title "${TAG#v}" \
-            --verify-tag \
-            --latest \
-            "${NOTE_ARGS[@]}"
 
-      # --publish always 才会传 release 资产；默认的 npm run dist 只写本地 release/
-      - name: 打包并发布
-        run: npx electron-builder --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # --clobber：重发同一版本时覆盖同名旧资产，不会卡在 422
+          gh release upload "$TAG" release/*.exe release/*.exe.blockmap release/latest.yml --clobber
 
-      # 兜底去重：万一并发又建出第二个同名 Release，这里收成一个。
-      # 只保留同时有 exe 与 latest.yml 的那个——两者缺一，客户端就更新不了，
-      # 宁可留着不删也不要把能用的删掉。
-      - name: 清理同名重复 Release
+          # 客户端只认 latest.yml，缺了必然 404，宁可这里失败也别发个装不上的版本
+          assets=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          echo "$assets"
+          echo "$assets" | grep -qx "latest.yml" || { echo "::error::Release 缺少 latest.yml"; exit 1; }
+          echo "$assets" | grep -q '\.exe$'      || { echo "::error::Release 缺少安装包 exe"; exit 1; }
+
+      # 收尾去重：只删一个资产都没有的空壳 Release，带资产的一律不自动删
+      - name: 清理空壳 Release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="$GITHUB_REF_NAME"
-          rows=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --paginate --jq \
-            ".[] | select(.tag_name==\"$TAG\")
-             | \"\(.id)\t\([.assets[].name]|any(endswith(\".exe\")))\t\([.assets[].name]|any(.==\"latest.yml\"))\"")
-
-          keep=""
-          while IFS=$'\t' read -r id has_exe has_yml; do
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --paginate \
+            --jq ".[] | select(.tag_name==\"$TAG\") | select((.assets|length)==0) | .id" |
+          while read -r id; do
             [ -z "$id" ] && continue
-            if [ "$has_exe" = "true" ] && [ "$has_yml" = "true" ] && [ -z "$keep" ]; then
-              keep="$id"
-            fi
-          done <<< "$rows"
-
-          if [ -z "$keep" ]; then
-            echo "::warning::没有一个 Release 同时含 exe 与 latest.yml，跳过去重"
-            exit 0
-          fi
-
-          while IFS=$'\t' read -r id _ _; do
-            [ -z "$id" ] && continue
-            if [ "$id" != "$keep" ]; then
-              echo "删除重复 Release $id（保留 $keep）"
-              gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
-            fi
-          done <<< "$rows"
+            echo "删除空壳 Release $id"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+          done

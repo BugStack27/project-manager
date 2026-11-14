@@ -89,3 +89,37 @@ jobs:
         run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 兜底去重：万一并发又建出第二个同名 Release，这里收成一个。
+      # 只保留同时有 exe 与 latest.yml 的那个——两者缺一，客户端就更新不了，
+      # 宁可留着不删也不要把能用的删掉。
+      - name: 清理同名重复 Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          rows=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --paginate --jq \
+            ".[] | select(.tag_name==\"$TAG\")
+             | \"\(.id)\t\([.assets[].name]|any(endswith(\".exe\")))\t\([.assets[].name]|any(.==\"latest.yml\"))\"")
+
+          keep=""
+          while IFS=$'\t' read -r id has_exe has_yml; do
+            [ -z "$id" ] && continue
+            if [ "$has_exe" = "true" ] && [ "$has_yml" = "true" ] && [ -z "$keep" ]; then
+              keep="$id"
+            fi
+          done <<< "$rows"
+
+          if [ -z "$keep" ]; then
+            echo "::warning::没有一个 Release 同时含 exe 与 latest.yml，跳过去重"
+            exit 0
+          fi
+
+          while IFS=$'\t' read -r id _ _; do
+            [ -z "$id" ] && continue
+            if [ "$id" != "$keep" ]; then
+              echo "删除重复 Release $id（保留 $keep）"
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+            fi
+          done <<< "$rows"

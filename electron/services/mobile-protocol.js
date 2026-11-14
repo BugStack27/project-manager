@@ -80,9 +80,10 @@ function isValidKey(value) {
 
 /** 连接密钥 → AES-256 密钥。缓存最近几条，避免每分钟重算 10 万轮 */
 function deriveKey(key, topic) {
-  if (!isValidKey(key) || !isValidTopic(topic)) {
+  if (!isValidKey(key)) {
     throw protocolError('连接密钥或 topic 不合法', 'bad_session');
   }
+  // topic 在 PushGo 模式下是频道 ID，只作为 AAD / 盐的一部分，格式由连接信息解析处校验
   const cacheKey = topic + '|' + key;
   const hit = derived.get(cacheKey);
   if (hit) return hit;
@@ -159,6 +160,24 @@ function connectPayload({ server, topic, key }) {
     topic,
     key
   });
+}
+
+/** PushGo 二维码：网关 + 频道 + 频道密码（密码同时作为端到端加密密钥） */
+function connectPayloadPushGo({ gateway, channel, password }) {
+  return JSON.stringify({
+    v: 2,
+    type: 'pm-mobile',
+    provider: 'pushgo',
+    gateway: String(gateway || '').replace(/\/+$/, ''),
+    channel,
+    password
+  });
+}
+
+/** PushGo op_id 只允许字母/数字/下划线/冒号/短横；把消息 id 稳定地映射过去 */
+function pushgoOpId(id) {
+  const clean = String(id || '').replace(/[^A-Za-z0-9_:-]/g, '-').slice(0, 128);
+  return clean || ('op-' + Date.now().toString(36));
 }
 
 /** 审核消息：id 由「需求 + 这一轮交付时间」组成，重发不会变成新消息 */
@@ -274,6 +293,8 @@ module.exports = {
   sealMessage,
   openMessage,
   connectPayload,
+  connectPayloadPushGo,
+  pushgoOpId,
   reviewMessage,
   questionMessage,
   keepaliveMessage,

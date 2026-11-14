@@ -9,27 +9,27 @@ const { agentNameMap } = require('./lookups');
 const protocol = require('../mobile-protocol');
 
 /**
- * 手机端通信的领域状态：设置、会话、待推送消息、手机答案回写。
+ * 手机端通信的领域状态：PushGo 网关设置、频道/设备会话、待推送消息、手机答案回写。
  *
- * 不碰网络：ntfy 的订阅 / 发布在 services/mobile-link.js，那里只消费这里产出的
- * 「待推送消息清单」，收到的答案回传到这里落库。这样协议与业务状态可以脱离传输单测。
+ * 传输（PushGo Pull/ACK）在 services/mobile-link.js，这里只维护业务状态，
+ * 这样会话、待推送与答案幂等可以脱离网络单测。
  */
 
-const DEFAULT_URL = 'https://ntfy.sh';
-const DEFAULTS = { enabled: false, ntfyUrl: DEFAULT_URL, token: '' };
+const DEFAULT_GATEWAY = 'https://gateway.pushgo.dev';
+const DEFAULTS = { enabled: false, gateway: DEFAULT_GATEWAY };
 const URL_MAX = 300;
-const TOKEN_MAX = 300;
-/** 记住最近处理过的答案 id：手机端网络抖动会重发同一条，重复答案不能写两遍 */
 const PROCESSED_MAX = 500;
+/** 记住最近处理过的答案 id：手机端网络抖动会重发同一条，重复答案不能写两遍 */
 const processed = new Map();
 
 function readSettings(db) {
   const raw = (db && db.settings && db.settings.mobile) || {};
-  const url = typeof raw.ntfyUrl === 'string' && raw.ntfyUrl.trim() ? raw.ntfyUrl.trim() : DEFAULT_URL;
+  const gateway = typeof raw.gateway === 'string' && raw.gateway.trim()
+    ? raw.gateway.trim()
+    : DEFAULT_GATEWAY;
   return {
     enabled: raw.enabled === true,
-    ntfyUrl: url.replace(/\/+$/, ''),
-    token: typeof raw.token === 'string' ? raw.token : ''
+    gateway: gateway.replace(/\/+$/, '')
   };
 }
 
@@ -40,47 +40,65 @@ function bad(message, code, status) {
   return e;
 }
 
-/** ntfy 服务器地址：只收 http/https，允许带路径（自建反代常见），去掉尾部斜杠 */
-function normalizeUrl(value) {
+/** PushGo 网关地址：只收 http/https，允许带路径（自建反代常见），去掉尾部斜杠 */
+function normalizeGateway(value) {
   const url = String(value == null ? '' : value).trim();
-  if (!url) return DEFAULT_URL;
-  if (url.length > URL_MAX) throw bad('ntfy 地址过长（上限 ' + URL_MAX + ' 字符）');
+  if (!url) return DEFAULT_GATEWAY;
+  if (url.length > URL_MAX) throw bad('PushGo 网关地址过长（上限 ' + URL_MAX + ' 字符）');
   let u;
   try {
     u = new URL(url);
   } catch (_) {
-    throw bad('ntfy 地址不是合法 URL');
+    throw bad('PushGo 网关不是合法 URL');
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') {
-    throw bad('ntfy 地址只支持 http / https');
+    throw bad('PushGo 网关只支持 http / https');
   }
   return url.replace(/\/+$/, '');
 }
 
-function redact(settings) {
-  return { ...settings, token: settings.token ? '<已设置>' : '' };
-}
-
-/** 会话按需生成：老库没有 db.mobile，或字段被改坏时补一份新的 */
+/** 频道与会话按需生成；渠道 ID 由 PushGo 网关创建，link 层写入 */
 function ensureSession(db) {
   if (!db.mobile || typeof db.mobile !== 'object' || Array.isArray(db.mobile)) db.mobile = {};
   const m = db.mobile;
-  if (protocol.isValidTopic(m.topic) && protocol.isValidKey(m.key)) return m;
+  let changed = false;
 
-  const at = nowIso();
-  m.topic = protocol.newTopic();
-  m.key = protocol.newKey();
-  m.createdAt = at;
-  delete m.rotatedAt;
-  store.save();
+  if (!protocol.isValidKey(m.channelPassword)) {
+    m.channelPassword = protocol.newKey();
+    changed = true;
+  }
+  if (typeof m.channelName !== 'string' || !m.channelName.trim()) {
+    m.channelName = protocol.newTopic();
+    changed = true;
+  }
+  if (typeof m.channelId !== 'string') {
+    m.channelId = '';
+    changed = true;
+  }
+  if (typeof m.deviceKey !== 'string') {
+    m.deviceKey = '';
+    changed = true;
+  }
+  if (typeof m.providerToken !== 'string') {
+    m.providerToken = '';
+    changed = true;
+  }
+  if (!m.createdAt) {
+    m.createdAt = nowIso();
+    changed = true;
+  }
+  if (changed) store.save();
   return m;
 }
 
 function sessionInfo(db) {
   const m = ensureSession(db || store.get());
   return {
-    topic: m.topic,
-    key: m.key,
+    channelId: m.channelId || '',
+    channelName: m.channelName,
+    channelPassword: m.channelPassword,
+    deviceKey: m.deviceKey || '',
+    providerToken: m.providerToken || '',
     createdAt: m.createdAt || null,
     rotatedAt: m.rotatedAt || null
   };
@@ -88,7 +106,7 @@ function sessionInfo(db) {
 
 /**
  * 当前该推给手机端的消息：只有「等待审核」的交付与「等待回答」的提问。
- * id 与内容都稳定（见 mobile-protocol），传输层据此做重发与内容指纹。
+ * id 与内容都稳定（见 mobile-protocol），传输层据此做去重与内容指纹。
  */
 function pendingMessages() {
   const db = store.get();
@@ -152,15 +170,21 @@ function createMobile(getMethods) {
       const next = { ...before };
 
       if (patch && typeof patch.enabled === 'boolean') next.enabled = patch.enabled;
-      if (patch && patch.ntfyUrl !== undefined) next.ntfyUrl = normalizeUrl(patch.ntfyUrl);
-      if (patch && patch.token !== undefined) {
-        const token = String(patch.token == null ? '' : patch.token).trim();
-        if (token.length > TOKEN_MAX) throw bad('访问令牌过长（上限 ' + TOKEN_MAX + ' 字符）');
-        next.token = token;
-      }
+      if (patch && patch.gateway !== undefined) next.gateway = normalizeGateway(patch.gateway);
 
       if (JSON.stringify(before) === JSON.stringify(next)) {
         return { settings: before, session: sessionInfo(db) };
+      }
+
+      if (before.gateway !== next.gateway) {
+        const m = ensureSession(db);
+        m.channelId = '';
+        m.deviceKey = '';
+        m.providerToken = '';
+        m.channelName = protocol.newTopic();
+        m.channelPassword = protocol.newKey();
+        m.createdAt = nowIso();
+        delete m.rotatedAt;
       }
 
       db.settings.mobile = next;
@@ -169,26 +193,38 @@ function createMobile(getMethods) {
         type: 'settings.changed',
         projectId: null,
         actor: actor.user(),
-        // 审计里不留令牌原文，只记「有没有变」
-        data: { mobile: { before: redact(before), after: redact(next) } }
+        data: { mobile: { before, after: next } }
       });
       return { settings: next, session: sessionInfo(db) };
     },
 
-    /** 换一套 topic + 密钥：旧会话上的消息与答案立刻作废，手机端必须重新扫码 */
+    /** 换一套频道 + 密码：旧频道立刻作废，手机端必须重新扫码 */
     mobileRotateSession: () => {
       const db = store.get();
       const m = ensureSession(db);
       const at = nowIso();
-      m.topic = protocol.newTopic();
-      m.key = protocol.newKey();
+      m.channelName = protocol.newTopic();
+      m.channelPassword = protocol.newKey();
+      m.channelId = '';
       m.createdAt = at;
       m.rotatedAt = at;
       store.save();
       return { session: sessionInfo(db), settings: readSettings(db) };
     },
 
-    /** 传输层每轮取一次：清单里的消息按固定 id 重发，消失的停止重发 */
+    /** link 层创建频道/注册设备后写回；只覆盖传入的字段 */
+    mobileSavePushGoState: ({ state }) => {
+      const db = store.get();
+      const m = ensureSession(db);
+      const input = state || {};
+      for (const key of ['channelId', 'channelName', 'channelPassword', 'deviceKey', 'providerToken']) {
+        if (typeof input[key] === 'string' && input[key].trim()) m[key] = input[key].trim();
+      }
+      store.save();
+      return { session: sessionInfo(db) };
+    },
+
+    /** 传输层每轮取一次：清单里的消息按固定 id 去重，消失的停止重发 */
     mobilePending: () => pendingMessages(),
 
     /**

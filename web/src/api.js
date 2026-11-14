@@ -80,13 +80,13 @@ export const api = {
   clients: () => call('clients', {}),
 
   /**
-   * 手机端通信：设置 + 会话 + 二维码 SVG + ntfy 通道实时状态。
+   * 手机端通信：设置 + 会话 + 二维码 SVG + PushGo 通道实时状态。
    * 通道连接是进程级资源（与 mcpInfo 同类），不进领域能力表。
    */
   mobileInfo: () => call('mobileInfo', {}),
-  /** 开关 / ntfy 地址 / 访问令牌；只写这三项，会话用 mobileRotate 换 */
+  /** 开关 / PushGo 网关；只写这两项，会话用 mobileRotate 换 */
   saveMobileSettings: (patch) => call('saveMobileSettings', { patch }),
-  /** 换一套 topic + 密钥：旧会话立即作废，手机端需重新扫码 */
+  /** 换一套频道 + 密码：旧会话立即作废，手机端需重新扫码 */
   mobileRotate: () => call('mobileRotate', {}),
 
   /**

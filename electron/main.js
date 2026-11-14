@@ -835,7 +835,7 @@ function startGui() {
         const stub = prompts.read('worker-stub');
         return { ok: true, data: { stub: stub ? stub.text : '' } };
       }
-      // 手机端通道是进程级资源（ntfy 订阅连接与在线状态），与 mcpInfo 同一取舍：
+      // 手机端通道是进程级资源（PushGo 轮询与在线状态），与 mcpInfo 同一取舍：
       // 只暴露 info / rotate 两个动作，业务状态仍由 domain 的 mobile* 方法读写
       if (method === 'mobileInfo') {
         try {

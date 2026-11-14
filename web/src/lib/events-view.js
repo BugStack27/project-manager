@@ -244,8 +244,14 @@ export function eventSummary(ev) {
     case 'git.pull_failed':
       return '自动拉取' + projectText(d) + ' 失败：' + clip(d.message || '未知原因', 60);
     case 'settings.changed':
-      // 通知设置与代码同步共用同一事件类型，按改动的键区分文案
+      // 通知设置、代码同步与手机端通道共用同一事件类型，按改动的键区分文案
       if (d.git) return '代码同步设置已更新';
+      if (d.mobile) {
+        const before = d.mobile.before || {};
+        const after = d.mobile.after || {};
+        if (before.enabled !== after.enabled) return '手机端通道已' + (after.enabled ? '开启' : '关闭');
+        return '手机端通道设置已更新';
+      }
       return '通知设置已更新';
     default:
       return eventTypeLabel(type);

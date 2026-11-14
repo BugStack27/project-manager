@@ -4,6 +4,7 @@ import BackupModal from './BackupModal.jsx';
 import CommitModal from './CommitModal.jsx';
 import GitSettingsModal from './GitSettingsModal.jsx';
 import AiAccessModal from './AiAccessModal.jsx';
+import MobileLinkModal from './MobileLinkModal.jsx';
 import NotificationModal from './NotificationModal.jsx';
 import ShortcutSettingsModal from './ShortcutSettingsModal.jsx';
 import UpdateModal from './UpdateModal.jsx';
@@ -117,6 +118,8 @@ export default function AppModals({
       )}
 
       {modal.type === 'notifications' && <NotificationModal onClose={onClose} notify={notify} />}
+
+      {modal.type === 'mobile' && <MobileLinkModal onClose={onClose} notify={notify} />}
 
       {modal.type === 'git' && <GitSettingsModal onClose={onClose} notify={notify} />}
 

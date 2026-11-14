@@ -35,6 +35,7 @@ export default function Sidebar({
   onOpenAudit,
   onOpenNotifications,
   onOpenGitSettings,
+  onOpenMobile,
   onSelect,
   onNewProject,
   onReorderProjects,
@@ -680,8 +681,8 @@ export default function Sidebar({
           aria-label={dataPop ? '收起设置与数据' : '展开设置与数据'}
           title={
             dataPop
-              ? '收起：备份与恢复 / 通知设置 / 代码同步 / AI 接入 / 键盘快捷键 / 审计日志 / 检查更新'
-              : '备份与恢复 / 通知设置 / 代码同步 / AI 接入 / 键盘快捷键 / 审计日志 / 检查更新'
+              ? '收起：备份与恢复 / 通知设置 / 代码同步 / AI 接入 / 手机端通信 / 键盘快捷键 / 审计日志 / 检查更新'
+              : '备份与恢复 / 通知设置 / 代码同步 / AI 接入 / 手机端通信 / 键盘快捷键 / 审计日志 / 检查更新'
           }
         >
           <span className="ico">{IC.gear}</span>
@@ -779,6 +780,18 @@ export default function Sidebar({
               >
                 <span className="ico">{IC.plug}</span>
                 AI 接入
+              </button>
+              <button
+                className="datapop-item"
+                role="menuitem"
+                onClick={() => {
+                  setDataPop(null);
+                  onOpenMobile();
+                }}
+                title="用 ntfy 把待审核、待回答推到手机：查看连接二维码、通道状态与会话密钥"
+              >
+                <span className="ico">{IC.link}</span>
+                手机端通信
               </button>
             </div>
             <div className="datapop-group">

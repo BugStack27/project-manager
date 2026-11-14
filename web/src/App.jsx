@@ -633,6 +633,7 @@ export default function App() {
         onOpenAudit={() => setModal({ type: 'audit' })}
         onOpenNotifications={() => setModal({ type: 'notifications' })}
         onOpenGitSettings={() => setModal({ type: 'git' })}
+        onOpenMobile={() => setModal({ type: 'mobile' })}
         onSelect={(id) => {
           // 总览 / 统计没有「当前项目」语义：点侧栏项目直接进入该项目的需求中心
           if (page === 'overview' || page === 'statistics') {

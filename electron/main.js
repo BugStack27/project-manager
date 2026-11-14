@@ -15,6 +15,7 @@ const archive = require('./services/archive');
 const eventLog = require('./services/event-log');
 const runner = require('./services/runner');
 const notify = require('./services/notify');
+const mobileLink = require('./services/mobile-link');
 const reviewBadge = require('./services/review-badge');
 const crash = require('./services/crash');
 const updater = require('./services/updater');
@@ -562,6 +563,7 @@ function buildNativeBridge() {
  */
 async function shutdown(mode) {
   try { notify.stop(); } catch (_) {}
+  try { mobileLink.stop(); } catch (_) {}
   if (badgeTimer) {
     clearTimeout(badgeTimer);
     badgeTimer = null;
@@ -833,6 +835,22 @@ function startGui() {
         const stub = prompts.read('worker-stub');
         return { ok: true, data: { stub: stub ? stub.text : '' } };
       }
+      // 手机端通道是进程级资源（ntfy 订阅连接与在线状态），与 mcpInfo 同一取舍：
+      // 只暴露 info / rotate 两个动作，业务状态仍由 domain 的 mobile* 方法读写
+      if (method === 'mobileInfo') {
+        try {
+          return { ok: true, data: await mobileLink.info() };
+        } catch (e) {
+          return { ok: false, status: e.status || 500, code: e.code || 'mobile_info_failed', message: e.message };
+        }
+      }
+      if (method === 'mobileRotate') {
+        try {
+          return { ok: true, data: await mobileLink.rotate() };
+        } catch (e) {
+          return { ok: false, status: e.status || 500, code: e.code || 'mobile_rotate_failed', message: e.message };
+        }
+      }
       return baseDispatch(method, params);
     };
     registerIpc(dispatch, {
@@ -869,6 +887,12 @@ function startGui() {
     createWindow();
     createTray();
     notify.start({ navigateTo });
+    // 手机端通道：开关关着时只读一次设置就静默返回，不会联网
+    try {
+      mobileLink.start({ dispatch, log: console.log });
+    } catch (e) {
+      console.error('[main] 手机端通道启动失败：' + e.message);
+    }
     scheduleStartupAutoPull(dispatch);
     scheduleRemoteCheck(dispatch);
 

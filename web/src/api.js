@@ -80,6 +80,16 @@ export const api = {
   clients: () => call('clients', {}),
 
   /**
+   * 手机端通信：设置 + 会话 + 二维码 SVG + ntfy 通道实时状态。
+   * 通道连接是进程级资源（与 mcpInfo 同类），不进领域能力表。
+   */
+  mobileInfo: () => call('mobileInfo', {}),
+  /** 开关 / ntfy 地址 / 访问令牌；只写这三项，会话用 mobileRotate 换 */
+  saveMobileSettings: (patch) => call('saveMobileSettings', { patch }),
+  /** 换一套 topic + 密钥：旧会话立即作废，手机端需重新扫码 */
+  mobileRotate: () => call('mobileRotate', {}),
+
+  /**
    * 本机技能清单（只有被添加的 Agent 的目录会被扫）：输入框 `/` 补全与卡片展示用。
    * 每条技能带 `agents`（归哪些 Agent），只回答「技能在哪」，不回答「会不会」。
    */

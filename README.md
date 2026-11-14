@@ -53,6 +53,7 @@
 - **修改记录** — 当前改动和提交历史在一棵树里，行内展开 diff；验收时可顺手提交并推送。
 - **搜索与切换** — `Ctrl / ⌘ + K` 全局搜索（项目、需求、日志、提交都支持拼音），`+ O` 切项目，`+ P` 命令面板。
 - **通知与审计** — 待审核、命令异常、AI 新需求会发系统通知；托盘角标显示待审核数；事件流可筛选。
+- **手机端通信** — 经 ntfy 把「待审核」「待回答」推送或转发到手机；两端共用随机 topic 与连接密钥，消息本地 AES-256-GCM 加密，扫码即接入。协议见 [手机端通信](doc/mobile-link.md)。
 - **备份与恢复** — 每日快照保留 7 天，恢复前先存一份当前库；有命令在跑时不允许恢复。
 - **项目图标** — 自动识别 Android、Obsidian、IntelliJ、Electron、JavaFX、Spring Boot 的专属图标，否则回退首字母；项目名后跟技术栈图标。
 - **桌面细节** — 拖拽排序、侧栏收起、深浅主题、项目悬停信息卡、安装版自动更新。
@@ -130,4 +131,4 @@ doc/         设计决策记录与截图
 - [产品方案](doc/product-spec.md) · [架构与通道](doc/architecture-and-channels.md) · [壳层与导航](doc/app-shell-and-navigation.md) · [主题与身份色](doc/theme-and-identity-colors.md)
 - [需求中心与 Agent 协作](doc/requirements-and-agent.md) · [自动派发与自动执行](doc/auto-dispatch.md) · [需求往返对话与提问](doc/requirement-thread.md) · [修改记录与 git 同步](doc/changes-and-git-sync.md)
 - [总览与统计](doc/overview-and-statistics.md) · [启动台与命令运行](doc/launch-and-runs.md) · [项目登记与图标识别](doc/projects.md) · [搜索与快捷键](doc/search-and-shortcuts.md)
-- [事件日志与通知](doc/event-log-and-notifications.md) · [系统运行与发布](doc/system-runtime-and-release.md) · [数据备份与恢复](doc/backup-and-restore.md)
+- [事件日志与通知](doc/event-log-and-notifications.md) · [系统运行与发布](doc/system-runtime-and-release.md) · [数据备份与恢复](doc/backup-and-restore.md) · [手机端通信](doc/mobile-link.md)

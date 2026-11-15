@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import Markdown, { defaultUrlTransform } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   linkifyRefs,
   readRefHref,
@@ -97,6 +98,10 @@ function ReqChip({ seq, reqRef, onOpen }) {
 
 const baseName = (p) => String(p || '').split(/[\\/]/).pop();
 
+// remark-gfm 整包开启 GFM（表格 / 删除线 / 任务列表 / 自动链接 / 脚注）；
+// 数组提到模块级，避免每次渲染都给 react-markdown 一个新引用
+const remarkPlugins = [remarkGfm];
+
 /**
  * 本项目文件引用的 chip：`@{file:路径}` → pm-file: 链接。点一下用系统默认程序打开该文件。
  * 悬停出内容窗（行号 + 语法高亮，见 FileHoverCard），出卡即撤掉原生 title。
@@ -141,6 +146,7 @@ function FileChip({ path, fileRef, projectId, onOpen }) {
  * `refs` / `reqRefs` / `fileRefs` / `skills` 传了才启用对应引用与技能关联（服务端给的解析结果），
  * 不传时行为与以前完全一致。`projectId` 只给文件引用用：悬停时按项目 id 就地读内容，
  * 不传就不出文件内容窗（原生 title 仍在）。技能 chip 的外观与说明见 `SkillChip.jsx`（与往返记录共用）。
+ * GFM 语法由 remark-gfm 统一开启；表格套一层 `.md-table-scroll` 滚动容器，右面板窄列时不撑破排版。
  */
 export default function MarkdownText({
   children,
@@ -173,6 +179,12 @@ export default function MarkdownText({
 
   const components = useMemo(
     () => ({
+      // 表格交给外层容器横向滚动：右面板可窄至 240px，列多时只滚表格、不撑宽整个正文
+      table: ({ node, children, ...props }) => (
+        <div className="md-table-scroll">
+          <table {...props}>{children}</table>
+        </div>
+      ),
       a: ({ node, href, children: label, ...props }) => {
         if (linkSkills) {
           const sk = readSkillHref(href);
@@ -198,7 +210,7 @@ export default function MarkdownText({
 
   return (
     <div className={'md-body' + (className ? ' ' + className : '')}>
-      <Markdown components={components} urlTransform={urlTransform}>
+      <Markdown components={components} remarkPlugins={remarkPlugins} urlTransform={urlTransform}>
         {source}
       </Markdown>
     </div>

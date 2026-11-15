@@ -165,6 +165,24 @@
   .md-body hr{margin:14px 0;border:0;border-top:1px solid var(--sep)}
   .md-body img{max-width:100%;height:auto;border-radius:8px}
 
+  /* GFM 表格：右面板可窄至 240px，只让表格自己横向滚动，不把整段正文撑宽 */
+  .md-body .md-table-scroll{margin:0 0 10px;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+  .md-body > .md-table-scroll:last-child{margin-bottom:0}
+  .md-body .md-table-scroll > table{margin:0;width:max-content;min-width:100%;border-collapse:collapse;font-size:12.5px}
+  .md-body th,.md-body td{padding:5px 9px;border:1px solid var(--sep);vertical-align:top;line-height:1.5}
+  /* remark-gfm 把列对齐放在 align 属性上（表现性提示，优先级低于 CSS），按属性显式转成 text-align */
+  .md-body th:not([align]),.md-body td:not([align]){text-align:left}
+  .md-body th[align=right],.md-body td[align=right]{text-align:right}
+  .md-body th[align=center],.md-body td[align=center]{text-align:center}
+  .md-body th{background:var(--fill-3);color:var(--label);font-weight:600;white-space:nowrap}
+  .md-body td{color:var(--label-2)}
+  .md-body tbody tr:nth-child(even){background:rgb(var(--ink-rgb) / .025)}
+  .md-body th > p,.md-body td > p{margin:0}
+  /* remark-gfm 附带的删除线 / 任务列表：去掉 li 自带圆点，避免与复选框重复标记 */
+  .md-body del{color:var(--label-3)}
+  .md-body li.task-list-item{list-style:none;margin-left:-18px}
+  .md-body input[type=checkbox]{margin:0 6px 0 0;vertical-align:middle;accent-color:var(--blue)}
+
   /* 需求详情时间线：右面板窄列，按天分组 + 左侧点线 */
   .rd-tl{margin-top:2px}
   .rd-tl-day{margin-top:2px}

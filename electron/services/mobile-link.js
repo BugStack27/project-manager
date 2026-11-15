@@ -233,6 +233,10 @@ async function pollPage() {
           if (!state.lastAnswer.applied && !state.lastAnswer.duplicate) {
             logRef('[mobile/pushgo] 答案未生效：' + (state.lastAnswer.reason || 'unknown'));
           }
+          // 验收提交后的推送失败不阻断验收，但要留痕，方便对账远程状态
+          if (res.data && res.data.commit && res.data.commit.pushError) {
+            logRef('[mobile/pushgo] 验收提交后推送失败：' + res.data.commit.pushError);
+          }
         } else {
           state.lastAnswer = {
             id: message.id,

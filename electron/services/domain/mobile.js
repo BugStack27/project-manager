@@ -156,6 +156,46 @@ function pruneProcessed() {
   }
 }
 
+/** 与桌面端 buildCommitMessage 同一口径：agent 单独提供的提交信息优先，老交付回落到「#序号 标题」 */
+function approvalCommitMessage(r) {
+  const supplied = String((r.completion && r.completion.commitMessage) || '').trim();
+  return supplied || '#' + r.seq + ' ' + String(r.title || '').trim();
+}
+
+/**
+ * 手机端通过需求时没有桌面端那个默认勾选的「提交并推送」可点，这里在落库前补上同一段流程：
+ * 有未提交改动才提交，随后推送；没有仓库 / 路径失效按「没有可提交的改动」处理，验收照常。
+ * 提交失败直接抛出（答案不落库，手机端可见「未生效」并重试）；推送失败只回报，不阻断验收。
+ */
+async function commitAndPushApproved(methods, r) {
+  const out = { committed: false, shortSha: '', pushError: '' };
+
+  let changes;
+  try {
+    changes = await methods.gitChanges({ id: r.projectId });
+  } catch (_) {
+    return out;
+  }
+  if (!changes || changes.isRepo === false) return out;
+  if (!(changes.counts && changes.counts.total > 0)) return out;
+
+  try {
+    const res = await methods.gitCommit({ id: r.projectId, message: approvalCommitMessage(r) });
+    out.committed = true;
+    out.shortSha = (res && res.shortSha) || '';
+  } catch (e) {
+    // 改动已被别处提交不是失败：接着推送即可，与桌面端口径一致
+    if (!e || e.code !== 'nothing_to_commit') throw e;
+  }
+
+  try {
+    await methods.gitPush({ id: r.projectId });
+  } catch (e) {
+    out.pushError = (e && e.message) || '推送失败';
+  }
+  return out;
+}
+
 function createMobile(getMethods) {
   return {
     /** 设置 + 会话：连接弹窗与传输层共用同一份快照 */
@@ -229,9 +269,10 @@ function createMobile(getMethods) {
 
     /**
      * 手机端回传的答案：question → answerRequirement，审核 → setRequirementStatus。
+     * 通过待审核需求时先按桌面端默认勾选的口径提交并推送工作区改动，提交失败则不落库。
      * 目标已经不存在 / 已处理过时返回 applied:false，不抛错——重发与迟到都是正常现象。
      */
-    mobileAnswer: ({ message }) => {
+    mobileAnswer: async ({ message }) => {
       let ans;
       try {
         ans = protocol.normalizeAnswer(message);
@@ -251,7 +292,11 @@ function createMobile(getMethods) {
         return { id: ans.id, applied: false, duplicate: false, reason: 'requirement_gone' };
       }
 
+      let commit = null;
       try {
+        if (ans.decision === 'approve' && r.status === 'review') {
+          commit = await commitAndPushApproved(methods, r);
+        }
         if (ans.decision === 'answer') {
           methods.answerRequirement({ rid: ans.requirementId, qid: ans.questionId, text: ans.text });
         } else {
@@ -274,7 +319,7 @@ function createMobile(getMethods) {
       }
       processed.set(ans.id, Date.now());
       pruneProcessed();
-      return { id: ans.id, applied: true, duplicate: false };
+      return { id: ans.id, applied: true, duplicate: false, commit };
     }
   };
 }

@@ -51,6 +51,7 @@ description: 手机端通信（PushGo Pull 原型）：设备注册、频道订�
   - 双方每分钟发一条 `keepalive`；手机端在线由桌面端最近收到的手机消息判定（150 秒）。
   - 桌面端 `keepalive` 的 payload 带 `pending` 与 `resolvedIds`；手机端收到后把已处理的 review/question 从待办移除。
 - **答案**：手机端 `answer` 使用固定答案 id 作为 `op_id`；桌面端 `mobileAnswer` 落库后，下一次 keepalive 带 `resolvedIds`。
+- **验收即提交**：手机端通过需求（`review → done`）时，桌面端在落库前按默认勾选口径自动提交并推送工作区改动：提交信息取 `completion.commitMessage`（缺省 `#序号 标题`），没有仓库 / 路径失效 / 无改动则跳过提交；提交失败答案不落库（手机端可重试），推送失败只记日志、不阻断验收。答案回执里的 `commit` 字段带 `committed` / `shortSha` / `pushError`。
 
 ## 加密
 

@@ -23,6 +23,14 @@
   .gstate{position:relative;padding:10px 8px;font-size:12px;color:var(--label-3);display:flex;align-items:center;gap:7px}
   .gstate.sm{padding:8px 10px}
   .gmore{padding:8px 0;text-align:center}
+  /* 读取失败但保留了上次的快照：提示条压在树上方，右侧是重试入口 */
+  .gerr{display:flex;align-items:flex-start;gap:8px;margin:8px 0;padding:8px 10px;border-radius:8px;background:var(--orange-tint);color:var(--orange-text);font-size:12px;line-height:1.5}
+  .gerr .gi{flex:none;display:grid;place-items:center;padding-top:1px}
+  .gerr .gtx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .gerr .ghead{font-weight:600}
+  .gerr .gwhy{word-break:break-word;opacity:.9}
+  .gerr .gkeep{color:var(--label-2)}
+  .gerr .btn{flex:none;align-self:center}
 
   /* 提交行 / 文件行 */
   .gsha{flex:none;font-family:var(--mono);font-size:11px;color:var(--blue);background:var(--blue-tint);padding:1px 6px;border-radius:6px}

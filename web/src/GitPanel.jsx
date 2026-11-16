@@ -118,7 +118,8 @@ export default function GitPanel({
     );
   }
   if (unavailable) return <div className="gstate">未检测到 git，无法读取提交历史与改动。</div>;
-  if (error) return <div className="gstate">读取 git 信息失败：{error}</div>;
+  // 读取失败但还有上次的快照：内容交给上层保留，错误只在上方提示条里出现
+  if (error && (!changes || !changes.isRepo)) return <div className="gstate">读取 git 信息失败：{error}</div>;
   if (!changes || !changes.isRepo) return <div className="gstate">该项目不是 git 仓库。</div>;
 
   const counts = changes.counts || { total: 0 };

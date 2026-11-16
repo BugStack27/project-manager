@@ -101,8 +101,8 @@ export function useGit({ pid, pidRef, page, projects, notify, setModal, openRigh
       remoteFresh = !!rm.remoteFresh;
     } catch (e) {
       if (seq !== gitSeq.current) return;
-      gitLoadedPid.current = null;
       if (e.status === 501) {
+        gitLoadedPid.current = null;
         setGitUnavailable(true);
         setGitError(null);
         setGitErrorCode(null);

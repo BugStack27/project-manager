@@ -168,6 +168,8 @@ export default function ChangesPage({
 }) {
   const isRepo = changes ? changes.isRepo : false;
   const dirty = (changes && changes.counts && changes.counts.total) || 0;
+  /** 读取失败但手上还有上次的仓库快照：错误只降级成提示条，树照旧显示 */
+  const staleError = !!error && isRepo;
 
   /** 提交按钮的不可点原因，与 RemoteSync 一致挂在 title 上 */
   let commitHint = '把项目目录内的 ' + dirty + ' 个改动提交到本地仓库（自动暂存）';
@@ -208,6 +210,19 @@ export default function ChangesPage({
     </>
   );
 
+  /** 错误态的重试：复用信息条上的刷新，失败时按钮自己转圈，不必再找别的入口 */
+  const retryButton = onRefresh ? (
+    <button
+      className="btn sm"
+      disabled={refreshing}
+      onClick={onRefresh}
+      title={refreshing ? '正在重试…' : '重新读取提交历史与当前改动'}
+    >
+      {refreshing ? <span className="spinner" /> : IC.refresh}
+      重试
+    </button>
+  ) : null;
+
   return (
     <div className="wrap">
       {project ? (
@@ -240,8 +255,10 @@ export default function ChangesPage({
             </button>
           ) : null}
         </Empty>
-      ) : error ? (
-        <Empty title="读取 git 信息失败" desc={error} icon={IC.git} />
+      ) : error && !isRepo ? (
+        <Empty title="读取 git 信息失败" desc={error} icon={IC.git}>
+          {retryButton}
+        </Empty>
       ) : !isRepo ? (
         <Empty
           title="该项目不是 git 仓库"
@@ -249,7 +266,22 @@ export default function ChangesPage({
           icon={IC.git}
         />
       ) : children ? (
-        cloneElement(children, { actions })
+        <>
+          {staleError ? (
+            <div className="gerr" role="alert">
+              <span className="gi">{IC.alert}</span>
+              <span className="gtx">
+                <span className="ghead">读取 git 信息失败</span>
+                <span className="gwhy" title={error}>
+                  {error}
+                </span>
+                <span className="gkeep">下方仍是上次读取的内容，可能已过期。</span>
+              </span>
+              {retryButton}
+            </div>
+          ) : null}
+          {cloneElement(children, { actions })}
+        </>
       ) : null}
     </div>
   );

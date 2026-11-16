@@ -36,6 +36,13 @@ function stateText(info) {
   return '已连接';
 }
 
+function clock(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 /**
  * 手机端通信。
  *
@@ -154,8 +161,8 @@ export default function MobileLinkModal({ onClose, notify }) {
     <Modal onClose={onClose} wide>
       <h2>手机端通信</h2>
       <p className="sub">
-        开启后，待审核的交付和需要你拍板的问题会推到手机，手机上点通过、拒绝或回答都会同步回桌面。
-        扫码完成配对，消息在本地加密后再上传。
+        开启后，桌面端会把访问地址与令牌推给手机，手机据此直接读取待审核的交付、待回答的问题，
+        以及项目与改动。这条通道只负责下发接入点，不承载审批内容。
       </p>
 
       {loading && !info ? (
@@ -185,8 +192,8 @@ export default function MobileLinkModal({ onClose, notify }) {
               }
             />
             <b>{stateText(info)}</b>
-            <span className="ml-dim">手机 {st.clientOnline ? '在线' : '离线'}</span>
-            <span className="ml-dim">待处理 {st.pending || 0}</span>
+            <span className="ml-dim">{st.hasEndpoint ? '已下发接入点' : '等待隧道地址'}</span>
+            {st.lastPublishAt ? <span className="ml-dim">最近 {clock(st.lastPublishAt)}</span> : null}
           </div>
           {st.error ? (
             <p className="ml-err" title={st.error}>
@@ -223,7 +230,7 @@ export default function MobileLinkModal({ onClose, notify }) {
               />
               <span>启用手机端通信</span>
             </label>
-            <div className="hintline">关闭后不再向手机推送内容，桌面端一切照常。</div>
+            <div className="hintline">关闭后手机拿不到接入点，也就连不上这台桌面端；本地一切照常。</div>
           </div>
 
           {session && session.channelId ? (

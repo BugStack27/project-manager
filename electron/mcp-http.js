@@ -34,14 +34,13 @@
  *   还会触发 git commit + push。
  * - 除 /remote/hello 外都要 X-PM-Token 头（或 ?token=），令牌由 domain/remote.js 管理；
  *   关闭远程访问时连令牌都不认。
- * - 远程动作只到「采纳 / 拒绝」：验收走 PushGo 的 mobileAnswer，那边会先提交并推送，
- *   绕过它直接改 done 会让工作区改动留在未提交状态。
+ * - 远程动作只到「采纳 / 拒绝」：验收走 answerRemote，它先提交并推送工作区改动再落库，
+ *   绕过它直接改 done 会让改动停在未提交状态。
  */
 
 const http = require('http');
 const crypto = require('crypto');
 const { PRIMARY_ID } = require('./prompts');
-const protocol = require('./services/mobile-protocol');
 const { ASK_TIMEOUT } = require('./services/domain/ask-waiter');
 const { REVIEW_TIMEOUT } = require('./services/domain/review-waiter');
 
@@ -484,8 +483,8 @@ async function serveRemote(dispatch, req, res, url, search) {
     /**
      * 手机端答复：提问与审核共用一个入口，靠 decision 区分。
      *
-     * 落地走 mobileAnswer —— 与 PushGo 那条通道同一个领域方法，所以「通过即提交并推送」
-     * 这段口径不会因为换了传输就对不上；幂等、状态校验、提交失败不落库也都是现成的。
+     * 走 answerRemote 而不是自己拼消息：通过时「先提交并推送再落库」只有一份实现，
+     * 换成 HTTP 传输也不该出现第二套口径。
      */
     case 'requirementAnswer': {
       if (req.method !== 'POST') return methodNotAllowed(res, 'POST');
@@ -501,32 +500,30 @@ async function serveRemote(dispatch, req, res, url, search) {
         return true;
       }
       await respond(dispatch, res, {
-        method: 'mobileAnswer',
-        params: {
-          message: {
-            v: protocol.MESSAGE_VERSION,
-            type: 'answer',
-            from: 'client',
-            id: protocol.newAnswerId(),
-            at: new Date().toISOString(),
-            payload: {
-              requirementId: param,
-              decision,
-              text: body.text,
-              questionId: body.questionId
-            }
-          }
-        },
+        method: 'answerRemote',
+        params: { rid: param, decision, text: body.text, questionId: body.questionId },
         failMsg: '提交答复失败'
       });
       return true;
     }
 
     /** 待办快照：手机首次进页面、或长轮询超时后重新对齐用 */
-    case 'pending':
+    case 'pending': {
       if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
-      await respond(dispatch, res, { method: 'mobilePending', params: {}, failMsg: '读取待办失败' });
+      const out = await dispatch('remotePendingTickets', {});
+      if (!out || !out.ok) {
+        json(res, (out && out.status) || 500, {
+          ok: false,
+          code: (out && out.code) || 'internal_error',
+          message: (out && out.message) || '读取待办失败'
+        });
+        return true;
+      }
+      // 领域层叫 tickets，对手机仍然叫 messages：一条待办就是一条待处理消息，沿用旧字段省一次客户端改造
+      const messages = (out.data && (out.data.tickets || out.data.messages)) || [];
+      json(res, 200, { ok: true, key: pendingKey(messages), messages, count: messages.length });
       return true;
+    }
 
     /**
      * 长轮询：有变化立即返回，没变化最多挂 wait 秒（默认 20、上限 30）。
@@ -551,7 +548,7 @@ async function serveRemote(dispatch, req, res, url, search) {
       });
 
       for (;;) {
-        const out = await dispatch('mobilePending', {});
+        const out = await dispatch('remotePendingTickets', {});
         if (closed) return true;
         if (!out || !out.ok) {
           json(res, (out && out.status) || 500, {
@@ -561,7 +558,7 @@ async function serveRemote(dispatch, req, res, url, search) {
           });
           return true;
         }
-        const messages = (out.data && out.data.messages) || [];
+        const messages = (out.data && out.data.tickets) || [];
         const key = pendingKey(messages);
         const expired = Date.now() >= deadline;
         if (key !== since || expired) {

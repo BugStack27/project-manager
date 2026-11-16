@@ -788,7 +788,7 @@ export default function Sidebar({
                   setDataPop(null);
                   onOpenMobile();
                 }}
-                title="用 ntfy 把待审核、待回答推到手机：查看连接二维码、通道状态与会话密钥"
+                title="把待审核、待回答推到手机：查看配对二维码、通道状态与会话密钥"
               >
                 <span className="ico">{IC.link}</span>
                 手机端通信

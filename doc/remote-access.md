@@ -159,11 +159,16 @@ curl -s -X POST -H "X-PM-Token: $TOKEN" -H "Content-Type: application/json" \
 | `remoteInfo` | 读 `{token, createdAt, rotatedAt}` |
 | `remoteRotateToken()` | 换令牌，旧令牌立即失效，手机端下一轮心跳自动更新 |
 
-## 待办
+## 待办与通知（2026-11-16 起）
 
-手机端（`../project-manager-mobile`，Compose）已接上：第三个页签「项目」→ 需求列表 → 需求详情
-（改动 diff、命令输出、采纳 / 拒绝 / 通过 / 打回 / 回答），顶部常驻 `/remote/wait` 长轮询，
-新待办到达时走 `Notifier.notifyRemote` 弹通知；隧道地址与令牌随心跳自动落盘，不需要手填。
+远程面是**唯一**的待办来源。PushGo 只负责把接入点送到手机，不再承载任何业务消息。
+
+- 手机端 `RemoteWatcher` 常驻 `MobileLinkService`（前台服务 + 唤醒锁），循环 `/remote/wait`；
+  拿到待办后先写本地库（`connId = "remote"`）再弹通知，点通知直接进详情。
+- 已提醒的待办 id 落盘在 `StoreSnapshot.remoteNotified`：进程被杀后重开，积压的旧待办补一次通知，
+  不会每轮重放，也不会因为重启而漏掉。
+- 退到后台、息屏都能收到，因为真正的拉取发生在前台服务里；界面里的长轮询只用于刷新列表。
+- 系统强杀（force-stop）后 Android 不允许自拉起，重新打开即按当前待办补发。
 
 剩下的是体验问题，不是功能缺口：
 1. 手机端「项目」页没有下拉刷新，靠长轮询与进入页面时拉取。

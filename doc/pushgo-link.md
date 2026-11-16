@@ -3,6 +3,11 @@ date: 2026-11-14
 description: 手机端通信（PushGo Pull 原型）：设备注册、频道订阅、加密消息、Pull/ACK 与 resolved 心跳
 ---
 
+> **2026-11-16 收窄**：这条通道现在**只下发接入点**（隧道地址 + 令牌），心跳 payload 为
+> `{ endpoint: { v, url, token } }`。review / question / answer / pending / resolvedIds 全部停用，
+> 审批与提问只走 `/remote` 长轮询（见 `remote-access.md`），由手机端前台服务常驻拉取。
+> 桌面端也不再 pull —— 没有入站消息，ACK 一并去掉。下文关于业务消息的描述是收窄前的历史实现。
+
 # 手机端通信 - PushGo Pull 原型
 
 > 状态：**已实现并验证**。桌面端 `electron/services/mobile-link.js` 已从 ntfy 切换为 PushGo Pull 版；手机端同时支持 PushGo 与旧版 ntfy 连接信息。
@@ -58,7 +63,7 @@ description: 手机端通信（PushGo Pull 原型）：设备注册、频道订�
 - KDF：PBKDF2-HMAC-SHA256，`password=频道密码`，`salt="pm-mobile-v1:"+channel`，100000 次，32 字节。
 - 信封：AES-256-GCM，12 字节 IV、16 字节 tag，AAD 为频道 ID。
 - `ciphertext` 字段只放信封 JSON；PushGo 的 `title/body` 不携带业务明文。
-- 单条消息 32 KiB（比 ntfy 4 KiB 宽裕），但长文本仍由桌面端按摘要截断。
+- 单条消息 32 KiB，长文本由桌面端按摘要截断。
 
 ## 限额与限制
 
@@ -76,4 +81,4 @@ description: 手机端通信（PushGo Pull 原型）：设备注册、频道订�
   - `npm run check`、`npm run build` 通过。
   - 真实公共网关：桌面端链路测试完成「审核发送 → 手机 Pull/ACK → 手机回答案 → 桌面 Pull/ACK → resolved 心跳」。
   - 模拟器 API 35：手机端扫码/粘贴 v2 连接信息，收到审核并显示；点通过后桌面端收到答案，手机端收到 resolved 并移除条目。
-- 旧 ntfy 协议保留在 `doc/mobile-link.md`，手机端仍可识别 v1 连接信息；本版桌面端不再生成 ntfy 二维码。
+- 旧 ntfy 协议已删除（2026-11-16）：`NtfyClient` / `ConnectionSession` / v1 连接信息解析一并移除，扫到 v1 二维码会被拒绝。

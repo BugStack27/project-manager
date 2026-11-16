@@ -4,23 +4,27 @@ const store = require('../store');
 const eventLog = require('../event-log');
 const { actor } = eventLog;
 const { nowIso } = require('./dates');
+const { fail } = require('./errors');
 const { listQuestions } = require('./questions');
 const { agentNameMap } = require('./lookups');
 const protocol = require('../mobile-protocol');
 
 /**
- * 手机端通信的领域状态：PushGo 网关设置、频道/设备会话、待推送消息、手机答案回写。
+ * 手机端的传输与会话状态。
  *
- * 传输（PushGo Pull/ACK）在 services/mobile-link.js，这里只维护业务状态，
- * 这样会话、待推送与答案幂等可以脱离网络单测。
+ * 这里只管「怎么把接入点送到手机」：网关地址、频道、设备会话。
+ * 审批与提问**不经过这里** —— 它们只走 mcp-http.js 的 /remote 远程面，由手机主动长轮询取走。
+ * 这条界线是 2026-11-16 划的：PushGo 一旦也承载业务消息，就会和 HTTP 那条路产生两套状态、
+ * 两套去重、两套「谁先到」的问题，而实际能在后台工作的只有 HTTP 长轮询那一条。
  */
 
 const DEFAULT_GATEWAY = 'https://gateway.pushgo.dev';
 const DEFAULTS = { enabled: false, gateway: DEFAULT_GATEWAY };
 const URL_MAX = 300;
-const PROCESSED_MAX = 500;
-/** 记住最近处理过的答案 id：手机端网络抖动会重发同一条，重复答案不能写两遍 */
-const processed = new Map();
+
+/** 手机端能提交的答复类型 */
+const DECISIONS = new Set(['answer', 'approve', 'feedback', 'reject']);
+const TEXT_MAX = 2000;
 
 function readSettings(db) {
   const raw = (db && db.settings && db.settings.mobile) || {};
@@ -105,67 +109,82 @@ function sessionInfo(db) {
 }
 
 /**
- * 当前该推给手机端的消息：只有「等待审核」的交付与「等待回答」的提问。
- * id 与内容都稳定（见 mobile-protocol），传输层据此做去重与内容指纹。
+ * 当前该让手机处理的待办：只有「等待审核」的交付与「等待回答」的提问。
+ *
+ * 形状刻意做成一张平表（id / type / at / payload），手机端映射成自己的待办模型即可；
+ * id 稳定（review 带交付时间、question 带提问 id），长轮询指纹与客户端去重都靠它。
  */
-function pendingMessages() {
+function pendingTickets() {
   const db = store.get();
   const names = agentNameMap();
   const projects = new Map((db.projects || []).map((p) => [p.id, p]));
   const now = Date.now();
-  const messages = [];
+  const tickets = [];
 
   for (const r of db.requirements || []) {
     const proj = projects.get(r.projectId);
     if (proj && proj.archived) continue;
     const base = {
       requirementId: r.id,
-      seq: r.seq,
-      title: r.title,
+      seq: r.seq === undefined ? null : r.seq,
+      title: r.title || '',
       projectId: r.projectId,
       projectName: proj ? proj.name : ''
     };
 
     if (r.status === 'review' && r.completion && r.completion.at) {
-      messages.push(
-        protocol.reviewMessage({
+      tickets.push({
+        id: 'review:' + r.id + ':' + r.completion.at,
+        type: 'review',
+        from: 'server',
+        at: r.completion.at,
+        payload: {
           ...base,
-          agent: r.completion.agent,
+          agent: r.completion.agent || '',
           agentName: names.get(r.completion.agent) || '',
-          note: r.completion.note,
+          note: r.completion.note || '',
           completedAt: r.completion.at
-        })
-      );
+        }
+      });
     }
 
     if (r.status === 'doing') {
       for (const q of listQuestions(r)) {
-        // 已过期的提问手机端答了也没用：/ask 侧已经按超时收尾
+        // 已过期的提问答了也没用：/ask 侧已按超时收尾
         if (q.expiresAt && Date.parse(q.expiresAt) <= now) continue;
-        messages.push(protocol.questionMessage({ ...base, question: q }));
+        tickets.push({
+          id: 'question:' + q.id,
+          type: 'question',
+          from: 'server',
+          at: q.at || nowIso(),
+          payload: {
+            ...base,
+            agent: q.agent || '',
+            agentName: names.get(q.agent) || '',
+            questionId: q.id,
+            text: q.text || '',
+            options: Array.isArray(q.options) ? q.options : [],
+            default: q.default || '',
+            expiresAt: q.expiresAt || null
+          }
+        });
       }
     }
   }
 
-  return { messages, count: messages.length };
+  return { tickets, count: tickets.length };
 }
 
-function pruneProcessed() {
-  while (processed.size > PROCESSED_MAX) {
-    processed.delete(processed.keys().next().value);
-  }
-}
-
-/** 与桌面端 buildCommitMessage 同一口径：agent 单独提供的提交信息优先，老交付回落到「#序号 标题」 */
+/** 与桌面端「提交并推送」同一口径：agent 单独提供的提交信息优先，老交付回落到「#序号 标题」 */
 function approvalCommitMessage(r) {
   const supplied = String((r.completion && r.completion.commitMessage) || '').trim();
   return supplied || '#' + r.seq + ' ' + String(r.title || '').trim();
 }
 
 /**
- * 手机端通过需求时没有桌面端那个默认勾选的「提交并推送」可点，这里在落库前补上同一段流程：
+ * 通过审核时补上「提交并推送」那段流程。
  * 有未提交改动才提交，随后推送；没有仓库 / 路径失效按「没有可提交的改动」处理，验收照常。
- * 提交失败直接抛出（答案不落库，手机端可见「未生效」并重试）；推送失败只回报，不阻断验收。
+ * 提交失败直接抛出（答复不落库，手机端可见未生效）；推送失败只回报，不阻断验收。
  */
 async function commitAndPushApproved(methods, r) {
   const out = { committed: false, shortSha: '', pushError: '' };
@@ -264,64 +283,58 @@ function createMobile(getMethods) {
       return { session: sessionInfo(db) };
     },
 
-    /** 传输层每轮取一次：清单里的消息按固定 id 去重，消失的停止重发 */
-    mobilePending: () => pendingMessages(),
+    /** /remote/pending 与 /remote/wait 的唯一数据源 */
+    remotePendingTickets: () => pendingTickets(),
 
     /**
-     * 手机端回传的答案：question → answerRequirement，审核 → setRequirementStatus。
-     * 通过待审核需求时先按桌面端默认勾选的口径提交并推送工作区改动，提交失败则不落库。
-     * 目标已经不存在 / 已处理过时返回 applied:false，不抛错——重发与迟到都是正常现象。
+     * 手机端的答复：answer 回答提问，approve / feedback / reject 走需求状态机。
+     *
+     * 通过时先按桌面端默认勾选的口径提交并推送工作区改动，提交失败则不落库。
+     * 目标已不存在 / 已处理过时返回 applied:false 而不是抛错 —— 重发与迟到都是正常现象。
      */
-    mobileAnswer: async ({ message }) => {
-      let ans;
-      try {
-        ans = protocol.normalizeAnswer(message);
-      } catch (e) {
-        e.status = 400;
-        throw e;
-      }
+    answerRemote: async ({ rid, decision, text, questionId }) => {
+      const d = String(decision || '').trim();
+      if (!DECISIONS.has(d)) fail('未知的答复类型：' + (d || '(空)'), 'bad_decision', 400);
 
-      if (processed.has(ans.id)) return { id: ans.id, applied: false, duplicate: true };
+      const body = String(text == null ? '' : text).trim();
+      if (body.length > TEXT_MAX) fail('答复过长（上限 ' + TEXT_MAX + ' 字符）', 'bad_answer', 400);
+      const qid = String(questionId || '').trim();
+      if (d === 'answer') {
+        if (!qid) fail('回答提问必须带 questionId', 'bad_answer', 400);
+        if (!body) fail('回答内容不能为空', 'bad_answer', 400);
+      }
+      if (d === 'feedback' && !body) fail('打回要写清楚改什么', 'bad_answer', 400);
 
       const methods = getMethods();
-      const r = (store.get().requirements || []).find((x) => x.id === ans.requirementId);
-      if (!r) {
-        // 目标已不在库里：这条答案永远无法再生效，直接记下，避免重连重放时反复处理
-        processed.set(ans.id, Date.now());
-        pruneProcessed();
-        return { id: ans.id, applied: false, duplicate: false, reason: 'requirement_gone' };
-      }
+      const r = (store.get().requirements || []).find((x) => x.id === rid);
+      if (!r) return { applied: false, duplicate: false, reason: 'requirement_gone' };
 
       let commit = null;
       try {
-        if (ans.decision === 'approve' && r.status === 'review') {
+        if (d === 'approve' && r.status === 'review') {
           commit = await commitAndPushApproved(methods, r);
         }
-        if (ans.decision === 'answer') {
-          methods.answerRequirement({ rid: ans.requirementId, qid: ans.questionId, text: ans.text });
+        if (d === 'answer') {
+          methods.answerRequirement({ rid, qid, text: body });
         } else {
-          const status = ans.decision === 'approve' ? 'done' : ans.decision === 'feedback' ? 'doing' : 'rejected';
           methods.setRequirementStatus({
-            rid: ans.requirementId,
-            status,
-            feedback: ans.decision === 'feedback' ? ans.text : undefined
+            rid,
+            status: d === 'approve' ? 'done' : d === 'feedback' ? 'doing' : 'rejected',
+            feedback: d === 'feedback' ? body : undefined
           });
         }
       } catch (e) {
-        // 没落库就不能记为已处理：手机端重发或状态变化后仍有生效机会
+        // 没落库就不能算完成：手机端可以重试，状态变化后仍有生效机会
         return {
-          id: ans.id,
           applied: false,
           duplicate: false,
-          reason: e.code || 'not_applicable',
-          message: e.message || ''
+          reason: (e && e.code) || 'not_applicable',
+          message: (e && e.message) || ''
         };
       }
-      processed.set(ans.id, Date.now());
-      pruneProcessed();
-      return { id: ans.id, applied: true, duplicate: false, commit };
+      return { applied: true, duplicate: false, commit };
     }
   };
 }
 
-module.exports = { createMobile, DEFAULTS, readSettings, pendingMessages };
+module.exports = { createMobile, DEFAULTS, readSettings, pendingTickets };

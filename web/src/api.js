@@ -60,6 +60,9 @@ export const api = {
    * url 非空即成功；仍未起来时 error 给 { code, port, message }（端口被占用时 code=EADDRINUSE）。
    */
   mcpRetry: () => call('mcpRetry', {}),
+  /** 远程通道状态（只读）：手机端通信开着时才会去起隧道，这里给界面一个失败可重试的出口 */
+  tunnelInfo: () => call('tunnelInfo', {}),
+  tunnelRetry: () => call('tunnelRetry', {}),
   /** 取接入说明与当前巡检手册版本（对外只暴露版本，不暴露提示词存放位置） */
   scoutPrompt: () => call('scoutPrompt', {}),
   /** 执行 agent 的接入说明（取 worker 手册 → 按手册取单干活） */

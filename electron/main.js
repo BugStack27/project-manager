@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
-const { app, BrowserWindow, Menu, Tray, dialog, shell, screen, ipcMain, nativeTheme } = require('electron');
+const { app, BrowserWindow, Menu, Tray, dialog, shell, screen, ipcMain, nativeTheme, net } = require('electron');
 const store = require('./services/store');
 const archive = require('./services/archive');
 const eventLog = require('./services/event-log');
@@ -24,6 +24,8 @@ const { createDomain } = require('./services/domain');
 const { CHECK_INTERVAL: REMOTE_CHECK_INTERVAL_MS } = require('./services/domain/remote-check');
 const { createDispatcher, registerIpc } = require('./ipc');
 const { startMcpHttp } = require('./mcp-http');
+const { createTunnel } = require('./services/tunnel');
+const cloudflaredBin = require('./services/cloudflared');
 const { createPromptStore } = require('./prompts');
 const skillScan = require('./services/skill-scan');
 
@@ -60,6 +62,10 @@ let tray = null;
 let mcp = null;
 /** MCP 启动失败快照（{ code, port, message }）：服务没起来时界面顶部提示条据此显示原因，起来后清空 */
 let mcpFail = null;
+/** 公网隧道（cloudflared）控制器：进程级资源，与 mcp 同一层 */
+let tunnelCtl = null;
+/** 上一次广播给手机的隧道地址：只在地址真的变了时才推 keepalive */
+let tunnelPushedUrl = '';
 let quitting = false;
 /** 远程巡检定时器：退出时要清掉 */
 let remoteTimer = null;
@@ -564,6 +570,8 @@ function buildNativeBridge() {
 async function shutdown(mode) {
   try { notify.stop(); } catch (_) {}
   try { mobileLink.stop(); } catch (_) {}
+  // 隧道先停：它是唯一的公网入口，退出过程中不该再接受外部请求
+  try { if (tunnelCtl) tunnelCtl.stop(); } catch (_) {}
   if (badgeTimer) {
     clearTimeout(badgeTimer);
     badgeTimer = null;
@@ -821,11 +829,136 @@ function startGui() {
       return mcpState();
     }
 
+    /** cloudflared 的路径与下载状态：第一次需要时才下载，之后复用同一份 */
+    let cloudflaredPath = '';
+    let cloudflaredError = null;
+    let cloudflaredPending = null;
+
+    /**
+     * 确保有可用的 cloudflared：本机已有就用，没有就静默下载一份到应用目录。
+     * 不弹窗、不询问 —— 这个二进制的存在与否不该成为一个需要用户决策的问题。
+     */
+    async function ensureCloudflared() {
+      if (cloudflaredPath) return cloudflaredPath;
+      if (!cloudflaredPending) {
+        cloudflaredPending = cloudflaredBin
+          .ensure({
+            dir: path.join(app.getPath('userData'), 'bin'),
+            log: console.log,
+            /**
+             * 必须用 Electron 的 net.fetch，不能用 Node 自带的 fetch：
+             * 后者（undici）不读系统代理，浏览器能打开的 GitHub 链接在开了代理的机器上会直接
+             * `fetch failed`。net.fetch 走 Chromium 网络栈，系统代理与证书都跟着系统走。
+             */
+            fetchImpl: (url, opts) => net.fetch(url, opts)
+          })
+          .then((bin) => {
+            cloudflaredPath = bin;
+            cloudflaredError = null;
+            return bin;
+          })
+          .catch((e) => {
+            cloudflaredError = { code: e.code || 'cloudflared_missing', message: e.message };
+            console.error('[tunnel] ' + e.message);
+            return '';
+          })
+          .finally(() => {
+            cloudflaredPending = null;
+          });
+      }
+      return cloudflaredPending;
+    }
+
+    /**
+     * 公网隧道快照。error 只在拿不到地址、链路自检失败或 cloudflared 缺失时给。
+     * preparing 表示正首次下载 cloudflared（几十兆，界面据此显示「准备中」而不是报错）。
+     */
+    function tunnelState() {
+      const rt = tunnelCtl
+        ? tunnelCtl.snapshot()
+        : { running: false, url: '', error: null, startedAt: null, restarts: 0 };
+      return {
+        ...rt,
+        error: rt.error || cloudflaredError,
+        preparing: !!cloudflaredPending,
+        port: mcp ? mcp.port : null
+      };
+    }
+
+    /** 起隧道（幂等）：MCP 没起来、或 cloudflared 拿不到时直接回原因，不留空壳地址 */
+    async function startTunnel() {
+      if (!mcp) {
+        return {
+          ...tunnelState(),
+          error: { code: 'mcp_down', message: 'MCP 服务没起来，隧道先用不了' }
+        };
+      }
+      const bin = await ensureCloudflared();
+      if (!bin) return tunnelState();
+      if (!tunnelCtl) {
+        tunnelCtl = createTunnel({
+          port: mcp.port,
+          binary: bin,
+          log: console.log,
+          onState: (st) => {
+            // 地址一变就推一次心跳：手机不必等到下一分钟才知道新地址
+            if (st.url && st.url !== tunnelPushedUrl) {
+              tunnelPushedUrl = st.url;
+              try {
+                mobileLink.forceKeepalive();
+              } catch (_) {
+                /* 通道没开时无需强推 */
+              }
+            }
+          }
+        });
+      }
+      return tunnelCtl.start();
+    }
+
+    function stopTunnel() {
+      tunnelPushedUrl = '';
+      if (tunnelCtl) tunnelCtl.stop();
+      return tunnelState();
+    }
+
+    /**
+     * 隧道唯一跟着「手机端通信」这个开关走：
+     * 开着就保证有一条公网地址（没有就下 cloudflared、再起隧道），关着就彻底断开。
+     */
+    async function syncTunnel() {
+      const res = await baseDispatch('mobileSessionInfo', {});
+      const on = !!(res && res.ok && res.data && res.data.settings && res.data.settings.enabled);
+      if (!on) return stopTunnel();
+      return startTunnel();
+    }
+
     // MCP 状态与提示词读写不进 domain：它们属于进程级资源，不是业务数据
     const dispatch = async (method, params) => {
       if (method === 'mcpInfo') return { ok: true, data: mcpState() };
       // 重试启动：同属进程级资源，所以留在这一层而不进 domain 的能力表
       if (method === 'mcpRetry') return { ok: true, data: await startMcpService() };
+      // 公网隧道同样是进程级资源（cloudflared 子进程），与 mcpInfo 同一取舍
+      if (method === 'tunnelInfo') return { ok: true, data: tunnelState() };
+      /** 下载失败后手动重试：清掉失败快照与路径缓存，重走一遍检测 + 下载 */
+      if (method === 'tunnelRetry') {
+        cloudflaredError = null;
+        cloudflaredPath = '';
+        return { ok: true, data: await syncTunnel() };
+      }
+      /**
+       * 给手机的接入点：隧道地址 + 令牌，由手机端的心跳取走。
+       * 手机端通信关着时地址给空串 —— 拿到一个必然 401 的地址比拿不到更糟。
+       */
+      if (method === 'endpointInfo') {
+        const mres = await baseDispatch('mobileSessionInfo', {});
+        const mobileOn = !!(mres && mres.ok && mres.data && mres.data.settings && mres.data.settings.enabled);
+        const info = await baseDispatch('remoteInfo', {});
+        const rem = info && info.ok ? info.data.remote : null;
+        const st = tunnelCtl ? tunnelCtl.snapshot() : null;
+        const url = mobileOn && st && st.url ? st.url : '';
+        return { ok: true, data: { url, token: (rem && rem.token) || '' } };
+      }
       if (method === 'scoutPrompt') {
         const stub = prompts.read('scout-stub');
         return { ok: true, data: { stub: stub ? stub.text : '' } };
@@ -850,6 +983,12 @@ function startGui() {
         } catch (e) {
           return { ok: false, status: e.status || 500, code: e.code || 'mobile_rotate_failed', message: e.message };
         }
+      }
+      // 手机端通信开关一变，远程面与隧道立刻跟着对齐（首次可能要下 cloudflared，后台做）
+      if (method === 'saveMobileSettings') {
+        const res = await baseDispatch(method, params);
+        syncTunnel().catch((e) => console.error('[tunnel] 同步失败：' + e.message));
+        return res;
       }
       return baseDispatch(method, params);
     };
@@ -892,6 +1031,12 @@ function startGui() {
       mobileLink.start({ dispatch, log: console.log });
     } catch (e) {
       console.error('[main] 手机端通道启动失败：' + e.message);
+    }
+    // 手机端通信开着就把隧道接上（缺 cloudflared 会先在后台下，下完自动起）
+    try {
+      await syncTunnel();
+    } catch (e) {
+      console.error('[main] 隧道启动失败：' + e.message);
     }
     scheduleStartupAutoPull(dispatch);
     scheduleRemoteCheck(dispatch);

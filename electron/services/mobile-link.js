@@ -370,13 +370,32 @@ async function sendPending() {
   }
 }
 
+/**
+ * 隧道地址 + 令牌：随心跳带给手机，手机据此直连 /remote。
+ *
+ * 远程访问没开、或隧道还没拿到地址时返回 null —— 心跳里就不带 endpoint 字段，
+ * 手机端保持上一次的值（地址暂时连不上比被清空更可用）。
+ */
+async function endpointOf() {
+  try {
+    const res = await dispatchRef('endpointInfo');
+    const data = res && res.ok ? res.data : null;
+    if (!data || !data.url) return null;
+    return { v: 1, url: data.url, token: data.token || '' };
+  } catch (_) {
+    return null;
+  }
+}
+
 async function maybeKeepalive() {
   const now = Date.now();
   if (resolvedIds.size === 0 && now - lastKeepaliveAt < 60000) return;
 
+  const endpoint = await endpointOf();
   const message = protocol.keepaliveMessage('server', null, {
     pending: state.pending,
-    resolvedIds: Array.from(resolvedIds)
+    resolvedIds: Array.from(resolvedIds),
+    ...(endpoint ? { endpoint } : {})
   });
   const ciphertext = protocol.sealMessage(config.channelId, config.channelPassword, message);
   await post('/message', publishBody(message, ciphertext));
@@ -507,4 +526,13 @@ function stop() {
   resetTransportState();
 }
 
-module.exports = { start, stop, tick, rotate, info, statusView };
+/**
+ * 隧道地址刚换时调用：把心跳节流清零并立刻推一轮，手机端不必等下一个 60 秒窗口。
+ * 地址失效后旧配置本身就连不通，晚一分钟拿不到新地址的代价是「手机上什么都打不开」。
+ */
+function forceKeepalive() {
+  lastKeepaliveAt = 0;
+  tick(true);
+}
+
+module.exports = { start, stop, tick, rotate, info, statusView, forceKeepalive };

@@ -1,28 +1,49 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { DangerButton, Modal } from '../ui.jsx';
 
-function clock(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+/**
+ * 传输层报错自带实现名（「PushGo HTTP 502」之类）。页面上只给用户看得懂的说法，
+ * 原文塞进 title，排查时鼠标停一下还能看到。
+ */
+function plainError(text) {
+  const s = String(text || '');
+  return /pushgo/i.test(s) ? '暂时连不上手机端服务，正在自动重试' : s;
+}
+
+/**
+ * 远程通道错误 → 一句人话。
+ * 隧道重连是常态（临时隧道没有 SLA），不该催用户动手；只有「拿不到 cloudflared」
+ * 和「本机服务没起来」这两种才给重试按钮。
+ */
+function tunnelText(err) {
+  if (!err) return '';
+  if (err.code === 'cloudflared_download_failed' || err.code === 'cloudflared_missing') {
+    return '远程通道没准备好：' + err.message;
+  }
+  if (err.code === 'mcp_down') return '远程通道没准备好：本机服务没起来';
+  return '远程通道断开，正在自动重连';
+}
+
+function tunnelRetryable(err) {
+  return !!err && (err.code === 'mcp_down' || String(err.code || '').indexOf('cloudflared') === 0);
 }
 
 /** 通道状态在主进程算，这里只翻成人话 */
 function stateText(info) {
   if (!info.settings.enabled) return '未开启';
   if (!info.status.connected) return info.status.error ? '连接失败' : '正在连接…';
-  return '已连接 PushGo';
+  return '已连接';
 }
 
 /**
- * 手机端通信（PushGo Pull 版）。
+ * 手机端通信。
  *
- * 桌面端注册一个 PushGo 设备、创建频道，把网关 + 频道 + 密码放进二维码；
- * 手机端扫码后订阅同一频道，双方用 Pull/ACK 收发加密消息。
- * 这是 Pull 原型：设备路由暂用 fcm + 随机 provider token 进入 Pull 队列，
- * 不依赖真实 FCM 送达；正式版可替换成 PushGo 私有 WSS。
+ * 界面只露「启用 + 配对二维码 + 频道 ID + 频道密码」。
+ *
+ * 网关不出现在界面上：它只承担「下发地址与中转」这一件事，业务状态、频道与密码都在本地生成，
+ * 用户不需要为「地址从哪来」做决定，所以干脆不给配置入口，固定走默认值。
+ * 传输细节见 doc/pushgo-link.md。
  */
 export default function MobileLinkModal({ onClose, notify }) {
   const [info, setInfo] = useState(null);
@@ -31,9 +52,9 @@ export default function MobileLinkModal({ onClose, notify }) {
   const [saving, setSaving] = useState(false);
   const [rotating, setRotating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [gateway, setGateway] = useState('');
-  /** 草稿只在首次加载时灌入：轮询刷新不能把用户正在编辑的地址冲掉 */
-  const draftReady = useRef(false);
+  /** 远程通道状态：手机端通信一开就自动起隧道，失败时这里给一个重试出口 */
+  const [tunnel, setTunnel] = useState(null);
+  const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(async (silent) => {
     if (!silent) setLoading(true);
@@ -41,12 +62,18 @@ export default function MobileLinkModal({ onClose, notify }) {
       const data = await api.mobileInfo();
       setInfo(data);
       setError('');
-      if (!draftReady.current) {
-        setGateway(data.settings.gateway);
-        draftReady.current = true;
+      if (data.settings.enabled) {
+        // 远程通道是附加信息：取不到不该把整个弹窗变成错误态
+        try {
+          setTunnel(await api.tunnelInfo());
+        } catch (_) {
+          setTunnel(null);
+        }
+      } else {
+        setTunnel(null);
       }
     } catch (e) {
-      setError(e.message || '读取 PushGo 通道状态失败');
+      setError(e.message || '读取手机端通信状态失败');
     } finally {
       if (!silent) setLoading(false);
     }
@@ -70,24 +97,7 @@ export default function MobileLinkModal({ onClose, notify }) {
       const res = await api.saveMobileSettings({ enabled: checked });
       setInfo((cur) => (cur ? { ...cur, settings: res.settings, session: res.session } : cur));
       await load(true);
-      notify(checked ? '已开启 PushGo 通道' : '已关闭 PushGo 通道');
-    } catch (e) {
-      setError(e.message || '保存失败');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function saveGateway() {
-    if (saving) return;
-    setSaving(true);
-    setError('');
-    try {
-      const res = await api.saveMobileSettings({ gateway });
-      setGateway(res.settings.gateway);
-      setInfo((cur) => (cur ? { ...cur, settings: res.settings, session: res.session } : cur));
-      await load(true);
-      notify('已保存 PushGo 网关');
+      notify(checked ? '已开启手机端通信' : '已关闭手机端通信');
     } catch (e) {
       setError(e.message || '保存失败');
     } finally {
@@ -102,11 +112,23 @@ export default function MobileLinkModal({ onClose, notify }) {
     try {
       const data = await api.mobileRotate();
       setInfo(data);
-      notify('已生成新的 PushGo 频道，手机端需要重新扫码');
+      notify('已重新生成配对码，手机端需要重新扫码');
     } catch (e) {
       setError(e.message || '重新生成频道失败');
     } finally {
       setRotating(false);
+    }
+  }
+
+  async function retryTunnel() {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      setTunnel(await api.tunnelRetry());
+    } catch (e) {
+      notify(e.message || '重试失败', 'warn');
+    } finally {
+      setRetrying(false);
     }
   }
 
@@ -132,8 +154,8 @@ export default function MobileLinkModal({ onClose, notify }) {
     <Modal onClose={onClose} wide>
       <h2>手机端通信</h2>
       <p className="sub">
-        桌面端与手机端各自注册一个 PushGo 设备、订阅同一频道，消息先本地加密再上传，网关只看到密文。
-        手机端扫码即可拿到网关、频道与密码。
+        开启后，待审核的交付和需要你拍板的问题会推到手机，手机上点通过、拒绝或回答都会同步回桌面。
+        扫码完成配对，消息在本地加密后再上传。
       </p>
 
       {loading && !info ? (
@@ -163,16 +185,33 @@ export default function MobileLinkModal({ onClose, notify }) {
               }
             />
             <b>{stateText(info)}</b>
-            <span className="ml-dim">
-              手机 {st.clientOnline ? '在线' : '离线'}
-              {st.clientLastSeenAt ? ' · ' + clock(st.clientLastSeenAt) : ''}
-            </span>
-            <span className="ml-dim">待推送 {st.pending || 0}</span>
-            {st.lastPublishAt ? (
-              <span className="ml-dim">上次发送 {clock(st.lastPublishAt)}</span>
-            ) : null}
+            <span className="ml-dim">手机 {st.clientOnline ? '在线' : '离线'}</span>
+            <span className="ml-dim">待处理 {st.pending || 0}</span>
           </div>
-          {st.error ? <p className="ml-err">{st.error}</p> : null}
+          {st.error ? (
+            <p className="ml-err" title={st.error}>
+              {plainError(st.error)}
+            </p>
+          ) : null}
+
+          {tunnel && tunnel.preparing ? (
+            <p className="hintline">正在准备远程通道：首次需要下载 cloudflared（约 40MB）…</p>
+          ) : null}
+          {tunnel && tunnel.error ? (
+            <p className="ml-err" title={tunnel.error.message}>
+              {tunnelText(tunnel.error)}
+              {tunnelRetryable(tunnel.error) ? (
+                <button
+                  className="btn sm"
+                  style={{ marginLeft: 8 }}
+                  onClick={retryTunnel}
+                  disabled={retrying}
+                >
+                  {retrying ? '重试中…' : '重试'}
+                </button>
+              ) : null}
+            </p>
+          ) : null}
 
           <div className="field">
             <label className="checkline">
@@ -182,31 +221,9 @@ export default function MobileLinkModal({ onClose, notify }) {
                 disabled={saving}
                 onChange={(e) => toggleEnabled(e.target.checked)}
               />
-              <span>启用 PushGo 通道</span>
+              <span>启用手机端通信</span>
             </label>
-            <div className="hintline">
-              开启后桌面端每 15 秒拉一次手机答案、每分钟互发心跳；关闭即停止轮询，不留后台请求。
-            </div>
-          </div>
-
-          <div className="field">
-            <label htmlFor="ml-gateway">PushGo 网关</label>
-            <div className="ml-row">
-              <input
-                id="ml-gateway"
-                value={gateway}
-                onChange={(e) => setGateway(e.target.value)}
-                placeholder="https://gateway.pushgo.dev"
-                spellCheck={false}
-              />
-              <button className="btn sm" onClick={saveGateway} disabled={saving}>
-                保存
-              </button>
-            </div>
-            <div className="hintline">
-              公共网关可用 https://gateway.pushgo.dev 或 https://gateway.pushgo.cn；自建网关填自己的地址。
-              更换网关会生成新频道，手机端需要重新扫码。
-            </div>
+            <div className="hintline">关闭后不再向手机推送内容，桌面端一切照常。</div>
           </div>
 
           {session && session.channelId ? (
@@ -236,38 +253,28 @@ export default function MobileLinkModal({ onClose, notify }) {
                     复制
                   </button>
                 </div>
-                <div className="ml-kv">
-                  <span>创建于</span>
-                  <em>{clock(session.createdAt)}</em>
-                  {session.rotatedAt ? <em>最近轮换 {clock(session.rotatedAt)}</em> : null}
-                </div>
                 <div className="ml-acts">
                   <button
                     className="btn sm"
-                    onClick={() => copy(info.connect, '已复制连接信息')}
+                    onClick={() => copy(info.connect, '已复制配对信息')}
                   >
-                    复制连接信息
+                    复制配对信息
                   </button>
                   <DangerButton
-                    label="重新生成频道"
-                    confirmLabel="确认重新生成"
+                    label="重新配对"
+                    confirmLabel="确认重新配对"
                     onConfirm={rotate}
                     disabled={rotating}
                   />
                 </div>
                 <p className="hintline">
-                  手机端扫码后会自动注册设备并订阅该频道；重新生成后旧频道立即失效，手机端需要重扫。
+                  手机端扫上方二维码即可配对，也可以粘贴配对信息；重新配对后旧手机需要重扫。
                 </p>
               </div>
             </div>
           ) : (
-            <p className="sub">正在创建 PushGo 频道…</p>
+            <p className="sub">正在准备配对码…</p>
           )}
-
-          <p className="hintline" style={{ marginTop: 12 }}>
-            当前是 Pull 原型：最多 15 秒延迟，单条上限 32 KB；公共网关没有每日条数限制，但受每分钟请求频率限制。
-            正式版可切换为 PushGo 私有 WSS 通道。
-          </p>
         </>
       ) : null}
 

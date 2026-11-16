@@ -9,8 +9,9 @@
  *   2026-11-06 收窄：删除 pm_set_requirement_status（绕过认领的第二条写路径）、
  *   pm_list_commands / pm_start_command / pm_stop_command / pm_read_logs（两份手册都禁止
  *   agent 碰命令，代码里也没有调用方；启停与日志仍在启动台里做）。
- * - 只绑 127.0.0.1；端口固定 7318。不做顺延：agent 客户端配置里写死了这个 URL，
+ * - 绑 0.0.0.0、端口固定 7318。不做顺延：agent 客户端配置里写死了这个 URL，
  *   顺延只会让已注册的配置静默失联，比直接报错更糟。
+ *   绑定全接口是为了让手机在同一局域网能直连；非回环来源只能走远程面（见 isLoopback）。
  * - 无状态 Streamable HTTP：POST 收 JSON-RPC 直接回 JSON（无服务端推送，不需要 SSE）；
  *   通知（无 id）回 202；GET/DELETE 回 405（/prompt/* 与下面几个动作端点除外）。
  * - 提示词统一按 id 寻址：resources/read 与 GET /prompt/<id>.txt 指向同一份注册表
@@ -24,10 +25,23 @@
  *   （可带候选与超时默认，也可同时挂多条）写进往返记录，并在服务端等最多 1 小时；/complete 交付后
  *   同样挂起，最多等 2 小时验收——用户通过就结束，继续回复就带回意见让 agent 接着改并再次交付。
  * - URI 统一加 project-manager 命名空间：pm:// 是最常见的缩写之一，裸 pm://prompt/scout 容易撞名。
+ *
+ * 远程面（/remote/*，2026-11-16 加）：
+ * - 只有经隧道进来的请求（带 CF-Connecting-IP / X-Forwarded-For / CF-Ray 之一）走这一套；
+ *   本机请求完全不受影响，仍按上面的老路径走。
+ * - 隧道进来的请求只放行 /remote/*，其余一律 403 —— /claim、/next、/ask、/complete 是给本机
+ *   agent 用的长轮询与写路径，公网边缘 100 秒就断，放出去只会留下挂死的等待器；/complete
+ *   还会触发 git commit + push。
+ * - 除 /remote/hello 外都要 X-PM-Token 头（或 ?token=），令牌由 domain/remote.js 管理；
+ *   关闭远程访问时连令牌都不认。
+ * - 远程动作只到「采纳 / 拒绝」：验收走 PushGo 的 mobileAnswer，那边会先提交并推送，
+ *   绕过它直接改 done 会让工作区改动留在未提交状态。
  */
 
 const http = require('http');
+const crypto = require('crypto');
 const { PRIMARY_ID } = require('./prompts');
+const protocol = require('./services/mobile-protocol');
 const { ASK_TIMEOUT } = require('./services/domain/ask-waiter');
 const { REVIEW_TIMEOUT } = require('./services/domain/review-waiter');
 
@@ -233,6 +247,342 @@ function originAllowed(origin) {
   }
 }
 
+/**
+ * 是否回环调用（本机 agent / curl）。
+ *
+ * 服务绑 0.0.0.0 之后，同局域网的手机也能连进来，但它们绝不该拿到本机 agent 那套能力：
+ * 所以「本机」只认回环地址，其余一律按远程面处理。
+ */
+function isLoopback(req) {
+  const addr = (req.socket && req.socket.remoteAddress) || '';
+  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+}
+
+/**
+ * 是否来自隧道（而不是本机直接调用）。
+ *
+ * 隧道在本机反代，`req.socket.remoteAddress` 永远是 127.0.0.1，判不出来；只能看代理注入的头。
+ * cloudflared 会带 CF-Connecting-IP / CF-Ray / X-Forwarded-For，本机 agent 与 curl 都不带。
+ * 三个头认一个即可：自建反代（frp、nginx）常常只补 X-Forwarded-For。
+ */
+function forwarded(req) {
+  const h = req.headers;
+  return !!(h['cf-connecting-ip'] || h['cf-ray'] || h['x-forwarded-for'] || h['x-real-ip']);
+}
+
+/** 远程面允许写入的状态：采纳（候选 → 未开始）与拒绝。其余状态只在本机改 */
+const REMOTE_STATUS_TARGETS = new Set(['todo', 'rejected']);
+
+/** 手机端能做的四种答复，与 mobile-protocol 的 ANSWER 决策同一套词 */
+const REMOTE_DECISIONS = new Set(['answer', 'approve', 'feedback', 'reject']);
+
+/** 长轮询上限：必须明显小于公网边缘的 100 秒，留出网络与排队余量 */
+const REMOTE_WAIT_MAX_MS = 30 * 1000;
+const REMOTE_WAIT_DEFAULT_MS = 20 * 1000;
+/** 轮询内部检查待办的间隔：够实时，又不至于把领域层搅成忙等 */
+const REMOTE_WAIT_STEP_MS = 1200;
+
+/** 远程面只读为主，写操作只有「改状态」与「答复」两类 */
+const REMOTE_ROUTES = [
+  { re: /^\/remote\/hello$/, action: 'hello' },
+  { re: /^\/remote\/projects$/, action: 'projects' },
+  { re: /^\/remote\/project\/([^/]+)\/requirements$/, action: 'requirements' },
+  { re: /^\/remote\/project\/([^/]+)\/changes$/, action: 'changes' },
+  { re: /^\/remote\/project\/([^/]+)\/diff$/, action: 'diff' },
+  { re: /^\/remote\/project\/([^/]+)\/commits$/, action: 'commits' },
+  { re: /^\/remote\/project\/([^/]+)\/commit-diff$/, action: 'commitDiff' },
+  { re: /^\/remote\/project\/([^/]+)\/commands$/, action: 'commands' },
+  { re: /^\/remote\/requirement\/([^/]+)\/status$/, action: 'requirementStatus' },
+  { re: /^\/remote\/requirement\/([^/]+)\/answer$/, action: 'requirementAnswer' },
+  { re: /^\/remote\/command\/([^/]+)\/runs$/, action: 'runs' },
+  { re: /^\/remote\/command\/([^/]+)\/logs$/, action: 'logs' },
+  { re: /^\/remote\/pending$/, action: 'pending' },
+  { re: /^\/remote\/wait$/, action: 'wait' }
+];
+
+function decodeParam(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch (_) {
+    return value;
+  }
+}
+
+function flag(value) {
+  return value === '1' || value === 'true';
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * 待办指纹：只给客户端一个「变没变」的判据，所以取 id 集合的短哈希即可。
+ * 内容变化必然换 id（review 带交付时间、question 带提问 id），指纹也就跟着变。
+ */
+function pendingKey(messages) {
+  const ids = messages.map((m) => String(m.id || '')).sort().join('|');
+  return crypto.createHash('sha1').update(ids).digest('hex').slice(0, 12);
+}
+
+/** 读 JSON 请求体；任何一步不合法都已经写好响应并返回 null */
+async function readJsonObject(req, res) {
+  const ctype = String(req.headers['content-type'] || '');
+  if (!ctype.includes('application/json')) {
+    json(res, 415, { ok: false, code: 'unsupported_media_type', message: '请求体必须是 application/json' });
+    return null;
+  }
+  let body;
+  try {
+    body = JSON.parse((await readBody(req)) || '{}');
+  } catch (_) {
+    json(res, 400, { ok: false, code: 'bad_json', message: '请求体不是合法 JSON' });
+    return null;
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    json(res, 400, { ok: false, code: 'bad_json', message: '请求体必须是 JSON 对象' });
+    return null;
+  }
+  return body;
+}
+
+/**
+ * 远程面入口。返回 true 表示这条请求已经处理完（调用方不必再往下走）。
+ *
+ * 顺序刻意是「先认证、再解析参数」：没令牌的扫描流量拿不到任何关于数据形状的反馈，
+ * 连「这个项目 id 存不存在」都问不出来。
+ */
+async function serveRemote(dispatch, req, res, url, search) {
+  const hit = REMOTE_ROUTES.map((r) => ({ r, m: r.re.exec(url) })).find((x) => x.m);
+  if (!hit) {
+    json(res, 404, { ok: false, code: 'remote_not_found', message: '远程面没有这个接口：' + url });
+    return true;
+  }
+  const action = hit.r.action;
+  const param = hit.m[1] ? decodeParam(hit.m[1]) : '';
+
+  // 健康检查：给隧道自检与客户端连通性探测用，不含任何业务数据，所以不要求令牌
+  if (action === 'hello') {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      json(res, 405, { ok: false, code: 'method_not_allowed', message: '这个端点只支持 GET' });
+      return true;
+    }
+    json(res, 200, { ok: true, name: 'project-manager', version: VERSION, remote: true });
+    return true;
+  }
+
+  const token = String(req.headers['x-pm-token'] || search.get('token') || '');
+  const auth = await dispatch('remoteAuth', { token });
+  if (!auth || !auth.ok) {
+    json(res, (auth && auth.status) || 401, {
+      ok: false,
+      code: (auth && auth.code) || 'remote_unauthorized',
+      message: (auth && auth.message) || '未授权'
+    });
+    return true;
+  }
+
+  switch (action) {
+    case 'projects':
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      await respond(dispatch, res, {
+        method: 'projects',
+        params: { includeArchived: flag(search.get('includeArchived')) },
+        failMsg: '读取项目列表失败'
+      });
+      return true;
+
+    case 'requirements': {
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      const status = search.get('status') || undefined;
+      await respond(dispatch, res, {
+        method: 'allRequirements',
+        params: {
+          projectId: param,
+          status,
+          pending: flag(search.get('pending'))
+        },
+        failMsg: '读取需求列表失败'
+      });
+      return true;
+    }
+
+    case 'changes':
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      await respond(dispatch, res, { method: 'gitChanges', params: { id: param }, failMsg: '读取改动失败' });
+      return true;
+
+    case 'diff':
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      await respond(dispatch, res, {
+        method: 'gitDiff',
+        params: { id: param, path: search.get('path'), untracked: flag(search.get('untracked')) },
+        failMsg: '读取 diff 失败'
+      });
+      return true;
+
+    case 'commits':
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      await respond(dispatch, res, {
+        method: 'gitCommits',
+        params: { id: param, limit: search.get('limit'), skip: search.get('skip') },
+        failMsg: '读取提交记录失败'
+      });
+      return true;
+
+    case 'commitDiff':
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      await respond(dispatch, res, {
+        method: 'gitCommitDiff',
+        params: { id: param, sha: search.get('sha'), path: search.get('path') },
+        failMsg: '读取提交 diff 失败'
+      });
+      return true;
+
+    case 'commands':
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      await respond(dispatch, res, { method: 'commands', params: { id: param }, failMsg: '读取命令列表失败' });
+      return true;
+
+    case 'runs':
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      await respond(dispatch, res, { method: 'commandRuns', params: { cid: param }, failMsg: '读取运行记录失败' });
+      return true;
+
+    case 'logs': {
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      const runId = search.get('runId') || undefined;
+      await respond(dispatch, res, {
+        method: 'logs',
+        params: { cid: param, runId },
+        failMsg: '读取命令输出失败'
+      });
+      return true;
+    }
+
+    case 'requirementStatus': {
+      if (req.method !== 'POST') return methodNotAllowed(res, 'POST');
+      const body = await readJsonObject(req, res);
+      if (!body) return true;
+      const status = String(body.status || '').trim();
+      if (!REMOTE_STATUS_TARGETS.has(status)) {
+        json(res, 400, {
+          ok: false,
+          code: 'bad_remote_status',
+          message: '远程只能采纳（todo）或拒绝（rejected），收到：' + (status || '(空)')
+        });
+        return true;
+      }
+      await respond(dispatch, res, {
+        method: 'setRequirementStatus',
+        params: { rid: param, status, note: body.note },
+        failMsg: '修改需求状态失败'
+      });
+      return true;
+    }
+
+    /**
+     * 手机端答复：提问与审核共用一个入口，靠 decision 区分。
+     *
+     * 落地走 mobileAnswer —— 与 PushGo 那条通道同一个领域方法，所以「通过即提交并推送」
+     * 这段口径不会因为换了传输就对不上；幂等、状态校验、提交失败不落库也都是现成的。
+     */
+    case 'requirementAnswer': {
+      if (req.method !== 'POST') return methodNotAllowed(res, 'POST');
+      const body = await readJsonObject(req, res);
+      if (!body) return true;
+      const decision = String(body.decision || '').trim();
+      if (!REMOTE_DECISIONS.has(decision)) {
+        json(res, 400, {
+          ok: false,
+          code: 'bad_remote_decision',
+          message: 'decision 只能是 answer / approve / feedback / reject，收到：' + (decision || '(空)')
+        });
+        return true;
+      }
+      await respond(dispatch, res, {
+        method: 'mobileAnswer',
+        params: {
+          message: {
+            v: protocol.MESSAGE_VERSION,
+            type: 'answer',
+            from: 'client',
+            id: protocol.newAnswerId(),
+            at: new Date().toISOString(),
+            payload: {
+              requirementId: param,
+              decision,
+              text: body.text,
+              questionId: body.questionId
+            }
+          }
+        },
+        failMsg: '提交答复失败'
+      });
+      return true;
+    }
+
+    /** 待办快照：手机首次进页面、或长轮询超时后重新对齐用 */
+    case 'pending':
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      await respond(dispatch, res, { method: 'mobilePending', params: {}, failMsg: '读取待办失败' });
+      return true;
+
+    /**
+     * 长轮询：有变化立即返回，没变化最多挂 wait 秒（默认 20、上限 30）。
+     *
+     * 用长轮询而不是 SSE/WebSocket：公网边缘对单条 HTTP 请求限 100 秒，长连接会被周期性掐断，
+     * 断线窗口里丢的通知要另外补一套补偿；长轮询每轮都是一条普通请求，穿任何代理都安全，
+     * 客户端拿到响应立刻发下一轮，体感与推送一致。
+     * key 是待办指纹：客户端回传上一轮的 key，相同就继续等，不同就说明有新东西。
+     */
+    case 'wait': {
+      if (req.method !== 'GET') return methodNotAllowed(res, 'GET');
+      const sec = Number(search.get('wait'));
+      const budget = Math.min(
+        Math.max(Number.isFinite(sec) && sec > 0 ? sec * 1000 : REMOTE_WAIT_DEFAULT_MS, 1000),
+        REMOTE_WAIT_MAX_MS
+      );
+      const since = String(search.get('key') || '');
+      const deadline = Date.now() + budget;
+      let closed = false;
+      req.on('close', () => {
+        closed = true;
+      });
+
+      for (;;) {
+        const out = await dispatch('mobilePending', {});
+        if (closed) return true;
+        if (!out || !out.ok) {
+          json(res, (out && out.status) || 500, {
+            ok: false,
+            code: (out && out.code) || 'internal_error',
+            message: (out && out.message) || '读取待办失败'
+          });
+          return true;
+        }
+        const messages = (out.data && out.data.messages) || [];
+        const key = pendingKey(messages);
+        const expired = Date.now() >= deadline;
+        if (key !== since || expired) {
+          json(res, 200, { ok: true, key, messages, count: messages.length, timedOut: expired && key === since });
+          return true;
+        }
+        await sleep(REMOTE_WAIT_STEP_MS);
+      }
+    }
+
+    default:
+      json(res, 404, { ok: false, code: 'remote_not_found', message: '远程面没有这个接口' });
+      return true;
+  }
+}
+
+function methodNotAllowed(res, allowed) {
+  json(res, 405, { ok: false, code: 'method_not_allowed', message: '这个端点只支持 ' + allowed });
+  return true;
+}
+
 /** 不支持 MCP 工具/resources 的 agent 的兜底通道：GET /prompt/<id>.txt 直接拿纯文本 */
 const PROMPT_ROUTE_RE = /^\/prompt\/([A-Za-z0-9._-]+)\.txt$/;
 
@@ -386,6 +736,21 @@ function startMcpHttp(dispatch, log, prompts) {
   const server = http.createServer(async (req, res) => {
     const url = (req.url || '').split('?')[0];
     if (!originAllowed(req.headers.origin)) return json(res, 403, { error: 'forbidden origin' });
+
+    // 远程面收口：非回环来源（局域网手机、隧道）只放行 /remote/，本机调用照旧走老路由
+    const search = new URL(req.url, 'http://127.0.0.1').searchParams;
+    if (!isLoopback(req) || forwarded(req)) {
+      if (!url.startsWith('/remote/')) {
+        return json(res, 403, {
+          ok: false,
+          code: 'remote_forbidden',
+          message: '公网入口只开放 /remote/ 下的接口；认领、交付、提问请在本机调用'
+        });
+      }
+      return serveRemote(dispatch, req, res, url, search);
+    }
+    if (url.startsWith('/remote/')) return serveRemote(dispatch, req, res, url, search);
+
     const promptMatch = PROMPT_ROUTE_RE.exec(url);
     if (promptMatch) {
       if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -463,7 +828,9 @@ function startMcpHttp(dispatch, log, prompts) {
       reject(Object.assign(e, { port: PORT }));
     };
     server.once('error', onError);
-    server.listen(PORT, '127.0.0.1', () => {
+    // 绑 0.0.0.0 而不是回环：手机在同一局域网时要能直连 /remote。
+    // 非回环来源一律按远程面处理（见 isLoopback），拿不到令牌就只能碰到 /remote/hello。
+    server.listen(PORT, '0.0.0.0', () => {
       server.removeListener('error', onError);
       log('[main] MCP HTTP 服务：http://127.0.0.1:' + PORT + '/mcp');
       resolve({

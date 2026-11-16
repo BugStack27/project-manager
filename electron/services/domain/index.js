@@ -23,6 +23,7 @@ const { createAutoPull } = require('./autopull');
 const { createRemoteCheck } = require('./remote-check');
 const { createSearch } = require('./search');
 const { createMobile } = require('./mobile');
+const { createRemote } = require('./remote');
 
 /**
  * @param {{ pickFolder: (initial?: string) => Promise<{path: string|null, canceled: boolean}>,
@@ -49,7 +50,9 @@ function createDomain(deps) {
     createRemoteCheck(),
     createSearch(),
     // 手机端答案要落到 answerRequirement / setRequirementStatus：运行时取整张能力表，避开模块间直接互引
-    createMobile(() => methods)
+    createMobile(() => methods),
+    // 远程访问的开关与令牌：只做门禁，业务仍由上面这些方法承担
+    createRemote()
   ];
 
   parts.forEach((part) => {

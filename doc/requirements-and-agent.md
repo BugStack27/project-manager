@@ -182,6 +182,16 @@ status: accepted
 | 点击卡片不关右面板（验收反馈） | `App.jsx` 的「点抽屉外收起」判据由 `.rpanel` 扩为 `PANEL_INSIDE`（`.rpanel` + 四类悬停卡 + `.ev-pop`）：`pointerdown` 记按下位置与 `click` 判目标两处都用它 | 卡片 portal 到 body、不在抽屉子树里，能接鼠标后点一下就被当成点外面，把右面板连同正在看的卡一起收掉；两处判据必须同口径，只改一处仍会在另一处漏掉。证据浮层 `.ev-pop` 是同一种 portal 浮层，一并纳入 |
 | 验证 | `npm run check` / `npm run build`；引用链 6 组逻辑断言；vite dev + 无头 Edge CDP 组件冒烟（三类 chip、四类卡出卡 / 静止 2.2s 不自动消失 / 鼠标移进卡不消失 / 划回 chip 不闪 / 移开收起、文件卡 5 行 + 高亮、侧栏项目卡单独冒烟）；完整 App 冒烟核对「点击悬停卡不收右面板 / 点抽屉外仍会收」，临时页跑完删净 | 视觉与交互都要过一遍，逻辑测试看不出定位、配色、鼠标停留与抽屉焦点 |
 
+### 2.12 文件引用悬停窗渲染 markdown（2026-11-16）
+
+| 决策点 | 结论 | 理由 |
+|---|---|---|
+| 症状 | `@{file:doc/xxx.md}` 悬停出来的是带行号的 markdown 源码，标题 / 列表 / 表格 / 代码块都按原文显示 | 悬停是为了不打开文件就知道写了什么；文档类文件给源码视图帮不上忙 |
+| 方案 | `FileHoverCard` 按路径后缀判断（`.md` / `.markdown`），markdown 交 `MarkdownBody` 渲染（复用 `.md-body` 排版与 GFM），其余文件保持行号 + hljs；markdown 不再走 `hlighter` | 复用现有 markdown 渲染与样式，不引入第二套；行号对渲染后的视图没有意义 |
+| 拆出 `MarkdownBody` | 纯渲染（`.md-body` + GFM + 表格滚动 + 链接分流）从 `MarkdownText` 下沉成独立组件，`MarkdownText` = `MarkdownBody` + 引用 chip；文件卡只用 `MarkdownBody` | 若文件卡直接引 `MarkdownText`，会形成 `HoverCardLayer → FileHoverCard → MarkdownText → HoverCardLayer` 的环：dev 热更新时 hover 状态出现两份模块实例，表现为「引用清单行悬停失效、正文 chip 正常」，只有整页刷新才恢复 |
+| 边界 | 仍受 `fileSnippet(full)` 的 600 行上限，截断时页脚照旧标注「只显示前 N 行」；截断若落在代码围栏中间，尾部按未闭合围栏渲染 | 上限是逐行 DOM 渲染的性能保险，markdown 预览同样不该一次塞几千行 |
+| 验证 | `npm run check` / `npm run build`；用演示数据桥在**打包产物**与**vite dev**两种模式下各跑一遍真实界面：引用项目 / 需求 / 文件 / 技能四行与正文 chip 都能出卡且无原生 title 兜底，`.md` 卡渲染出标题 / 加粗 / 行内代码 / 列表 / 表格，非 markdown 文件仍是行号 + 高亮；临时脚本跑完删净 | 只测「没报错」不够，要看渲染出来的东西是不是 markdown；dev 与产物两种模块语义都要覆盖，HMR 环的问题只在长期运行窗口里出现 |
+
 ## 3. 交付物
 
 | 文件（相对路径） | 职责 |
@@ -189,9 +199,9 @@ status: accepted
 | `electron/services/domain/requirements.js` + `validators.js` + `ask-waiter.js` + `review-waiter.js` | `claimRequirement` / `completeRequirement` / `askRequirement` / `answerRequirement` / `releaseRequirement` / `deleteRequirement` / `setRequirementStatus`；六态（含 `candidate`）、`UNFINISHED`、认领与交付生命周期、`thread` 消息流；`/ask` 等 1 小时、`/complete` 等 2 小时（提问可多条并存，各按 `questionId` 独立等待），交付 / 释放 / 改状态 / 删除都唤醒挂起请求；`claimLocked` 是认领的唯一写入点；`assertTaskId` / `assertAgent` / `assertEncoded` |
 | `electron/services/domain/agents.js` | Agent 注册表：`agents` / `createAgent` / `deleteAgent`（名称唯一、`store.uid('a')` 分配 AgentID），`db.agents` 随库持久化 |
 | `electron/services/domain/claim-gate.js` + `auto-claim.js` + `next-waiter.js` | 派发闸门（`doing` / `review` / `dirty` / `path_missing` / `git_timeout`、FIFO 排序、返回自己名下在做的任务）、`claimNextRequirement`（一次）与 `nextRequirement`（长等待）；`next-waiter.js` 的广播信号让新建 / 释放 / 撤销 / 验收 / 提交立即唤醒等待者 |
-| `electron/services/domain/refs.js` + `web/src/lib/req-refs.js` + `web/src/components/{ProjectRefInput,MarkdownText}.jsx` | 三类引用：服务端 `refNames` / `resolveRefs`（项目）、`reqRefSeqs` / `resolveReqRefs`（需求）、`fileRefPaths` / `resolveFileRefs`（文件）→ `reqView.refs` / `reqRefs` / `fileRefs`；前端换 chip（`linkifyRefs` / `linkifyReqRefs` / `linkifyFileRefs`）与分组输入候选（`activeRefQuery` / `classifyRefQuery` / `applyRef` / `applyReqRef` / `applyFileRef` / `refCandidates` / `reqCandidates` / `fileCandidates`） |
+| `electron/services/domain/refs.js` + `web/src/lib/req-refs.js` + `web/src/components/{ProjectRefInput,MarkdownText,MarkdownBody}.jsx` | 三类引用：服务端 `refNames` / `resolveRefs`（项目）、`reqRefSeqs` / `resolveReqRefs`（需求）、`fileRefPaths` / `resolveFileRefs`（文件）→ `reqView.refs` / `reqRefs` / `fileRefs`；前端换 chip（`linkifyRefs` / `linkifyReqRefs` / `linkifyFileRefs`）与分组输入候选（`activeRefQuery` / `classifyRefQuery` / `applyRef` / `applyReqRef` / `applyFileRef` / `refCandidates` / `reqCandidates` / `fileCandidates`） |
 | `electron/services/files.js` + `git.js`（`lsFiles`）+ `domain/system.js`（`projectFiles` / `revealFile`） | 文件候选清单（git ls-files + 遍历回退，过滤密钥、限量）与「用默认程序打开文件」；路径安全复用 `snippet.js` 导出的 `assertRelPath` / `resolveInside` / `DENY_RE` |
-| `web/src/components/{HoverCardLayer,RequirementHoverCard,FileHoverCard}.jsx` + `styles/{sidebar,evidence}.css` | 四类引用 chip 共用的悬停层；需求信息卡（编号 / 标题 / 状态 / 正文摘要）、文件内容窗（`fileSnippet` 按需读 + 行号 + hljs 高亮 + 限高可滚）；见 §2.11 |
+| `web/src/components/{HoverCardLayer,RequirementHoverCard,FileHoverCard,MarkdownBody}.jsx` + `styles/{sidebar,evidence}.css` | 四类引用 chip 共用的悬停层；需求信息卡（编号 / 标题 / 状态 / 正文摘要）、文件内容窗（`fileSnippet` 按需读 + 行号 + hljs 高亮 + 限高可滚；`.md` / `.markdown` 改由 `MarkdownBody` 渲染）；`MarkdownBody` 是 `MarkdownText` 与文件卡共用的纯 markdown 渲染层；见 §2.11、§2.12 |
 | `electron/services/domain/views.js` + `projects.js` | `reqView.claim` / `completion` / `feedback`（含 `kind`）、`projectView.aiScout` / `reviewCount` / `candidateCount` / `questions` / `reviews`；`createProject` / `updateProject` 读写 `aiScout` |
 | `electron/mcp-http.js` + `dispatch.js` | `GET /claim`、`GET /next`、`POST /complete`、`POST /ask`、`POST /release`（一张路由表，按方法分 query / json）、`GET /prompt/<id>.txt`、端口固定、`initialize.instructions`；409 透出当前认领者 |
 | `electron/prompts.js` + `prompts/{scout,scout-stub,worker}.md` | `createPromptStore` + `REGISTRY`：启动覆盖、清理 `.bak` / `.baseline.json`、读取不缓存；巡检手册与执行手册真源 |
@@ -231,10 +241,11 @@ status: accepted
 - **侧栏波形消失与 toast 双报** → 不要给功能性呼吸动画加 `prefers-reduced-motion` 降级（本机该偏好为 true，等于全站呼吸一起停）；删除失败只保留 App 层 toast，组件内 `try/catch` 只防御并复位 busy。
 - **「AI 提的需求直接进待办」是个默认值，不是设计**（2026-11-11）→ 派发口径曾写死「全部需求都派发，手写与 AI 一视同仁」，等于让人在没有任何确认动作的情况下替 AI 的猜测开工。加候选池时凡是「按状态判断」的地方都要复查：`planDispatch` 只认 `todo`、`UNFINISHED` 不含候选、`pm_list_requirements` 默认排除——三处少一处，候选就会被派出去。
 - **候选池若只靠派发过滤，`/claim` 就成了后门** → 手动按 `taskId` 认领不受派发闸门约束（这是刻意的），所以认领函数必须自己挡候选，否则「AI 看不见」只对自动派发生效。
+- **悬停层的循环依赖会让 dev 下的 hover 时好时坏**（2026-11-16）→ 文件卡一开始直接引 `MarkdownText`，形成 `HoverCardLayer → FileHoverCard → MarkdownText → HoverCardLayer` 的环；长期跑着 HMR 的窗口里会留下两份 `hoverProps` 模块实例，表现为「引用清单行悬停失效、正文 chip 正常」，整页刷新才恢复。纯渲染下沉成 `MarkdownBody` 后环消失；凡是 `HoverCardLayer` 的下游组件，都不要再反向 import 依赖 `hoverProps` 的模块。
 
 ## 5. 已知边界
 
-- 正文 HTML 标签按纯文本显示（`rehype-raw` 未启用）；GFM 语法由 `remark-gfm` 支持，其中表格在 `MarkdownText.jsx` 外套滚动容器、样式见 `panel.css`（右面板窄列只滚表格、不撑宽正文）；`mailto:` / `tel:` 点击无反应，扩协议需显式白名单并重评风险。
+- 正文 HTML 标签按纯文本显示（`rehype-raw` 未启用）；GFM 语法由 `remark-gfm` 支持，其中表格在 `MarkdownBody.jsx` 外套滚动容器、样式见 `panel.css`（右面板窄列只滚表格、不撑宽正文）；`mailto:` / `tel:` 点击无反应，扩协议需显式白名单并重评风险。
 - `@{项目名}` 按当前库里的项目名精确匹配（忽略大小写）：项目改名后旧引用立刻变成失效态，需手动改正文；引用不产生反向依赖，被引用的项目照常可删除 / 归档。`@{#序号}` / `@{file:路径}` 同理：需求归档删除、文件改名删除后标失效，不反向阻止删除。
 - 项目 `refs` 只带库里现成的数据（项目记录 + 需求标题），不读磁盘、不解析项目类型；`reqRefs` 的正文也来自库内。`fileRefs` 只为判存在 / 解析绝对路径做 `stat` / `realpath`，**不读文件内容**：agent 想知道技术栈要看目录本身，工作台不替它扫仓库（会拖慢 `/next`）。
 - 切换需求时未保存改动直接丢弃，不做离开确认或本地暂存（用户明确取舍）。

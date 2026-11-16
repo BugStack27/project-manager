@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { highlightLines } from '../lib/hlighter.js';
+import MarkdownBody from './MarkdownBody.jsx';
 
 /**
  * 文件引用的悬停窗：就地显示文件内容，带行号与语法高亮。
@@ -9,8 +10,13 @@ import { highlightLines } from '../lib/hlighter.js';
  * 高亮走 lib/hlighter.js 的按需加载引擎，代码区直接复用 .ev-code 的行样式与 hljs 配色。
  * 每次出卡重新读一次 —— 文件是会改的，缓存内容会让悬浮窗说旧话；引擎加载失败就保持纯文本。
  *
- * 卡本身可接收鼠标（内部要滚动代码），所以由 HoverCardLayer 传入 enter/leave 来接管收起时机。
+ * markdown 文件（.md / .markdown）改由 MarkdownBody 渲染：悬停是为了看文档写了什么，
+ * 逐行源码反而难读。不引 MarkdownText 是为了避开它与 HoverCardLayer 的循环依赖（见 doc §4）。
+ *
+ * 卡本身可接收鼠标（内部要滚动内容），所以由 HoverCardLayer 传入 enter/leave 来接管收起时机。
  */
+
+const MD_RE = /\.(md|markdown)$/i;
 
 /** 退化结果 → 一句人话：这些情况主进程只回标记，不回内容 */
 function describe(data) {
@@ -38,6 +44,7 @@ export default function FileHoverCard({
 }) {
   const [state, setState] = useState({ loading: true, data: null, error: null });
   const [hl, setHl] = useState(null);
+  const isMarkdown = MD_RE.test(path);
 
   useEffect(() => {
     let alive = true;
@@ -54,9 +61,10 @@ export default function FileHoverCard({
   }, [projectId, path]);
 
   // 高亮是纯装饰：引擎没加载出来、语言认不出、hljs 抛错，都只是保持纯文本
+  // markdown 走渲染视图，不需要也给不起行号对齐的高亮结果
   useEffect(() => {
     const lines = state.data && state.data.lines;
-    if (!lines || !lines.length) {
+    if (isMarkdown || !lines || !lines.length) {
       setHl(null);
       return undefined;
     }
@@ -69,7 +77,7 @@ export default function FileHoverCard({
     return () => {
       alive = false;
     };
-  }, [state.data, path]);
+  }, [state.data, path, isMarkdown]);
 
   const data = state.data;
   const note = describe(data);
@@ -97,6 +105,10 @@ export default function FileHoverCard({
         <div className="fhover-empty">{note}</div>
       ) : lines.length === 0 ? (
         <div className="fhover-empty">（空文件）</div>
+      ) : isMarkdown ? (
+        <div className="fhover-md">
+          <MarkdownBody>{lines.map((ln) => ln.text).join('\n')}</MarkdownBody>
+        </div>
       ) : (
         <div className="ev-code fhover-code">
           {lines.map((ln, i) => (

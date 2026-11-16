@@ -93,6 +93,8 @@
   .fhover-path{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:11px;color:var(--label-3)}
   .fhover-empty{flex:1;display:flex;align-items:center;gap:6px;padding:14px 12px;font-size:12px;color:var(--label-3)}
   .fhover-empty.err{color:var(--red-text)}
+  /* markdown 文件按渲染结果展示（MarkdownText），排版沿用 .md-body；这里只负责占满剩余高度并可滚 */
+  .fhover-md{flex:1;min-height:0;overflow:auto;padding:10px 12px}
   .fhover-ft{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-top:1px solid var(--sep);font-size:11px;color:var(--label-3)}
   @media (prefers-reduced-motion:reduce){.fhover{animation:none}}
   /* 纯黑矢量图标在深色界面里看不见：按需反色；纯白图标在浅色界面同理 */

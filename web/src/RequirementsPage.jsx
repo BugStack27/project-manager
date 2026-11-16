@@ -57,23 +57,9 @@ function askBadge(r) {
 }
 
 function actionsFor(r, api) {
-  // 候选池：还在等人拍板。采纳才进「未开始」并开始被派发，丢弃走拒绝（保留记录可回看）
-  if (r.status === 'candidate') {
-    return (
-      <>
-        <button
-          className="btn sm primary"
-          onClick={() => api.onStatus(r, 'todo')}
-          title="采纳后进入未开始，agent 才会被派到这条需求"
-        >
-          采纳
-        </button>
-        <button className="btn sm danger" onClick={() => api.onStatus(r, 'rejected')}>
-          丢弃
-        </button>
-      </>
-    );
-  }
+  // 候选池不在卡上给按钮：真实用法是「点开抽屉看完内容再拍板」，按钮留在卡上会让用户看完还得回来再点一次。
+  // 采纳 / 丢弃只在右侧详情里出现（见 RequirementDetail 的 .rd-cand），卡上不再有这一行
+  if (r.status === 'candidate') return null;
   if (r.status === 'todo') {
     return (
       <>
@@ -150,6 +136,8 @@ function actionsFor(r, api) {
     认领 agent 与待回答角标挤在列宽最小 200px 的底行里，靠省略号截断 */
 function BoardCard({ r, sel, onSelect, onStatus, showStatus }) {
   const term = r.status === 'done' || r.status === 'rejected' ? ' term' : '';
+  /** 没有卡内按钮的卡片（终态、候选）：更新时间回到信息行，不额外占一条只有时间的按钮行 */
+  const quiet = !!term || r.status === 'candidate';
   const ask = askBadge(r);
   const hasTag = !!(r.claim || ask.list.length);
   return (
@@ -170,8 +158,8 @@ function BoardCard({ r, sel, onSelect, onStatus, showStatus }) {
         {r.title}
       </h3>
       {r.body ? <p className="bcard-body">{r.body}</p> : null}
-      {/* 终态卡片没有按钮行，更新时间留在底行；其余列把时间挪到按钮行右端，少占一行 */}
-      {hasTag || term ? (
+      {/* 终态 / 候选卡片没有按钮行，更新时间留在底行；其余列把时间挪到按钮行右端，少占一行 */}
+      {hasTag || quiet ? (
         <div className="bcard-meta">
           {hasTag ? (
             <span className="bcard-tags">
@@ -196,14 +184,14 @@ function BoardCard({ r, sel, onSelect, onStatus, showStatus }) {
               ) : null}
             </span>
           ) : null}
-          {term ? (
+          {quiet ? (
             <span className="meta">
               更新 <b>{fmtDateTime(r.updatedAt)}</b>
             </span>
           ) : null}
         </div>
       ) : null}
-      {term ? null : (
+      {quiet ? null : (
         <div className="bacts" onClick={(e) => e.stopPropagation()}>
           {actionsFor(r, { onStatus })}
           <span className="meta bacts-time">
@@ -374,6 +362,7 @@ export default function RequirementsPage({
             const term = r.status === 'done' || r.status === 'rejected' ? ' term' : '';
             const on = selId === r.id;
             const ask = askBadge(r);
+            const acts = actionsFor(r, { onStatus, onArchive });
             return (
               <article
                 className={'row req' + term + (on ? ' sel' : '')}
@@ -437,9 +426,12 @@ export default function RequirementsPage({
                       <b>{r.feedback.note}</b>
                     </span>
                   ) : null}
-                  <div className="acts" onClick={(e) => e.stopPropagation()}>
-                    {actionsFor(r, { onStatus, onArchive })}
-                  </div>
+                  {/* 候选没有卡内动作：采纳 / 丢弃在右侧详情里，看完就地拍板 */}
+                  {acts ? (
+                    <div className="acts" onClick={(e) => e.stopPropagation()}>
+                      {acts}
+                    </div>
+                  ) : null}
                 </div>
               </article>
             );

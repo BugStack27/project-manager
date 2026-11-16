@@ -647,11 +647,34 @@ export default function RequirementDetail({
             ) : null}
           </div>
 
-          {/* 候选需求的可见性要说清：它不在未完成里、也派不出去，避免用户以为 agent 视而不见 */}
+          {/* 候选需求的决策点只有这里：看完正文就地采纳 / 丢弃，不必退回列表再点一次。
+              卡上的按钮已撤掉（见 RequirementsPage 的 actionsFor）；丢弃走状态弹窗，记录进「已拒绝」可回看 */}
           {requirement.status === "candidate" ? (
-            <p className="rd-cand">
-              候选需求：不计入未完成，也不会派给 agent。想做了在列表里点「采纳」，采纳后进入未开始。
-            </p>
+            <div className="rd-cand">
+              <div className="rd-cand-tip">
+                候选需求：不计入未完成，也不会派给 agent。采纳后进入未开始，丢弃后离开候选池（记录可在「已拒绝」里回看）。
+              </div>
+              {onStatus ? (
+                <div className="rd-cand-acts">
+                  <button
+                    className="btn sm primary"
+                    onClick={() => onStatus(requirement, "todo")}
+                    disabled={busy}
+                    title="采纳后进入未开始，agent 才会被派到这条需求"
+                  >
+                    采纳
+                  </button>
+                  <button
+                    className="btn sm danger"
+                    onClick={() => onStatus(requirement, "rejected")}
+                    disabled={busy}
+                    title="丢弃后离开候选池，记录可在「已拒绝」里回看"
+                  >
+                    丢弃
+                  </button>
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
           <div className="rd-sec">正文</div>

@@ -143,11 +143,11 @@ status: accepted
 |---|---|---|
 | 承载方式 | 新增状态 `candidate`（`STATUSES` 首位），不是独立集合 / 布尔字段 | 状态字段已经是「这条需求现在在哪」的唯一真源；另开一个 `candidate: true` 布尔值会让派发、计数、页签、状态机四处各判一次，必然漂移 |
 | 入池条件 | `source === 'ai'` 或新建时勾选「候选」；用户正常新建仍是 `todo` | AI 提的必然没经人确认；人自己想清楚了的就按待办处理，不额外加一步 |
-| 采纳 / 丢弃 | 候选 → `todo` 即采纳（列表行「采纳」）；候选 → `rejected` 即丢弃（保留记录可回看） | 只留两个出口；候选没有认领，不存在释放 / 打回这类中间态 |
+| 采纳 / 丢弃 | 候选 → `todo` 即采纳；候选 → `rejected` 即丢弃（保留记录可回看）。两个按钮只放在右侧详情里（候选提示块下方），列表行与看板卡片上不再有 | 只留两个出口；候选没有认领，不存在释放 / 打回这类中间态。放在卡上等于要求「看完正文 → 退回列表 → 再找那张卡」，一次操作被拆成三段 |
 | 状态机约束 | 进候选只允许从 `todo`；从候选只能出到 `todo` / `rejected`。违例 409 `bad_status_transition` | 否则一条已认领的 `doing` 能被改成候选：认领悬空、项目锁失效，而候选又不参与派发 |
 | 对 agent 的可见性 | 三重挡：派发只取 `todo`（/next 的 `requirement` 与 `blocked` 都不出现候选）、`/claim` 对候选 409 `not_claimable`、`pm_list_requirements` 不传状态时默认不含候选 | 「看不见」不能只靠一处过滤；任一入口漏了，候选需求就会被当成已确认的活开工 |
 | 计数口径 | 候选不计入 `pendingCount` / `UNFINISHED`，单列 `candidateCount`；侧栏需求灯不亮候选 | 候选是「还没决定做不做」，算成未完成会让项目显示成有活，实际却派不出去 |
-| 界面 | 列表新增「候选池」页签（最前）、看板新增一列、行内「采纳 / 丢弃」、详情一条灰色说明；新建表单加「先放进候选池」勾选（默认不勾） | 候选与未完成是两种东西，混在一个页签里用户会以为它已经在排队 |
+| 界面 | 列表新增「候选池」页签（最前）、看板新增一列、详情提示块内「采纳 / 丢弃」（2026-11-16 从行内挪进详情，卡上不再有按钮；候选卡片因此也没有按钮行）、新建表单加「先放进候选池」勾选（默认不勾） | 候选与未完成是两种东西，混在一个页签里用户会以为它已经在排队；候选的决策发生在「看完内容之后」，按钮跟着内容走 |
 | 视觉 | 候选徽标不新增色相：中性灰 + `inset` 细描边 | 五类语义色已被五种状态占满（见 `doc/theme-and-identity-colors.md`），第六种颜色只会让「哪个是待办」更难认 |
 | 巡检侧 | `scout.md` 说明提案会进候选池；新增去重维度：候选池里已有的同主题提案跳过（`duplicate_candidate`） | 提案不再自动进待办，若不去重，每晚都会把同一个想法重新塞进池子 |
 | 不做 | 不做候选的优先级 / 打分排序、不做定时自动采纳、不做候选单独的项目视图、不做候选批量操作 | 池子的用法就是「攒着，想清楚再采纳」；排序与批量要等池子真的堆积起来再评估 |
@@ -196,8 +196,8 @@ status: accepted
 | `electron/mcp-http.js` + `dispatch.js` | `GET /claim`、`GET /next`、`POST /complete`、`POST /ask`、`POST /release`（一张路由表，按方法分 query / json）、`GET /prompt/<id>.txt`、端口固定、`initialize.instructions`；409 透出当前认领者 |
 | `electron/prompts.js` + `prompts/{scout,scout-stub,worker}.md` | `createPromptStore` + `REGISTRY`：启动覆盖、清理 `.bak` / `.baseline.json`、读取不缓存；巡检手册与执行手册真源 |
 | `electron/main.js` | `appBaseUrl` / `isAppUrl` / `openExternalSafely`、`setWindowOpenHandler` 与 `will-navigate`、组装 `promptStore`（`PM_PROMPT_DIR`） |
-| `web/src/RequirementDetail.jsx` | 扁平 `.rd-*` 详情、`buildContentText` / `buildAgentText`、`editing` / `draft` 内联保存、「本次交付」、待审核「通过 / 继续回复」区块、`MD_COMPONENTS` |
-| `web/src/RequirementsPage.jsx` | `counts`（含候选池）与 `unfinished` 筛选、候选池页签与看板列（`BOARD_COLUMNS.top`：未完成列「进行中 / 待审核」置顶）、`actionsFor` 的候选（采纳 / 丢弃）/ 状态 / 审核分支、整行选中态、认领徽标 |
+| `web/src/RequirementDetail.jsx` | 扁平 `.rd-*` 详情、`buildContentText` / `buildAgentText`、`editing` / `draft` 内联保存、候选提示块内的「采纳 / 丢弃」、本次交付、待审核「通过 / 继续回复」区块、`MD_COMPONENTS` |
+| `web/src/RequirementsPage.jsx` | `counts`（含候选池）与 `unfinished` 筛选、候选池页签与看板列（`BOARD_COLUMNS.top`：未完成列「进行中 / 待审核」置顶）、`actionsFor` 的状态 / 审核分支（候选返回 `null`，不再出按钮；看板 `quiet` 让候选与终态同走「时间回底行、不占按钮行」）、整行选中态、认领徽标 |
 | `web/src/components/AiAccessModal.jsx` | 四个页签；Agent 管理页负责添加 / 列表 / 技能目录（卡片显示 AgentID 与每个目录的技能数，「添加 Agent」弹窗可一键选择本机已装客户端），自动认领页单独选择 Agent 并注入 AgentID，未选中禁止复制 |
 | `web/src/App.jsx` | `selReqId` / `openRequirement` / `deleteRequirement` / `saveRequirementDetail`、详情 `key`、进入自动选中、`applyStatus` 文案、验收时可选提交推送（`approveRequirementWithGit` / `confirmStatusWithGit`）、`AiAccessModal`、`pendingItems`（提问 + 待审核） |
 | `web/src/lib/commit-message.js` + `web/src/components/CommitModal.jsx` | 提交信息唯一真源：`buildCommitMessage` 只认 `completion.commitMessage`、`splitCommitMessage` 识别并保留标准类型前缀；弹窗不再展示会话说明 |

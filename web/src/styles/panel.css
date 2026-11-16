@@ -37,8 +37,10 @@
   .rd-tools{margin-left:auto;display:flex;gap:4px;flex:none}
   .rd-title{margin:0;padding:2px 4px 0;font-size:15px;font-weight:600;line-height:1.4;word-break:break-word}
   .rd-meta{display:flex;flex-wrap:wrap;gap:6px;padding:8px 4px 0}
-  /* 候选提示：中性灰底 + 左侧描边，说明「为什么 agent 不动它」，不做警示色（不是错误） */
+  /* 候选提示：中性灰底 + 左侧描边，说明「为什么 agent 不动它」，不做警示色（不是错误）；
+     采纳 / 丢弃按钮就挂在这一块下面 —— 卡上已撤掉，看完正文就地拍板 */
   .rd-cand{margin:8px 4px 0;padding:8px 10px;border-radius:8px;background:var(--fill-2);box-shadow:inset 2px 0 0 var(--sep-2);font-size:12px;line-height:1.6;color:var(--label-2)}
+  .rd-cand-acts{display:flex;gap:6px;margin-top:8px}
   .rd-sec{margin-top:12px;padding:10px 4px 6px;border-top:1px solid var(--sep);font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--label-3)}
   .rd-body{padding:0 4px;min-width:0}
   /* 正文里的跨项目引用 chip：按下不弹起，只占一行文字的基线高度，不把行距顶开 */

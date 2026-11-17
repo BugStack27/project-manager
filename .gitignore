@@ -3,6 +3,7 @@ data/
 web/dist/
 electron/renderer/
 release*/
+build/cloudflared/
 *.log
 .DS_Store
 .workbuddy/

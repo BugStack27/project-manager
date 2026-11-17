@@ -835,7 +835,16 @@ function startGui() {
     let cloudflaredPending = null;
 
     /**
-     * 确保有可用的 cloudflared：本机已有就用，没有就静默下载一份到应用目录。
+     * 安装包内置的 cloudflared。cloudflared 只有 GitHub 一个下载源，国内直连不稳，
+     * 发版时就带一份进 resources/cloudflared，首次开启手机端通信不必赌网络。
+     */
+    function bundledCloudflared() {
+      if (!app.isPackaged) return '';
+      return path.join(process.resourcesPath, 'cloudflared', cloudflaredBin.localName());
+    }
+
+    /**
+     * 确保有可用的 cloudflared：自带 > 下载过 > PATH > 静默下载。
      * 不弹窗、不询问 —— 这个二进制的存在与否不该成为一个需要用户决策的问题。
      */
     async function ensureCloudflared() {
@@ -844,6 +853,7 @@ function startGui() {
         cloudflaredPending = cloudflaredBin
           .ensure({
             dir: path.join(app.getPath('userData'), 'bin'),
+            bundled: bundledCloudflared(),
             log: console.log,
             /**
              * 首选 Electron 的 net.fetch：走 Chromium 网络栈，系统代理与系统证书都跟着走。

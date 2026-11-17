@@ -57,6 +57,10 @@ jobs:
       - name: 构建前端
         run: npm run build
 
+      # cloudflared 随安装包内置（resources/cloudflared），首次使用手机端通信不必赌 GitHub 直连
+      - name: 准备内置 cloudflared
+        run: npm run prep:cloudflared
+
       # electron-builder 自带的发布器有竞态：exe / blockmap / latest.yml 并发上传时，
       # 每个上传任务各起一个发布器，各自「查不到就建」，于是同一个 tag 建出两三个
       # Release，资产还被拆散——latest.yml 落进没人下载的那份里，客户端就 404。

@@ -59,7 +59,7 @@ AI agent 走的是本机 MCP（`/mcp` 那 4 个工具）与 `/claim`、`/next`�
 | 地址解析 | 扫 cloudflared 的 stdout/stderr，取 `*.trycloudflare.com` 的第一个匹配 |
 | 链路存活 | 每 30 秒打一次 `<公网地址>/remote/hello`，连续 2 次失败即判定隧道已死 |
 | 进程退出 | 退避重开（1s → 2s → 5s → 10s → 30s → 60s），地址会变，重开后重新广播 |
-| 缺 cloudflared | 启动时自动下载到 `<userData>/bin`（约 50MB），不询问；已有则复用（先看应用目录，再看 PATH） |
+| 缺 cloudflared | 安装包自带一份（`resources/cloudflared`，发版时由 `npm run prep:cloudflared` 准备）；没有则用 `<userData>/bin` 下载过的、PATH 里的，最后才自动下载（约 50MB），不询问 |
 | 下载通道 | Electron `net.fetch`（系统代理 + 系统证书）→ https + 系统证书库（兜代理中间人证书）→ Node `fetch`；全失败等 2 秒重试首选一次 |
 | 下载失败 | `cloudflared_download_failed`，错误里逐通道列出真实原因（`ERR_CERT_*` / `UNABLE_TO_VERIFY_LEAF_SIGNATURE` / `ECONNRESET`…）；手机端通信弹窗给一个「重试」按钮 |
 | 自定义 | `PM_CLOUDFLARED` 指定可执行文件，`PM_CLOUDFLARED_URL` 换下载源 |
@@ -173,7 +173,7 @@ curl -s -X POST -H "X-PM-Token: $TOKEN" -H "Content-Type: application/json" \
 剩下的是体验问题，不是功能缺口：
 1. 手机端「项目」页没有下拉刷新，靠长轮询与进入页面时拉取。
 2. 隧道重连期间手机列表会报连接失败，恢复后由长轮询自动接上。
-3. cloudflared 首次下载失败只在日志里，界面无提示（手机「项目」页会停在「还没有桌面端地址」）。
+3. 老安装包（不带内置 cloudflared）首次下载失败时，弹窗给原因与「重试」，不会自动换镜像源。
 
 
 

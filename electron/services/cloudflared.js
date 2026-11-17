@@ -150,24 +150,32 @@ function onPath() {
 }
 
 /**
- * 返回可执行文件路径：应用目录里的那份优先，其次 PATH。
- * 都没有则下载到 `dir`，返回本地路径。网络失败抛错，由调用方决定怎么显示。
+ * 返回可执行文件路径：优先用安装包自带的那份（`bundled`），其次 `<dir>` 里下载过的、PATH 里装的。
+ * 都没有才下载到 `dir`。网络失败抛错，由调用方决定怎么显示。
+ *
+ * `bundled` 由主进程在打包态传 `resources/cloudflared/<localName>`：cloudflared 的下载源只有
+ * GitHub，国内直连很不稳定，随安装包带一份就不必在首次使用时赌网络。
  *
  * `fetchImpl` 由调用方注入：Electron 主进程必须传 `net.fetch` —— Node 自带的 fetch（undici）
  * 既不读系统代理，也不读系统证书库，开了代理 / GitHub 加速工具的机器上只会报 `fetch failed`。
  * 注入 net.fetch 时还会补一条 https + 系统证书库的回落通道，见 `systemCaBundle()`。
  */
-async function ensure({ dir, log, fetchImpl }) {
+async function ensure({ dir, log, fetchImpl, bundled, allowPath = true }) {
   const say = typeof log === 'function' ? log : () => {};
   const doFetch = typeof fetchImpl === 'function' ? fetchImpl : globalThis.fetch;
 
   const envPath = String(process.env.PM_CLOUDFLARED || '').trim();
   if (envPath && exists(envPath)) return envPath;
 
+  if (bundled && exists(bundled)) {
+    say('[cloudflared] 使用安装包内置的版本');
+    return bundled;
+  }
+
   const local = path.join(dir, localName());
   if (exists(local)) return local;
 
-  if (onPath()) {
+  if (allowPath && onPath()) {
     say('[cloudflared] 使用系统已安装的版本');
     return localName();
   }
@@ -263,4 +271,4 @@ async function ensure({ dir, log, fetchImpl }) {
   }
 }
 
-module.exports = { ensure, assetName, DOWNLOAD_BASE, MIN_BYTES };
+module.exports = { ensure, assetName, localName, DOWNLOAD_BASE, MIN_BYTES };

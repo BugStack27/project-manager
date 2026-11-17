@@ -370,3 +370,27 @@
   .modal .ml-kv em{font-style:normal;font-size:11.5px;color:var(--label-3)}
   .modal .ml-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
   .modal .ml-connect .hintline{margin-top:2px;font-size:11px;line-height:1.5;color:var(--label-3)}
+
+  /* ── 图片灯箱 ─────────────────────────────────────
+     diff 里的图片点击后铺满窗口查看：滚轮按光标位置缩放、按住拖动平移。
+     深色蒙层两种主题共用，工具栏文字固定白色，不跟主题的 label 阶走。 */
+  .imgview{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;background:rgba(12,12,14,.86);animation:fade .14s}
+  .imgview-bar{flex:none;display:flex;align-items:center;gap:12px;padding:10px 14px;color:#fff;font-size:12px}
+  .imgview-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);opacity:.88}
+  .imgview-side{opacity:.7}
+  .imgview-hint{flex:none;font-size:11px;color:rgba(255,255,255,.55)}
+  .imgview-tools{flex:none;display:flex;align-items:center;gap:6px}
+  .imgview .btn{background:rgba(255,255,255,.12);border-color:transparent;color:#fff;box-shadow:none}
+  .imgview .btn:hover{background:rgba(255,255,255,.2);border-color:transparent}
+  .imgview .btn:active{background:rgba(255,255,255,.28)}
+  .imgview-pct{min-width:60px;justify-content:center;font-variant-numeric:tabular-nums}
+  /* touch-action:none 让触控板/触屏不抢手势；拖动时只看指针位移 */
+  .imgview-stage{flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:16px;
+    cursor:grab;touch-action:none;user-select:none}
+  .imgview.dragging .imgview-stage{cursor:grabbing}
+  .imgview-img{display:block;max-width:100%;max-height:100%;object-fit:contain;transform-origin:center center;
+    will-change:transform;user-select:none;-webkit-user-drag:none}
+  /* 窄窗口：标题让位给提示，操作按钮不折行 */
+  @media (max-width:560px){
+    .imgview-hint{display:none}
+  }

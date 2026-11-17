@@ -45,7 +45,7 @@ import { IdeButton, PageBar, Toast } from './ui.jsx';
  * 悬停卡与证据浮层都 portal 到 body，不在 .rpanel 子树里：卡片改成能接鼠标之后，
  * 点一下卡就会被当成点外面，把抽屉连同正在看的卡一起关掉。点卡片是「读内容」不是「离开抽屉」。
  */
-const PANEL_INSIDE = '.rpanel, .phover, .skhover, .rqhover, .fhover, .ev-pop';
+const PANEL_INSIDE = '.rpanel, .phover, .skhover, .rqhover, .fhover, .ev-pop, .imgview';
 
 export default function App() {
   const { layout, setLayout } = useLayout();

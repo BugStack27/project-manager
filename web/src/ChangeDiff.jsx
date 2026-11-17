@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
+import ImageLightbox from './components/ImageLightbox.jsx';
 import MarkdownText from './components/MarkdownText.jsx';
 import { CHG } from './constants.js';
 import { fmtDateTime } from './format.js';
@@ -130,6 +131,7 @@ function DiffText({ text, untracked, path }) {
  * 两侧都取不到（超限 / 读取失败）时退回一句提示，不显示空白。
  */
 function DiffImages({ image, path, before, after }) {
+  const [zoom, setZoom] = useState(null);
   const sides = [
     { key: 'old', label: before, src: image.old },
     { key: 'new', label: after, src: image.new }
@@ -146,12 +148,26 @@ function DiffImages({ image, path, before, after }) {
         {sides.map((s) => (
           <figure className="dimg" key={s.key}>
             <figcaption>{s.label + (sides.length === 1 ? only : '')}</figcaption>
-            <div className="dimg-box">
+            <button
+              type="button"
+              className="dimg-box"
+              onClick={() => setZoom({ src: s.src, label: s.label })}
+              title="点击放大查看"
+            >
               <img src={s.src} alt={path + ' ' + s.label} />
-            </div>
+            </button>
           </figure>
         ))}
       </div>
+      {zoom ? (
+        <ImageLightbox
+          src={zoom.src}
+          alt={path + ' ' + zoom.label}
+          title={path}
+          caption={zoom.label}
+          onClose={() => setZoom(null)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -38,7 +38,17 @@ const ONLY = String(arg('only', '') || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
-const SHOT_NAMES = ['overview', 'statistics', 'requirements', 'requirement-refs', 'launch', 'changes', 'agent-resume', 'agent-question'];
+const SHOT_NAMES = [
+  'overview',
+  'statistics',
+  'requirements-board',
+  'requirements',
+  'requirement-refs',
+  'launch',
+  'changes',
+  'agent-resume',
+  'agent-question'
+];
 const want = (name) => (ONLY.length ? ONLY.includes(name) : true);
 
 const TMP = path.join(os.tmpdir(), 'app-screenshots');
@@ -303,6 +313,15 @@ async function main() {
       if (!ok) throw new Error('找不到可点击元素：' + selector + ' / ' + text);
       await sleep(450);
     };
+    const clickAria = async (label) => {
+      const ok = await evalJs(
+        '(() => { const el = document.querySelector(' +
+          JSON.stringify('[aria-label="' + label + '"]') +
+          '); if (!el) return false; el.click(); return true; })()'
+      );
+      if (!ok) throw new Error('找不到可点击元素：aria-label=' + label);
+      await sleep(450);
+    };
     const shot = async (name) => {
       if (!want(name)) return;
       await sleep(650);
@@ -358,6 +377,17 @@ async function main() {
     await clickText('.req', '工作台首页支持自定义卡片排序');
     await waitFor("!!document.querySelector('.rd-title')", '需求详情');
     await shot('requirements');
+
+    /* 看板：先去统计页让右面板收起，再看板视图占满中区；截完切回列表，后面的场景仍按列表点击 */
+    await clickText('.nav-item', '统计');
+    await waitFor("!!document.querySelector('.stat-chart')", '统计页');
+    await clickText('.pitem', '星港数据平台');
+    await waitFor("!!document.querySelector('.req')", '需求列表');
+    await clickAria('看板视图');
+    await waitFor("document.querySelectorAll('.board .bcard').length > 3", '看板');
+    await shot('requirements-board');
+    await clickAria('列表视图');
+    await waitFor("!!document.querySelector('.req')", '需求列表');
 
     await clickText('.req', '导出任务列表复用消息分组交互');
     await waitFor("!!document.querySelector('.rd-title')", '引用示例需求详情');

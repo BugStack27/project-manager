@@ -1,6 +1,6 @@
 ---
 name: app-screenshots
-description: 给 project-manager（项目管理台 Electron 应用）生成宣传/文档用的界面截图。当用户说“截个总览/统计/需求中心/需求详情引用/启动台/修改记录/Agent 询问/Agent 恢复的图”“更新宣传图/README 截图”“要亮色/深色截图”“按默认窗口截高清图”时使用。注入虚构项目数据驱动真实前端，用无头 Chromium 逐页截取，默认应用窗口 1280×860 @2x，不会暴露本机真实项目。
+description: 给 project-manager（项目管理台 Electron 应用）生成宣传/文档用的界面截图。当用户说“截个总览/统计/需求中心/需求看板/需求详情引用/启动台/修改记录/Agent 询问/Agent 恢复的图”“更新宣传图/README 截图”“要亮色/深色截图”“按默认窗口截高清图”时使用。注入虚构项目数据驱动真实前端，用无头 Chromium 逐页截取，默认应用窗口 1280×860 @2x，不会暴露本机真实项目。
 ---
 
 # 应用界面截图
@@ -16,7 +16,7 @@ description: 给 project-manager（项目管理台 Electron 应用）生成宣�
 在仓库根目录执行：
 
 ```bash
-# 全部 8 页，亮色
+# 全部 9 页，亮色
 node .agent/skills/app-screenshots/scripts/capture.cjs
 
 # 深色
@@ -36,17 +36,18 @@ node .agent/skills/app-screenshots/scripts/capture.cjs --width 1440 --height 900
 | `--theme` | `light` | `light` / `dark` |
 | `--width` / `--height` | `1280` / `860` | CSS 视口，默认与 Electron 主窗口一致 |
 | `--scale` | `2` | 设备像素比，2 = 高清 |
-| `--only` | 全部 | 逗号分隔：`overview,statistics,requirements,requirement-refs,launch,changes,agent-resume,agent-question` |
+| `--only` | 全部 | 逗号分隔：`overview,statistics,requirements-board,requirements,requirement-refs,launch,changes,agent-resume,agent-question` |
 | `--out` | `doc/screenshots` | 相对仓库根目录 |
 | `--no-build` | 关 | 跳过构建，直接用现有 `electron/renderer` |
 | `--root` | 自动推断 | skill 被复制到别处时指定项目根目录 |
 
-## 八个场景
+## 九个场景
 
 | 名称 | 内容 | 关键状态 |
 |---|---|---|
 | `overview` | 总览 | 多项目、待审核/进行中、未提交文件、运行中服务 |
 | `statistics` | 统计 | 7 天提交量、增删行、需求处理趋势、项目明细 |
+| `requirements-board` | 需求看板 | 候选池 / 未完成（进行中、待审核置顶）/ 已完成·已拒绝 三列，卡片显示状态图标、认领人与时间 |
 | `requirements` | 需求中心 | 未完成列表 + 右面板“已交付，等你验收” |
 | `requirement-refs` | 需求详情引用 | 正文里 `@{项目}` / `@{#需求}` / `@{file:路径}` / `{UseSkill:技能}` 四种 chip，悬停「引用文件」行展开文件内容卡 |
 | `launch` | 启动台 | 运行中命令 + ANSI 日志 |
@@ -81,7 +82,7 @@ node .agent/skills/app-screenshots/scripts/capture.cjs --width 1440 --height 900
 
 ## 资源
 
-- `scripts/capture.cjs`：构建、注入、起服务、Chromium/CDP、七页截图。
+- `scripts/capture.cjs`：构建、注入、起服务、Chromium/CDP、九页截图。
 - `scripts/gen-mock.cjs`：把虚构数据与当前视图字段合成为 `mock.js`。
 - `assets/mock-base.js`：演示桥底座（`window.api` 替身与各页面演示数据）。
 - `references/shot-plan.md`：每个场景的点击步骤、选择器与排障。

@@ -20,6 +20,8 @@
 | 全局导航 | `.nav-item` |
 | 项目视图页签 | `.vtab`（需求中心 / 启动台 / 修改记录） |
 | 需求行 | `.req`（标题在 `.req-title`） |
+| 视图切换 | `.viewseg [aria-label="看板视图"]` / `.viewseg [aria-label="列表视图"]` |
+| 看板列与卡片 | `.board .bcol`、`.board .bcard`（标题在 `.bcard-title`） |
 | 需求详情根 | `.rd-title` |
 | 正文引用 chip | `.rd-body .ref-chip`（项目 / 需求 / 文件；技能是同类的 `.ref-chip.skill`） |
 | 引用清单行 | `.rd-ref`（项目 / 需求 / 文件；`.rd-ref.rd-file` 是文件行，行本身也能悬停） |
@@ -36,12 +38,13 @@
 
 1. **overview**：等 `.ov-row` 数量 > 3，确认 `dataset.theme` 已是目标主题，直接截。
 2. **statistics**：点 `.nav-item`「统计」→ 等 `.stat-chart`。
-3. **requirements**：点 `.pitem`「星港数据平台」→ 等 `.req` → 点标题含「工作台首页支持自定义卡片排序」的需求 → 等 `.rd-title`。
-4. **requirement-refs**：仍在「星港数据平台」→ 点标题含「导出任务列表复用消息分组交互」的需求 → 等 `.rd-title` → `rpanel-body.scrollTop = 0` → 用 CDP 发 `Input.dispatchMouseEvent`（`mouseMoved` 先到 (0,0) 再到 chip 中心）悬停「引用文件」行的 `.rd-ref.rd-file`（JobList.tsx）→ 等 `.fhover` 出现后截。悬停正文里的 `.rd-body .ref-chip.file-chip` 也能出同样的卡，但那张卡会盖住下方引用清单，README 用图取前者。
-5. **launch**：点 `.vtab`「启动台」→ 等 `.rlogs .log`（默认自动选运行中的命令）。
-6. **changes**：点 `.vtab`「修改记录」→ 等 `.gtree .gfile` → 点 `ExportPanel.tsx` → 等 `.diff-body`。
-7. **agent-resume**：点 `.vtab`「需求中心」→ 点 `.pitem`「极光移动端」→ 点「消息中心支持按项目分组并置顶未读」（doing + claim）→ 等 `.rd-title` → `rpanel-body.scrollTop = scrollHeight`，截到底部「解锁项目」。
-8. **agent-question**：点「灰度开关默认值改为跟随系统」（doing + question）→ 等 `.rd-ask` → **先把 `rpanel-body.scrollTop` 复位为 0**；默认不滚动以保留标题/正文上下文，只有卡片底部超出面板时才按超出量滚动最小距离，等 1100ms 后截。不要直接 `scrollIntoView('start')`，否则会把顶部信息顶出可视区。
+3. **requirements-board**：点 `.pitem`「星港数据平台」→ 等 `.req` → 点 `.viewseg [aria-label="看板视图"]` → 等 `.board .bcard` 数量 > 3（右面板此前已打开时先去统计页让它收起，否则中区被挤窄）→ 截完点「列表视图」切回，后续场景仍按列表点击。
+4. **requirements**：点 `.pitem`「星港数据平台」→ 等 `.req` → 点标题含「工作台首页支持自定义卡片排序」的需求 → 等 `.rd-title`。
+5. **requirement-refs**：仍在「星港数据平台」→ 点标题含「导出任务列表复用消息分组交互」的需求 → 等 `.rd-title` → `rpanel-body.scrollTop = 0` → 用 CDP 发 `Input.dispatchMouseEvent`（`mouseMoved` 先到 (0,0) 再到 chip 中心）悬停「引用文件」行的 `.rd-ref.rd-file`（JobList.tsx）→ 等 `.fhover` 出现后截。悬停正文里的 `.rd-body .ref-chip.file-chip` 也能出同样的卡，但那张卡会盖住下方引用清单，README 用图取前者。
+6. **launch**：点 `.vtab`「启动台」→ 等 `.rlogs .log`（默认自动选运行中的命令）。
+7. **changes**：点 `.vtab`「修改记录」→ 等 `.gtree .gfile` → 点 `ExportPanel.tsx` → 等 `.diff-body`。
+8. **agent-resume**：点 `.vtab`「需求中心」→ 点 `.pitem`「极光移动端」→ 点「消息中心支持按项目分组并置顶未读」（doing + claim）→ 等 `.rd-title` → `rpanel-body.scrollTop = scrollHeight`，截到底部「解锁项目」。
+9. **agent-question**：点「灰度开关默认值改为跟随系统」（doing + question）→ 等 `.rd-ask` → **先把 `rpanel-body.scrollTop` 复位为 0**；默认不滚动以保留标题/正文上下文，只有卡片底部超出面板时才按超出量滚动最小距离，等 1100ms 后截。不要直接 `scrollIntoView('start')`，否则会把顶部信息顶出可视区。
 
 ## 数据约束
 

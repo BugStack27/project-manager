@@ -27,7 +27,10 @@
 <p align="center"><strong>统计 — 提交、行数与需求处理量，按 7 天 / 30 天 / 本月切换</strong></p>
 <p align="center"><img src="doc/screenshots/statistics.png" width="960" alt="统计" /></p>
 
-<p align="center"><strong>需求中心 — 候选、进行中、待审核在同一条时间线上推进</strong></p>
+<p align="center"><strong>需求看板 — 候选池 / 未完成 / 已完成·已拒绝 三列铺开，进行中与待审核置顶</strong></p>
+<p align="center"><img src="doc/screenshots/requirements-board.png" width="960" alt="需求看板" /></p>
+
+<p align="center"><strong>需求中心（列表视图）— 候选、进行中、待审核在同一条时间线上推进</strong></p>
 <p align="center"><img src="doc/screenshots/requirements.png" width="960" alt="需求中心" /></p>
 
 <p align="center"><strong>需求详情 — 正文用 @ 引用其他项目、本项目需求与文件，用 / 引用技能；悬停就地查看需求或文件内容</strong></p>
@@ -47,7 +50,8 @@
 
 ## 功能
 
-- **需求中心** — 候选池、未开始、进行中、待审核、已完成；AI 提的需求先进候选池，点了「采纳」才进队列。
+- **需求中心** — 列表与看板两种视图，切换后记住偏好；看板按候选池、未完成（进行中 / 待审核置顶）、已完成 / 已拒绝三列铺开，卡片上直接看到状态、认领人与更新时间，操作悬停浮在右下角。AI 提的需求先进候选池，在右侧详情里看完正文再点「采纳」或「丢弃」。
+- **需求详情** — 正文渲染 markdown（含 GFM 表格）；`@` 引用其他项目、本项目需求与文件，`/` 引用技能，悬停就地预览内容，不用离开当前需求。
 - **让 agent 干活** — 本地 MCP 接入后，agent 能提需求、认领、交付、提问；认领与验收按项目串行，命令启停不对 AI 开放。
 - **启动台** — 点一下跑本地进程，日志保留 ANSI 颜色；退出时可选择分离，应用关了进程继续跑。
 - **修改记录** — 当前改动和提交历史在一棵树里，行内展开 diff；验收时可顺手提交并推送。

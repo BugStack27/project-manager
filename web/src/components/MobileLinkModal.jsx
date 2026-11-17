@@ -43,6 +43,9 @@ function clock(iso) {
   return d.toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+/** 手机端装好之后才谈得上扫码配对，下载入口固定指向手机端仓库的 Release 页 */
+const MOBILE_RELEASES_URL = 'https://github.com/BugStack27/project-manager-mobile/releases/latest';
+
 /**
  * 手机端通信。
  *
@@ -139,6 +142,15 @@ export default function MobileLinkModal({ onClose, notify }) {
     }
   }
 
+  /** 下载页交给系统浏览器打开：Electron 窗口里直接跳外链会把应用本身带走 */
+  async function openDownload() {
+    try {
+      await api.openUrl(MOBILE_RELEASES_URL);
+    } catch (e) {
+      notify(e.message || '无法打开下载页面', 'warn');
+    }
+  }
+
   async function copy(text, okMsg) {
     if (!text) {
       notify('没有可复制的内容', 'warn');
@@ -163,6 +175,12 @@ export default function MobileLinkModal({ onClose, notify }) {
       <p className="sub">
         开启后，桌面端会把访问地址与令牌推给手机，手机据此直接读取待审核的交付、待回答的问题，
         以及项目与改动。这条通道只负责下发接入点，不承载审批内容。
+      </p>
+      <p className="ml-dl">
+        <span>手机上还没装？</span>
+        <button className="btn sm ghost" onClick={openDownload}>
+          前往 GitHub 下载
+        </button>
       </p>
 
       {loading && !info ? (

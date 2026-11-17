@@ -349,6 +349,8 @@
   /* ── 手机端通信 ───────────────────────────
      状态行 + 连接配置 + 二维码。二维码固定白底，深浅主题都能扫。 */
   .modal .ml-state{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:10px 12px;border-radius:12px;background:var(--fill-3);font-size:12px;color:var(--label-2)}
+  /* 下载入口贴着说明放：还没装手机端时，这是进弹窗后第一个要点的东西 */
+  .modal .ml-dl{display:flex;align-items:center;gap:8px;margin:-8px 0 14px;font-size:12px;color:var(--label-3)}
   .modal .ml-state b{color:var(--ink-body);font-size:12.5px}
   .modal .ml-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--label-4)}
   .modal .ml-dot.on{background:var(--green)}

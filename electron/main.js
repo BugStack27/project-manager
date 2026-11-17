@@ -846,9 +846,9 @@ function startGui() {
             dir: path.join(app.getPath('userData'), 'bin'),
             log: console.log,
             /**
-             * 必须用 Electron 的 net.fetch，不能用 Node 自带的 fetch：
-             * 后者（undici）不读系统代理，浏览器能打开的 GitHub 链接在开了代理的机器上会直接
-             * `fetch failed`。net.fetch 走 Chromium 网络栈，系统代理与证书都跟着系统走。
+             * 首选 Electron 的 net.fetch：走 Chromium 网络栈，系统代理与系统证书都跟着走。
+             * Node 自带的 fetch（undici）不读系统代理与系统证书库，开了代理 / 加速工具的机器上
+             * 只会报 `fetch failed`；cloudflared.js 里还有一条 https + 系统证书库的回落通道。
              */
             fetchImpl: (url, opts) => net.fetch(url, opts)
           })

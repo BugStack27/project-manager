@@ -18,7 +18,10 @@ function plainError(text) {
  */
 function tunnelText(err) {
   if (!err) return '';
-  if (err.code === 'cloudflared_download_failed' || err.code === 'cloudflared_missing') {
+  if (err.code === 'cloudflared_download_failed') {
+    return '远程通道没准备好：下载 cloudflared 失败，可重试；也可以先手动安装（winget install Cloudflare.cloudflared）';
+  }
+  if (err.code === 'cloudflared_missing') {
     return '远程通道没准备好：' + err.message;
   }
   if (err.code === 'mcp_down') return '远程通道没准备好：本机服务没起来';
@@ -220,7 +223,7 @@ export default function MobileLinkModal({ onClose, notify }) {
           ) : null}
 
           {tunnel && tunnel.preparing ? (
-            <p className="hintline">正在准备远程通道：首次需要下载 cloudflared（约 40MB）…</p>
+            <p className="hintline">正在准备远程通道：首次需要下载 cloudflared（约 50MB）…</p>
           ) : null}
           {tunnel && tunnel.error ? (
             <p className="ml-err" title={tunnel.error.message}>

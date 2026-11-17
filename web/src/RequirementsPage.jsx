@@ -14,15 +14,13 @@ const BOARD_COLUMNS = [
     label: TAB_LABEL.unfinished,
     dot: 'mixed-open',
     statuses: UNFINISHED,
-    mixed: true,
     top: ['doing', 'review']
   },
   {
     key: 'closed',
     label: '已完成 / 已拒绝',
     dot: 'mixed-end',
-    statuses: ['done', 'rejected'],
-    mixed: true
+    statuses: ['done', 'rejected']
   }
 ];
 const VIEW_KEY = 'pm.ui.reqView';
@@ -54,6 +52,86 @@ function askBadge(r) {
       .map((q, i) => (list.length > 1 ? i + 1 + '. ' : '') + (q.agentName || q.agent || 'agent') + ' 提问：' + q.text)
       .join('\n')
   };
+}
+
+function claimLabel(r) {
+  const name = r.claim.agentName || r.claim.agent;
+  return { name, tip: '由 ' + name + ' 于 ' + fmtDateTime(r.claim.at) + ' 认领' };
+}
+
+/**
+ * 状态图标：卡片底行只留图形与颜色，具体文案交给 title / aria-label。
+ * 形状自带语义：空心＝待办、转环＝进行中、时钟＝待审核、对勾＝完成、禁止符＝拒绝、虚线＝候选，
+ * 色觉障碍下也能靠轮廓区分。
+ */
+function StatusMark({ status }) {
+  let glyph;
+  if (status === 'doing') {
+    glyph = (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+        <circle cx="8" cy="8" r="5.6" opacity=".22" />
+        <path d="M8 2.4a5.6 5.6 0 0 1 5.6 5.6" />
+      </svg>
+    );
+  } else if (status === 'done') {
+    glyph = (
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <circle cx="8" cy="8" r="7" fill="currentColor" />
+        <path
+          d="M4.7 8.2l2.2 2.2 4.4-4.6"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  } else if (status === 'rejected') {
+    glyph = (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+        <circle cx="8" cy="8" r="6" />
+        <path d="M4.1 11.9L11.9 4.1" />
+      </svg>
+    );
+  } else if (status === 'review') {
+    glyph = (
+      <svg
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="8" cy="8" r="5.8" />
+        <path d="M8 4.6V8l2.3 1.5" />
+      </svg>
+    );
+  } else if (status === 'candidate') {
+    glyph = (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+        <circle cx="8" cy="8" r="5.8" strokeDasharray="2.2 2.6" />
+      </svg>
+    );
+  } else {
+    glyph = (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+        <circle cx="8" cy="8" r="5.8" />
+      </svg>
+    );
+  }
+  return (
+    <span
+      className={'stmark is-' + status + (status === 'doing' ? ' spin' : '')}
+      title={STATUS[status].label}
+      role="img"
+      aria-label={'状态：' + STATUS[status].label}
+    >
+      {glyph}
+    </span>
+  );
 }
 
 function actionsFor(r, api) {
@@ -130,16 +208,13 @@ function actionsFor(r, api) {
   );
 }
 
-/** 看板卡片：状态由所在列表达，卡内只留编号、来源与标题等识别信息；
-    合并列里同时存在两种状态，需额外展示状态徽标区分。
-    终态（已完成/已拒绝）的归档与撤销只放在右面板，卡底不再占一行；
-    认领 agent 与待回答角标挤在列宽最小 200px 的底行里，靠省略号截断 */
-function BoardCard({ r, sel, onSelect, onStatus, showStatus }) {
+/** 看板卡片：身份行（编号 + 标题 + 来源）/ 描述 / 状态行三层；
+    状态行只留状态图标，认领人与时间左右分列；卡内操作 hover 时浮在右下角 */
+function BoardCard({ r, sel, onSelect, onStatus }) {
   const term = r.status === 'done' || r.status === 'rejected' ? ' term' : '';
-  /** 没有卡内按钮的卡片（终态、候选）：更新时间回到信息行，不额外占一条只有时间的按钮行 */
-  const quiet = !!term || r.status === 'candidate';
   const ask = askBadge(r);
-  const hasTag = !!(r.claim || ask.list.length);
+  const claim = r.claim ? claimLabel(r) : null;
+  const acts = term || r.status === 'candidate' ? null : actionsFor(r, { onStatus });
   return (
     <article
       className={'bcard' + term + (sel ? ' sel' : '')}
@@ -147,58 +222,37 @@ function BoardCard({ r, sel, onSelect, onStatus, showStatus }) {
     >
       <div className="bcard-hd">
         <span className="bseq mono">#{r.seq}</span>
-        {showStatus ? (
-          <span className={'pill ' + STATUS[r.status].cls}>{STATUS[r.status].label}</span>
-        ) : null}
+        <h3 className="bcard-title" title={r.title}>
+          {r.title}
+        </h3>
         <span className={'src' + (r.source === 'ai' ? ' ai' : '')}>
           {r.source === 'ai' ? 'AI' : '手动'}
         </span>
       </div>
-      <h3 className="bcard-title" title={r.title}>
-        {r.title}
-      </h3>
       {r.body ? <p className="bcard-body">{r.body}</p> : null}
-      {/* 终态 / 候选卡片没有按钮行，更新时间留在底行；其余列把时间挪到按钮行右端，少占一行 */}
-      {hasTag || quiet ? (
-        <div className="bcard-meta">
-          {hasTag ? (
-            <span className="bcard-tags">
-              {r.claim ? (
-                <span
-                  className="src claim"
-                  title={
-                    '由 ' +
-                    (r.claim.agentName || r.claim.agent) +
-                    ' 于 ' +
-                    fmtDateTime(r.claim.at) +
-                    ' 认领'
-                  }
-                >
-                  {r.claim.agentName || r.claim.agent}
-                </span>
-              ) : null}
-              {ask.list.length ? (
-                <span className="src ask" title={ask.tip}>
-                  {ask.label}
-                </span>
-              ) : null}
-            </span>
-          ) : null}
-          {quiet ? (
-            <span className="meta">
-              更新 <b>{fmtDateTime(r.updatedAt)}</b>
-            </span>
-          ) : null}
+      <div className="bcard-foot">
+        <StatusMark status={r.status} />
+        {claim ? (
+          <span className="req-who" title={claim.tip}>
+            {claim.name}
+          </span>
+        ) : (
+          <span className="req-who none">未认领</span>
+        )}
+        {ask.list.length ? (
+          <span className="src ask" title={ask.tip}>
+            {ask.label}
+          </span>
+        ) : null}
+        <span className="req-when" title={'更新于 ' + fmtDateTime(r.updatedAt)}>
+          {fmtDateTime(r.updatedAt)}
+        </span>
+      </div>
+      {acts ? (
+        <div className="bacts" onClick={(e) => e.stopPropagation()}>
+          {acts}
         </div>
       ) : null}
-      {quiet ? null : (
-        <div className="bacts" onClick={(e) => e.stopPropagation()}>
-          {actionsFor(r, { onStatus })}
-          <span className="meta bacts-time">
-            更新 <b>{fmtDateTime(r.updatedAt)}</b>
-          </span>
-        </div>
-      )}
     </article>
   );
 }
@@ -319,7 +373,7 @@ export default function RequirementsPage({
         </Empty>
       ) : view === 'board' ? (
         <div className="board">
-          {board.map(({ key, label, dot, mixed, items }) => (
+          {board.map(({ key, label, dot, items }) => (
             <section className="bcol" key={key}>
               <header className="bcol-hd">
                 <i className={'bdot ' + dot} />
@@ -337,7 +391,6 @@ export default function RequirementsPage({
                       sel={selId === r.id}
                       onSelect={onSelect}
                       onStatus={onStatus}
-                      showStatus={mixed}
                     />
                   ))
                 )}
@@ -358,10 +411,10 @@ export default function RequirementsPage({
       ) : (
         <div className="list">
           {list.map((r) => {
-            const st = STATUS[r.status];
             const term = r.status === 'done' || r.status === 'rejected' ? ' term' : '';
             const on = selId === r.id;
             const ask = askBadge(r);
+            const claim = r.claim ? claimLabel(r) : null;
             const acts = actionsFor(r, { onStatus, onArchive });
             return (
               <article
@@ -370,27 +423,24 @@ export default function RequirementsPage({
                 onClick={() => onSelect(r)}
               >
                 <div className="req-top">
-                  <span className={'pill ' + st.cls}>{st.label}</span>
+                  <span className="req-seq mono">#{r.seq}</span>
                   <h3 className="req-title" title={r.title}>
                     {r.title}
                   </h3>
                   <span className={'src' + (r.source === 'ai' ? ' ai' : '')}>
                     {r.source === 'ai' ? 'AI' : '手动'}
                   </span>
-                  {r.claim ? (
-                    <span
-                      className="src claim"
-                      title={
-                        '由 ' +
-                        (r.claim.agentName || r.claim.agent) +
-                        ' 于 ' +
-                        fmtDateTime(r.claim.at) +
-                        ' 认领'
-                      }
-                    >
-                      {r.claim.agentName || r.claim.agent}
+                </div>
+                {r.body ? <p className="req-body">{r.body}</p> : null}
+                <div className="req-foot">
+                  <StatusMark status={r.status} />
+                  {claim ? (
+                    <span className="req-who" title={claim.tip}>
+                      {claim.name}
                     </span>
-                  ) : null}
+                  ) : (
+                    <span className="req-who none">未认领</span>
+                  )}
                   {ask.list.length ? (
                     <span className="src ask" title={ask.tip}>
                       {ask.label}
@@ -408,13 +458,6 @@ export default function RequirementsPage({
                       已锁定
                     </span>
                   ) : null}
-                </div>
-                {r.body ? <p className="req-body">{r.body}</p> : null}
-                <div className="req-foot">
-                  <span className="meta mono">#{r.seq}</span>
-                  <span className="meta">
-                    创建 <b>{fmtDateTime(r.createdAt)}</b>
-                  </span>
                   {r.note ? (
                     <span className="meta note" title={r.note}>
                       备注 <b>{r.note}</b>
@@ -426,6 +469,9 @@ export default function RequirementsPage({
                       <b>{r.feedback.note}</b>
                     </span>
                   ) : null}
+                  <span className="req-when" title={'更新于 ' + fmtDateTime(r.updatedAt)}>
+                    {fmtDateTime(r.updatedAt)}
+                  </span>
                   {/* 候选没有卡内动作：采纳 / 丢弃在右侧详情里，看完就地拍板 */}
                   {acts ? (
                     <div className="acts" onClick={(e) => e.stopPropagation()}>

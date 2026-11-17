@@ -6,25 +6,52 @@
   .row + .row{border-top:1px solid var(--sep)}
   .row:hover{background:var(--bg-hover)}
 
-  /* requirement row */
-  .req-top{display:flex;align-items:center;gap:10px}
+  /* requirement row：身份行 / 描述 / 状态行三层 */
+  .req-top{display:flex;align-items:center;gap:8px;min-width:0}
+  /* 编号与标题差 2px 而不是 3px：11px 在 14px 标题旁太小，读起来像掉了半级 */
+  .req-seq{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--label-3);flex:none}
   /* 与看板卡片同口径：标题吃 600 字重，正文只留一行，靠字重与行数拉开层级 */
   .req-title{font-size:14px;font-weight:600;color:var(--label);margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .req-id{font-family:var(--mono);font-size:12px;color:var(--label-3);flex:none}
+  .req-top .src{margin-left:auto}
   .meta.mono{font-family:var(--mono);font-size:12px;color:var(--label-3)}
-  .req-body{margin:6px 0 0;color:var(--label-2);font-size:13px;line-height:1.62;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
-  .req-foot{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .req-body{margin:5px 0 0;color:var(--label-2);font-size:12.5px;line-height:1.6;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
   .meta{font-size:12px;color:var(--label-3);display:inline-flex;align-items:center;gap:5px;white-space:nowrap;min-width:0}
   .meta b{font-weight:500;color:var(--label-2)}
+
+  /* 状态行：状态图标 · 认领人 · 角标 …… 右端更新时间 */
+  .req-foot{display:flex;align-items:center;gap:8px;margin-top:9px;min-width:0}
+  .stmark{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:none;color:var(--label-3)}
+  .stmark svg{width:15px;height:15px;display:block}
+  .stmark.is-candidate{color:var(--label-4)}
+  .stmark.is-doing{color:var(--blue)}
+  .stmark.is-review{color:var(--orange)}
+  .stmark.is-done{color:var(--green)}
+  .stmark.is-rejected{color:var(--red)}
+  .stmark.spin svg{animation:spin .95s linear infinite;transform-origin:50% 50%}
+  .req-who{min-width:0;flex:0 1 auto;font-size:11px;font-weight:500;color:var(--teal-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .req-who.none{color:var(--label-4);font-weight:400}
+  .req-when{margin-left:auto;flex:none;font-size:11px;color:var(--label-4);font-variant-numeric:tabular-nums;white-space:nowrap}
+
   /* 同一行里的多个 meta 用中点分隔，替代「直接挨着」 */
   .req-foot .meta + .meta::before,
   .dmeta .meta + .meta::before,
   .rd-meta .meta + .meta::before,
   .cmd .row2 .path + .meta::before{content:"·";color:var(--label-4);margin-right:5px;font-weight:400}
-  .req .acts{margin-left:auto;display:flex;gap:6px;flex:none}
+  /* 卡内操作默认让位给信息；hover 时浮在状态行右端，不占常态布局 */
+  .req .acts{
+    position:absolute;right:12px;bottom:8px;display:flex;gap:6px;flex:none;
+    padding:4px 4px 4px 16px;border-radius:9px;
+    background:linear-gradient(90deg,transparent,var(--bg-hover) 30%);
+    /* 只淡出、不隐藏：按钮仍留在 Tab 顺序里，键盘聚焦时整条浮层重新显形 */
+    opacity:0;pointer-events:none;transition:opacity .12s;
+  }
+  .row.req:hover .acts,
+  .row.req:focus-within .acts{opacity:1;pointer-events:auto}
+  .row.req.sel:hover .acts,
+  .row.req.sel:focus-within .acts{background:linear-gradient(90deg,transparent,var(--bg-hover-sel) 30%)}
   .req.term .req-title{color:var(--label-2);font-weight:500}
   .req.term .req-body{color:var(--label-3)}
-  .row.req{cursor:pointer}
+  .row.req{position:relative;cursor:pointer}
   /* 滚动列表的选中行（需求 / 启动台共用）：圆角 accent 描边 + 淡底，四条边都包住内容，不画贴边竖条 */
   .row.sel{background:rgb(var(--accent-rgb) / .10);border-radius:8px;box-shadow:inset 0 0 0 1.5px rgb(var(--accent-rgb) / .60)}
   .row.sel:hover{background:rgb(var(--accent-rgb) / .14)}
@@ -79,24 +106,29 @@
   .bcol-body{display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;overflow-y:auto}
   .bcol-empty{padding:18px 8px;border:1px dashed var(--sep-2);border-radius:9px;color:var(--label-4);font-size:12px;text-align:center}
 
-  /* 看板卡片：状态由列表达，卡内先标题后辅助信息，操作按钮沉底 */
-  .bcard{padding:10px;border:1px solid var(--edge);border-radius:10px;background:var(--card);cursor:pointer;transition:border-color .12s,box-shadow .12s,background .12s}
-  .bcard:hover{border-color:var(--edge-strong);box-shadow:0 2px 6px rgba(0,0,0,.06)}
+  /* 看板卡片：身份行 / 描述 / 状态行三层，操作 hover 时浮起 */
+  .bcard{position:relative;padding:11px 12px 10px;border:1px solid var(--edge);border-radius:12px;background:var(--card);cursor:pointer;transition:border-color .12s,box-shadow .12s,background .12s}
+  .bcard:hover{border-color:var(--edge-strong);box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 24px -18px rgba(0,0,0,.30)}
   /* 选中卡片：描边与底色调成和列表选中行同一套，比原来的 45% 边框明显一档 */
   .bcard.sel{border-color:rgb(var(--accent-rgb) / .75);box-shadow:0 0 0 2px rgb(var(--accent-rgb) / .22);background:linear-gradient(rgb(var(--accent-rgb) / .05),rgb(var(--accent-rgb) / .05)),var(--card)}
-  .bcard-hd{display:flex;align-items:center;gap:6px}
-  .bseq{font-family:var(--mono);font-size:11px;color:var(--label-3)}
-  .bcard-hd .src{margin-left:auto}
-  /* 标题压深一档字重、正文只留一行：13px 下两者同字重时层级分不开 */
-  .bcard-title{margin:6px 0 0;font-size:13px;font-weight:600;line-height:1.4;color:var(--label);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .bcard-hd{display:flex;align-items:center;gap:8px;min-width:0}
+  .bseq{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--label-3);flex:none}
+  .bcard-title{flex:1;min-width:0;margin:0;font-size:13.5px;font-weight:600;line-height:1.45;color:var(--label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bcard-hd .src{flex:none}
   .bcard.term .bcard-title{color:var(--label-2);font-weight:500}
-  .bcard-body{margin:5px 0 0;font-size:12px;line-height:1.55;color:var(--label-2);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .bcard-body{margin:5px 0 0;font-size:12px;line-height:1.58;color:var(--label-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .bcard.term .bcard-body{color:var(--label-3)}
-  /* 卡底一左一右：左边认领 agent 与待回答角标，右边更新时间；列最窄 200px，角标必须能截断 */
-  .bcard-meta{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:11px;color:var(--label-3)}
-  .bcard-meta .meta{margin-left:auto;flex:none;font-size:11px}
-  .bcard-tags{display:flex;align-items:center;gap:4px;min-width:0;overflow:hidden}
-  .bcard-tags .src{min-width:0;flex:0 1 auto;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  /* 按钮行右端挂更新时间：非终态卡片因此少一行，窄列按钮换行时时间仍贴右 */
-  .bacts{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:8px}
-  .bacts-time{margin-left:auto;flex:none;font-size:11px}
+  /* 状态行一左一右：左边状态图标、认领 agent 与待回答角标，右边更新时间；列最窄 200px，角标必须能截断 */
+  .bcard-foot{display:flex;align-items:center;gap:6px;margin-top:9px;min-width:0}
+  /* 操作按钮 hover 浮在右下角；渐变让左缘与卡面融在一起，不挡状态行左半 */
+  .bacts{
+    position:absolute;right:8px;bottom:6px;display:flex;align-items:center;gap:5px;
+    padding:4px 4px 4px 16px;border-radius:9px;
+    background:linear-gradient(90deg,transparent,var(--card) 30%);
+    /* 与列表行同口径：淡出但仍可 Tab，聚焦时显形 */
+    opacity:0;pointer-events:none;transition:opacity .12s;
+  }
+  .bcard:hover .bacts,
+  .bcard:focus-within .bacts{opacity:1;pointer-events:auto}
+  /* 选中卡片的浮层要和卡面同色：只留强调色渐变会让底下的时间透出来 */
+  .bcard.sel .bacts{background:linear-gradient(90deg,transparent,rgb(var(--accent-rgb) / .05) 30%),var(--card)}

@@ -53,7 +53,7 @@
 - **修改记录** — 当前改动和提交历史在一棵树里，行内展开 diff；验收时可顺手提交并推送。
 - **搜索与切换** — `Ctrl / ⌘ + K` 全局搜索（项目、需求、日志、提交都支持拼音），`+ O` 切项目，`+ P` 命令面板。
 - **通知与审计** — 待审核、命令异常、AI 新需求会发系统通知；托盘角标显示待审核数；事件流可筛选。
-- **手机端通信** — 经 PushGo 把「待审核」「待回答」推到手机；桌面端与手机端各自注册设备、订阅同一频道，消息本地 AES-256-GCM 加密，扫码即接入。当前为 Pull 原型（最多 15 秒延迟），协议见 [手机端通信（PushGo）](doc/pushgo-link.md)。
+- **手机端通信** — 开一个开关，桌面端自动起公网隧道，把接入地址与令牌下发给手机；手机扫码配对后就能看待审核交付、待回答的问题、项目与改动，直接在手机上通过或打回（通过时自动提交并推送）。通道只负责下发接入点，审批与提问走带令牌鉴权的远程接口，关掉开关整条链路一起断开。协议见 [远程访问面](doc/remote-access.md)、[接入点通道](doc/pushgo-endpoint-only.md)；手机端 App 在独立仓库发布，弹窗里有下载入口。
 - **备份与恢复** — 每日快照保留 7 天，恢复前先存一份当前库；有命令在跑时不允许恢复。
 - **项目图标** — 自动识别 Android、Obsidian、IntelliJ、Electron、JavaFX、Spring Boot 的专属图标，否则回退首字母；项目名后跟技术栈图标。
 - **桌面细节** — 拖拽排序、侧栏收起、深浅主题、项目悬停信息卡、安装版自动更新。
@@ -80,8 +80,8 @@
 |---|---|---|
 | 认领 | `GET /claim` | 一条需求只能被一个 agent 认领 |
 | 取活 | `GET /next` | 取即认领，没有活时在服务端挂住等待 |
-| 交付 | `POST /complete` | 进入待审核，请求最多等 30 分钟验收 |
-| 提问 | `POST /ask` | 带候选与默认答案，最多等 5 分钟 |
+| 交付 | `POST /complete` | 进入待审核，请求最多等 2 小时验收 |
+| 提问 | `POST /ask` | 带候选与默认答案，最多等 1 小时 |
 | 释放 | `POST /release` | 做不下去时退回队列 |
 
 认领按项目串行：有进行中需求、待审核交付或未提交改动都会挡住派发。agent 名称在「AI 接入 → Agent 管理」里登记，工作台分配固定 AgentID。巡检与执行手册由应用下发（`/prompt/scout.txt`、`/prompt/worker.txt`）。
@@ -110,11 +110,11 @@ npm start                   # 打开桌面窗口
 npm run dist                # electron-builder → release/
 ```
 
-发布：仓库 <https://github.com/BugStack27/project-manager>。改 `package.json` 的 `version` 后打同名 `v` 前缀标签，推送触发 GitHub Actions 构建安装包并挂到 Release；安装版靠该 Release 的 `latest.yml` 自动更新。
+发布：仓库 <https://github.com/BugStack27/project-manager>。改 `package.json` 的 `version` 后打带 `v` 前缀的同名 annotated 标签（注释写面向用户的发版说明，CI 会把它当 Release 正文），推送触发 GitHub Actions 构建安装包并挂到 Release；安装版靠该 Release 的 `latest.yml` 自动更新。
 
 ```bash
-git tag v1.0.0              # 必须与 package.json 的 version 一致
-git push origin v1.0.0
+git tag -a v1.2.0 -m "release: 1.2.0"   # 必须与 package.json 的 version 一致
+git push origin v1.2.0
 ```
 
 ## 目录

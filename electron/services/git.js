@@ -822,6 +822,70 @@ function resolveInside(cwd, relPath) {
   return abs === root || abs.startsWith(root + path.sep) ? abs : null;
 }
 
+/** 能按图片预览的扩展名 → MIME；svg 本身是文本，仍走 diff 着色，不在此列 */
+const IMAGE_MIME = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.ico': 'image/x-icon',
+  '.avif': 'image/avif'
+};
+
+/** 单张图片上限：再大就别把 base64 塞进 IPC，界面按「图片过大」提示 */
+const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+
+function imageMime(relPath) {
+  return IMAGE_MIME[path.extname(String(relPath || '')).toLowerCase()] || null;
+}
+
+/** 图片字节 → data URL；空 / 取不到 / 超限返回 null */
+function imageDataUrl(buf, mime) {
+  if (!Buffer.isBuffer(buf) || !buf.length || buf.length > IMAGE_MAX_BYTES) return null;
+  return 'data:' + mime + ';base64,' + buf.toString('base64');
+}
+
+/**
+ * 读取某个 git 版本的文件原始字节（`HEAD:./x`、`<sha>:./x`）。
+ * 不能用 runGit：它按 utf8 解码，图片会被转坏；这里用 buffer 收原始字节。
+ */
+function readGitBlob(cwd, spec) {
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' };
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['-c', 'credential.interactive=false', 'show', spec],
+      { cwd, windowsHide: true, maxBuffer: IMAGE_MAX_BYTES * 2, encoding: 'buffer', env },
+      (err, stdout) => resolve(err ? null : Buffer.isBuffer(stdout) ? stdout : null)
+    );
+  });
+}
+
+/** 工作区里的图片字节；文件不存在 / 超限 / 越界返回 null */
+function readLocalImage(cwd, relPath) {
+  const abs = resolveInside(cwd, relPath);
+  if (!abs) return null;
+  try {
+    const stat = fs.statSync(abs);
+    if (!stat.isFile() || stat.size > IMAGE_MAX_BYTES) return null;
+    return fs.readFileSync(abs);
+  } catch (_) {
+    return null;
+  }
+}
+
+/** 图片 diff 的统一载荷：old / new 为 data URL，取不到的一侧为 null */
+function imagePayload(mime, oldBuf, newBuf) {
+  return {
+    mime,
+    old: imageDataUrl(oldBuf, mime),
+    new: imageDataUrl(newBuf, mime),
+    maxBytes: IMAGE_MAX_BYTES
+  };
+}
+
 /** 未跟踪文件：没有 diff，直接回文件正文 */
 function readUntracked(cwd, relPath) {
   const abs = resolveInside(cwd, relPath);
@@ -845,10 +909,31 @@ function readUntracked(cwd, relPath) {
   return { path: relPath, untracked: true, directory: false, binary: false, content: t.text, truncated: t.truncated };
 }
 
-/** 单个文件的改动内容：已跟踪 -> 统一 diff；未跟踪 -> 文件正文 */
+/**
+ * 单个文件的改动内容：已跟踪 -> 统一 diff；未跟踪 -> 文件正文。
+ * 图片按扩展名单独处理：不给文本 diff，改给 old / new 两份 data URL 供界面直接画图。
+ */
 async function fileDiff(cwd, relPath, untracked) {
   const p = assertRelPath(relPath);
-  if (untracked) return readUntracked(cwd, p);
+  const mime = imageMime(p);
+  if (untracked) {
+    const res = readUntracked(cwd, p);
+    if (mime && res.binary) res.image = imagePayload(mime, null, readLocalImage(cwd, p));
+    return res;
+  }
+
+  if (mime) {
+    const oldBuf = await readGitBlob(cwd, 'HEAD:./' + p);
+    const newBuf = readLocalImage(cwd, p);
+    return {
+      path: p,
+      untracked: false,
+      binary: true,
+      image: imagePayload(mime, oldBuf, newBuf),
+      diff: '',
+      truncated: false
+    };
+  }
 
   const r = await runGit(cwd, ['diff', '--no-color', '--relative', 'HEAD', '--', p]);
   if (r.unavailable) fail('未检测到 git 可执行程序', 'git_unavailable', 501);
@@ -919,10 +1004,27 @@ async function commitFiles(cwd, sha) {
   return { sha: s, files, body };
 }
 
-/** 单个文件在某次提交里的差异内容 */
+/** 单个文件在某次提交里的差异内容；图片同样改给 data URL，两侧分别取自父提交与本次提交 */
 async function commitFileDiff(cwd, sha, relPath) {
   const s = assertSha(sha);
   const p = assertRelPath(relPath);
+
+  const mime = imageMime(p);
+  if (mime) {
+    // 根提交没有父提交、新增 / 删除的文件也只有一侧：取不到的那侧留 null，交给界面画单图
+    const [oldBuf, newBuf] = await Promise.all([
+      readGitBlob(cwd, s + '^:./' + p),
+      readGitBlob(cwd, s + ':./' + p)
+    ]);
+    return {
+      sha: s,
+      path: p,
+      binary: true,
+      image: imagePayload(mime, oldBuf, newBuf),
+      diff: '',
+      truncated: false
+    };
+  }
 
   const r = await runGit(cwd, ['show', '--no-color', '--format=', '-M', '--first-parent', '--relative', s, '--', p]);
   if (r.unavailable) fail('未检测到 git 可执行程序', 'git_unavailable', 501);

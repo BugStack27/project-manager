@@ -125,7 +125,38 @@ function DiffText({ text, untracked, path }) {
   );
 }
 
-/** 差异正文：已跟踪 / 提交 → 统一 diff 着色；未跟踪 → 文件正文 */
+/**
+ * 二进制图片的预览：能取到哪一侧就画哪一侧，两侧并排便于对比。
+ * 两侧都取不到（超限 / 读取失败）时退回一句提示，不显示空白。
+ */
+function DiffImages({ image, path, before, after }) {
+  const sides = [
+    { key: 'old', label: before, src: image.old },
+    { key: 'new', label: after, src: image.new }
+  ].filter((s) => s.src);
+  if (!sides.length) {
+    const mb = Math.round((image.maxBytes || 0) / 1024 / 1024);
+    return <div className="diff-empty">图片读取失败{mb ? '或超过 ' + mb + 'MB' : ''}，不显示内容</div>;
+  }
+  // 只有一侧时点明是新增还是删除，避免把「另一侧取不到」误读成对比失败
+  const only = image.old ? '（已删除）' : '（新增）';
+  return (
+    <div className="diff-scroll">
+      <div className="diff-image">
+        {sides.map((s) => (
+          <figure className="dimg" key={s.key}>
+            <figcaption>{s.label + (sides.length === 1 ? only : '')}</figcaption>
+            <div className="dimg-box">
+              <img src={s.src} alt={path + ' ' + s.label} />
+            </div>
+          </figure>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** 差异正文：已跟踪 / 提交 → 统一 diff 着色；未跟踪 → 文件正文；图片 → 直接画图 */
 function DiffBlock({ state, path }) {
   if (!state || state.loading) {
     return (
@@ -137,6 +168,16 @@ function DiffBlock({ state, path }) {
   }
   if (state.error) return <div className="diff-empty" style={{ color: 'var(--red-text)' }}>{state.error}</div>;
   const d = state.data || {};
+  if (d.image) {
+    return (
+      <DiffImages
+        image={d.image}
+        path={path}
+        before={d.untracked ? '' : d.sha ? '提交前' : 'HEAD'}
+        after={d.untracked ? '未跟踪文件' : d.sha ? '提交后' : '工作区'}
+      />
+    );
+  }
   if (d.binary) return <div className="diff-empty">二进制文件，不显示内容</div>;
   if (d.directory) return <div className="diff-empty">未跟踪的目录</div>;
 

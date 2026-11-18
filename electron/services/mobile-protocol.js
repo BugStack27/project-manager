@@ -26,11 +26,6 @@ const IV_LEN = 12;
 const TAG_LEN = 16;
 const MESSAGE_VERSION = 1;
 
-/** 重发与在线判定的统一节奏：双方每分钟一次 keepAlive，待处理消息也按这个节奏重发 */
-const KEEPALIVE_MS = 60 * 1000;
-/** 客户端超过这个时间没有 keepAlive 就算离线（两个周期，容忍一次丢包） */
-const CLIENT_ONLINE_MS = 150 * 1000;
-
 const TOPIC_RE = /^pm-[a-z2-9]{16}$/;
 const KEY_RE = /^[a-z2-9]{32}$/;
 const derived = new Map();
@@ -107,7 +102,7 @@ function connectPayloadPushGo({ gateway, channel, password }) {
   });
 }
 
-/** keepAlive 每轮都是新消息（时间戳进 id），客户端只把它用来判定在线，不参与去重展示 */
+/** keepAlive 每轮都是新消息（时间戳进 id），客户端只把它用来取 endpoint 与判定桌面端在线 */
 function keepaliveMessage(from, at, extra) {
   return {
     v: MESSAGE_VERSION,
@@ -121,8 +116,6 @@ function keepaliveMessage(from, at, extra) {
 
 module.exports = {
   ALPHABET,
-  KEEPALIVE_MS,
-  CLIENT_ONLINE_MS,
   ENVELOPE_VERSION,
   MESSAGE_VERSION,
   newTopic,

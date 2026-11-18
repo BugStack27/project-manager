@@ -108,7 +108,7 @@ description: 把 PushGo 收窄成「只下发接入点」，审批与提问全�
 
 - **1 领域层**：`remotePendingTickets` + `answerRemote` 落地；`pendingMessages` / `mobilePending` / `mobileAnswer` 删除；
   `commitAndPushApproved` 原样迁进 `answerRemote`，通过即提交推送的口径没变。
-- **2 传输层**：`mobile-link.js` 只剩设备注册 / 订阅 / 心跳；心跳仅在地址变化或每 10 分钟发一次，桌面端不再 pull。
+- **2 传输层**：`mobile-link.js` 只剩设备注册 / 订阅 / 心跳；心跳在地址变化时立即发、未变化时每 60 秒重发一次，桌面端不再 pull。
 - **3 协议层**：删掉 `reviewMessage` / `questionMessage` / `normalizeAnswer` / `newAnswerId` / `openMessage`。
 - **4 远程面**：`requirementAnswer` 改调 `answerRemote`；`pending` / `wait` 改吃 `remotePendingTickets`，
   对手机仍返回 `messages` 字段（沿用旧命名，省一次客户端改造）。

@@ -64,7 +64,7 @@ let mcp = null;
 let mcpFail = null;
 /** 公网隧道（cloudflared）控制器：进程级资源，与 mcp 同一层 */
 let tunnelCtl = null;
-/** 上一次广播给手机的隧道地址：只在地址真的变了时才推 keepalive */
+/** 上一次广播给手机的隧道地址：只在地址真的变了时才立刻推，其余交给 60 秒心跳 */
 let tunnelPushedUrl = '';
 let quitting = false;
 /** 远程巡检定时器：退出时要清掉 */
@@ -886,10 +886,13 @@ function startGui() {
     function tunnelState() {
       const rt = tunnelCtl
         ? tunnelCtl.snapshot()
-        : { running: false, url: '', error: null, startedAt: null, restarts: 0 };
+        : { running: false, url: '', error: null, startedAt: null, restarts: 0, consecutiveRestarts: 0 };
       return {
         ...rt,
-        error: rt.error || cloudflaredError,
+        // MCP 没起来时隧道也起不了：把原因并进同一份快照，顶部提示与弹窗都能看到
+        error: rt.error ||
+          cloudflaredError ||
+          (!mcp ? { code: 'mcp_down', message: 'MCP 服务没起来，隧道先用不了' } : null),
         preparing: !!cloudflaredPending,
         port: mcp ? mcp.port : null
       };
@@ -910,6 +913,8 @@ function startGui() {
           port: mcp.port,
           binary: bin,
           log: console.log,
+          // 与 cloudflared 下载同一个网络栈：Node fetch 不读系统代理与系统证书库
+          fetchImpl: (url, opts) => net.fetch(url, opts),
           onState: (st) => {
             // 地址一变就推一次心跳：手机不必等到下一分钟才知道新地址
             if (st.url && st.url !== tunnelPushedUrl) {
@@ -981,17 +986,32 @@ function startGui() {
       // 手机端通道是进程级资源（PushGo 轮询与在线状态），与 mcpInfo 同一取舍：
       // 只暴露 info / rotate 两个动作，业务状态仍由 domain 的 mobile* 方法读写
       /**
-       * 页面级提醒：手机端通信开着、但频道在当前网关上不存在时，顶部提示条要能直接看到，
+       * 页面级提醒：手机端通信开着，但频道、隧道或本机服务不可用时，顶部提示条要能直接看到，
        * 不必点进弹窗。只读进程内状态，不触发任何网络。
        */
       if (method === 'mobileAlert') {
         const res = await baseDispatch('mobileSessionInfo', {});
         const on = !!(res && res.ok && res.data && res.data.settings && res.data.settings.enabled);
-        if (!on) return { ok: true, data: { needsRepair: false, message: '' } };
+        if (!on) return { ok: true, data: { needsRepair: false, code: '', message: '' } };
         const st = mobileLink.statusView();
+        if (st.errorCode === 'channel_not_found') {
+          return { ok: true, data: { needsRepair: true, code: st.errorCode, message: st.error || '' } };
+        }
+        const t = tunnelState();
+        const code = (t.error && t.error.code) || '';
+        const needsTunnel = code === 'cloudflared_missing' ||
+          code === 'cloudflared_download_failed' ||
+          code === 'mcp_down' ||
+          // 临时隧道偶发重连不提示；连续 3 次拿不到地址才当作需要用户介入
+          (t.consecutiveRestarts >= 3 &&
+            (code === 'tunnel_unreachable' || code === 'tunnel_exited' || code === 'tunnel_spawn_failed'));
         return {
           ok: true,
-          data: { needsRepair: st.errorCode === 'channel_not_found', message: st.error || '' }
+          data: {
+            needsRepair: needsTunnel,
+            code: needsTunnel ? code : '',
+            message: needsTunnel && t.error ? t.error.message : ''
+          }
         };
       }
       if (method === 'mobileInfo') {

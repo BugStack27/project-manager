@@ -5,8 +5,8 @@ description: 远程访问面（/remote/*）：公网隧道后的只读接口与�
 
 # 远程访问面 — /remote/*
 
-> 状态：**接口与门禁已实现**（`electron/mcp-http.js` + `electron/services/domain/remote.js`）。
-> 隧道进程托管与地址广播（PushGo keepalive 下发 endpoint）尚未实现，见文末「待办」。
+> 状态：**接口、门禁、隧道托管与地址广播均已实现**（`electron/mcp-http.js`、
+> `electron/services/domain/remote.js`、`electron/services/tunnel.js`、`electron/services/mobile-link.js`）。
 
 ## 为什么单独开一套接口
 
@@ -57,7 +57,7 @@ AI agent 走的是本机 MCP（`/mcp` 那 4 个工具）与 `/claim`、`/next`�
 | 关注点 | 处理 |
 |---|---|
 | 地址解析 | 扫 cloudflared 的 stdout/stderr，取 `*.trycloudflare.com` 的第一个匹配 |
-| 链路存活 | 每 30 秒打一次 `<公网地址>/remote/hello`，连续 2 次失败即判定隧道已死 |
+| 链路存活 | 每 30 秒打一次 `<公网地址>/remote/hello`，连续 2 次失败即判定隧道已死；走 Electron `net.fetch`（系统代理与证书可用） |
 | 进程退出 | 退避重开（1s → 2s → 5s → 10s → 30s → 60s），地址会变，重开后重新广播 |
 | 缺 cloudflared | 安装包自带一份（`resources/cloudflared`，发版时由 `npm run prep:cloudflared` 准备）；没有则用 `<userData>/bin` 下载过的、PATH 里的，最后才自动下载（约 50MB），不询问 |
 | 下载通道 | Electron `net.fetch`（系统代理 + 系统证书）→ https + 系统证书库（兜代理中间人证书）→ Node `fetch`；全失败等 2 秒重试首选一次 |
@@ -71,19 +71,21 @@ AI agent 走的是本机 MCP（`/mcp` 那 4 个工具）与 `/claim`、`/next`�
 
 ## 地址怎么到手机上
 
-1. 隧道拿到（或换到）新地址 → `mobile-link.forceKeepalive()` 立刻推一轮，不等下一个 60 秒心跳窗口。
+1. 隧道拿到（或换到）新地址 → `mobileLink.forceKeepalive()` 立刻推一轮；地址没变也每 60 秒重发一次，
+   保证新配对的手机不必等地址变化才能拿到接入点。
 2. 心跳的 `payload` 里带 `endpoint: { v, url, token }`（复用 `keepaliveMessage` 的 `extra`，**不新增消息类型**，
    老客户端读到不认识的字段只会忽略）。
 3. 手机端 `PushGoSession` 收到心跳后对比本地 `RemoteConfig`，不同就落盘 —— 手机端**没有任何配置界面**，
    配对之后地址与令牌就自动到位，地址变了也自动跟上。
-4. 远程访问关着时 `endpoint` 字段整个不出现（给一个必然 401 的地址比不给更糟），手机会保留上一次的配置。
+4. 手机端通信关着时 `endpoint` 字段整个不出现（给一个必然 401 的地址比不给更糟），手机会保留上一次的配置。
 
 桌面端启动时按 `settings.mobile.enabled` 决定要不要接隧道；开关一变（`saveMobileSettings`）立刻对齐，
 首次可能要先下 cloudflared，这部分在后台做，不阻塞界面。
 
 ## 接口
 
-全部同步短请求，没有一个超过毫秒级（`gitDiff` 受仓库大小影响，仍在秒级内）。
+除 `/remote/wait` 长轮询外，全部同步短请求，没有一个超过毫秒级（`gitDiff` 受仓库大小影响，仍在秒级内）。
+`/remote/wait` 最多挂 30 秒，属于有意的长轮询。
 
 | 方法 | 路径 | 领域方法 | 说明 |
 |---|---|---|---|
@@ -98,15 +100,15 @@ AI agent 走的是本机 MCP（`/mcp` 那 4 个工具）与 `/claim`、`/next`�
 | GET | `/remote/command/:cid/runs` | `commandRuns` | 最近若干次运行 |
 | GET | `/remote/command/:cid/logs?runId=run_x` | `logs` | 命令输出（不传 runId 取最近一次） |
 | POST | `/remote/requirement/:rid/status` | `setRequirementStatus` | 体 `{status, note?}`，**只接受 `todo` 与 `rejected`** |
-| POST | `/remote/requirement/:rid/answer` | `mobileAnswer` | 体 `{decision, text?, questionId?}`，回复提问与审核 |
-| GET | `/remote/pending` | `mobilePending` | 待办快照（待审核 + 待回答） |
-| GET | `/remote/wait?key=&wait=20` | `mobilePending` | 长轮询，有变化立即返回，最多挂 30 秒 |
+| POST | `/remote/requirement/:rid/answer` | `answerRemote` | 体 `{decision, text?, questionId?}`，回复提问与审核 |
+| GET | `/remote/pending` | `remotePendingTickets` | 待办快照（待审核 + 待回答） |
+| GET | `/remote/wait?key=&wait=20` | `remotePendingTickets` | 长轮询，有变化立即返回，最多挂 30 秒 |
 
 响应统一 `{ ok: true, ...data }`；失败 `{ ok: false, code, message }`，状态码沿用领域层抛出的 `status`。
 
 ### 答复接口
 
-`decision` 四种，语义与 `mobile-protocol` 的答案消息完全一致：
+`decision` 四种（PushGo 信封消息已停用，这里是唯一答复入口）：
 
 | decision | 含义 | 附加字段 |
 |---|---|---|
@@ -115,9 +117,8 @@ AI agent 走的是本机 MCP（`/mcp` 那 4 个工具）与 `/claim`、`/next`�
 | `feedback` | 打回让 agent 改 | `text` 必填 |
 | `reject` | 拒绝 | `text` 可选 |
 
-落地直接调 `mobileAnswer`，传一条按协议搭好的答案消息 —— 所以「通过即提交并推送」
-（`commitAndPushApproved`）、幂等、提交失败不落库这些口径与 PushGo 通道完全一致，
-不会因为换了传输方式就对不上。答案 id 由服务端生成，形状满足 `ANSWER_ID_RE`。
+落地直接调 `answerRemote`，由它统一完成「通过即提交并推送」（`commitAndPushApproved`）、
+幂等与提交失败不落库；PushGo 通道已不再承载答案，因此不存在两套口径。
 
 ### 为什么用长轮询而不是 SSE / WebSocket
 
@@ -133,8 +134,8 @@ AI agent 走的是本机 MCP（`/mcp` 那 4 个工具）与 `/claim`、`/next`�
 
 - `todo`：候选池 → 未开始，就是手机上的「采纳」。
 - `rejected`：拒绝，含把待审核的交付打回。
-- **不放 `done`**：验收统一走 `mobileAnswer`（PushGo 通道与 `/remote/requirement/:rid/answer`
-  都指向它），它会先提交并推送工作区改动再落库。从远程面直接把状态改成 `done`，改动会停在未提交状态。
+- **不放 `done`**：验收统一走 `answerRemote`（`/remote/requirement/:rid/answer`），
+  它会先提交并推送工作区改动再落库。从远程面直接把状态改成 `done`，改动会停在未提交状态。
 - 不放 `doing` / `candidate` / `review`：前两个会破坏认领与项目锁，`review` 本来就只能由
   `/complete` 进入（`requirements.js` 有 `use_complete_api` 拦着）。
 

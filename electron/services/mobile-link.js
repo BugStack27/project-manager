@@ -17,8 +17,11 @@ const qr = require('./qr');
  */
 
 const TICK_MS = 5000;
-/** 地址没变也每 10 分钟重发一次：手机重装 / 清数据后不必等地址变化才能拿到接入点 */
-const REFRESH_MS = 10 * 60 * 1000;
+/**
+ * 地址没变也每分钟重发一次：手机新配对 / 重装 / 清数据后不必等地址变化才能拿到接入点。
+ * 同时这也是手机端判断桌面端在线的唯一信号，节奏必须短于 150 秒的在线容差。
+ */
+const REFRESH_MS = 60 * 1000;
 const MAX_BODY_BYTES = 32000;
 
 let started = false;
@@ -301,11 +304,13 @@ async function endpointOf() {
   }
 }
 
-/** 发一次接入点心跳：内容没变且没过刷新周期就不发，避免每分钟往频道里塞一条一模一样的 */
+/** 发一次接入点心跳：地址变了立即发，没变也按 60 秒周期重发，手机据此判断桌面端在线 */
 async function publishEndpoint(force) {
   const endpoint = await endpointOf();
-  state.hasEndpoint = !!endpoint;
-  if (!endpoint) return false;
+  if (!endpoint) {
+    state.hasEndpoint = false;
+    return false;
+  }
 
   const key = endpoint.url + '|' + endpoint.token;
   const now = Date.now();
@@ -313,8 +318,15 @@ async function publishEndpoint(force) {
 
   const message = protocol.keepaliveMessage('server', null, { endpoint });
   const ciphertext = protocol.sealMessage(config.channelId, config.channelPassword, message);
-  await post('/message', publishBody(message, ciphertext));
+  try {
+    await post('/message', publishBody(message, ciphertext));
+  } catch (e) {
+    // 「已下发」只认最近一次真正送达，避免发送失败时界面仍显示已下发
+    state.hasEndpoint = false;
+    throw e;
+  }
 
+  state.hasEndpoint = true;
   lastEndpointKey = key;
   lastPublishAt = now;
   state.published += 1;
@@ -334,6 +346,7 @@ async function tick(force) {
     applyConfig(next);
     if (!config.enabled) {
       state.connected = false;
+      state.hasEndpoint = false;
       return;
     }
     const now = Date.now();

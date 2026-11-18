@@ -46,7 +46,7 @@ export default function TopWarnStack({
         />
       ) : null}
       {mobileRepair ? (
-        <MobileRepairBanner message={mobileRepair.message} onOpen={onOpenMobile} />
+        <MobileRepairBanner kind={mobileRepair.kind} message={mobileRepair.message} onOpen={onOpenMobile} />
       ) : null}
     </div>
   );

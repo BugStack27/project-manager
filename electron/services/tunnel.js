@@ -23,7 +23,7 @@ const BACKOFF_MS = [1000, 2000, 5000, 10000, 30000, 60000];
 /** 扫 URL 时只保留尾部，避免 cloudflared 的日志把内存吃满 */
 const TAIL_BYTES = 4096;
 
-function createTunnel({ port, binary, log, onState }) {
+function createTunnel({ port, binary, log, onState, fetchImpl }) {
   let child = null;
   let stopped = true;
   let url = '';
@@ -39,7 +39,9 @@ function createTunnel({ port, binary, log, onState }) {
     url: '',
     error: null,
     startedAt: null,
-    restarts: 0
+    restarts: 0,
+    /** 自上次自检成功以来连续退出次数：用来区分偶发重连与持续故障 */
+    consecutiveRestarts: 0
   };
 
   function emit() {
@@ -70,11 +72,13 @@ function createTunnel({ port, binary, log, onState }) {
     if (!url || checking || stopped) return;
     checking = true;
     try {
-      const res = await fetch(url + '/remote/hello', {
+      const doFetch = typeof fetchImpl === 'function' ? fetchImpl : fetch;
+      const res = await doFetch(url + '/remote/hello', {
         signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS)
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       healthFails = 0;
+      state.consecutiveRestarts = 0;
       if (state.error) {
         state.error = null;
         emit();
@@ -155,6 +159,7 @@ function createTunnel({ port, binary, log, onState }) {
       }
       // 自己被回收（含 5 分钟断连被清理）也要重开：地址会变，广播交给上层
       state.restarts += 1;
+      state.consecutiveRestarts += 1;
       const wait = BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)];
       attempt += 1;
       setError('tunnel_exited', '隧道已断开，' + Math.round(wait / 1000) + ' 秒后重连（退出码 ' + code + '）');
@@ -183,6 +188,8 @@ function createTunnel({ port, binary, log, onState }) {
       if (!stopped && child) return { ...state };
       stopped = false;
       attempt = 0;
+      state.error = null;
+      state.consecutiveRestarts = 0;
       spawnOnce();
       return { ...state };
     },

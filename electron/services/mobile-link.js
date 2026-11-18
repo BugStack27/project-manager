@@ -50,6 +50,7 @@ const state = {
   startedAt: null,
   connected: false,
   error: null,
+  errorCode: '',
   errorAt: null,
   published: 0,
   lastPublishAt: null,
@@ -63,6 +64,7 @@ function baseUrl() {
 function rememberError(e) {
   const message = (e && e.message) || String(e);
   state.connected = false;
+  state.errorCode = (e && e.code) || '';
   if (state.error === message) return;
   state.error = message;
   state.errorAt = new Date().toISOString();
@@ -71,16 +73,31 @@ function rememberError(e) {
 
 function clearError() {
   state.error = null;
+  state.errorCode = '';
   state.errorAt = null;
 }
 
 async function post(path, body) {
-  if (!baseUrl()) throw new Error('PushGo 网关未配置');
+  const base = baseUrl();
+  if (!base) throw new Error('PushGo 网关未配置');
   const raw = JSON.stringify(body);
   if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) {
     throw new Error('消息超过 PushGo 32KB 限制');
   }
-  const res = await fetch(baseUrl() + path, {
+  try {
+    return await postOnce(base, path, raw);
+  } catch (e) {
+    // 设备记录失效（过期 / 数据被清）：清掉就绪标记，下一次 ensure 会重新注册
+    if (e && e.code === 'device_key_not_found') {
+      routeReady = false;
+      subscribed = false;
+    }
+    throw e;
+  }
+}
+
+async function postOnce(base, path, raw) {
+  const res = await fetch(base + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: raw,
@@ -90,7 +107,9 @@ async function post(path, body) {
   try {
     data = await res.json();
   } catch (_) {
-    throw new Error('PushGo 返回不是 JSON：HTTP ' + res.status);
+    const e = new Error('PushGo 返回不是 JSON：HTTP ' + res.status);
+    e.status = res.status;
+    throw e;
   }
   if (!res.ok || !data || data.success !== true) {
     const detail = (data && (data.error || (data.problem && data.problem.detail))) || '';
@@ -130,6 +149,14 @@ function sameConfig(a, b) {
   );
 }
 
+/** 配置变了（开关 / 网关 / 频道 / 设备）就重置传输层；返回是否发生了变化 */
+function applyConfig(next) {
+  if (sameConfig(next, config)) return false;
+  config = next;
+  resetTransportState();
+  return true;
+}
+
 function resetTransportState() {
   routeReady = false;
   subscribed = false;
@@ -155,7 +182,7 @@ function publishBody(message, ciphertext) {
     title: '项目管理台',
     body: '',
     ciphertext,
-    op_id: protocol.pushgoOpId(message.id),
+    // op_id 由网关生成，客户端再传会被 400 op_id_not_allowed
     // kind 固定 endpoint：网关侧若做统计，一眼能看出这条通道上只有地址消息
     metadata: { from: message.from, kind: 'endpoint' }
   };
@@ -176,27 +203,54 @@ async function ensureOnce() {
   if (!config.channelPassword) throw new Error('PushGo 频道密码未生成');
 
   const patch = {};
-  if (!config.deviceKey) {
-    const data = await post('/device/register', { platform: 'android' });
-    if (!data.device_key) throw new Error('PushGo 未返回 device_key');
-    config.deviceKey = String(data.device_key);
-    patch.deviceKey = config.deviceKey;
-  }
+  if (!config.deviceKey) await registerDevice();
   if (!config.providerToken) {
     config.providerToken = 'pm-endpoint-' + protocol.newKey().slice(0, 16);
     patch.providerToken = config.providerToken;
   }
   if (Object.keys(patch).length) await saveState(patch);
 
-  if (!routeReady) {
-    await post('/channel/device', {
+  await ensureRoute();
+  await ensureSubscribe();
+
+  state.connected = true;
+  clearError();
+}
+
+/** 注册设备并落库；换了新设备后路由与订阅都要重建 */
+async function registerDevice() {
+  const data = await post('/device/register', { platform: 'android' });
+  if (!data.device_key) throw new Error('PushGo 未返回 device_key');
+  config.deviceKey = String(data.device_key);
+  routeReady = false;
+  subscribed = false;
+  await saveState({ deviceKey: config.deviceKey });
+}
+
+/**
+ * 设备路由。旧 device_key 在新网关上不存在（或已过期）时，网关会回 400 device_key_not_found；
+ * 这不是用户能处理的事，自动重注册一次再建路由。
+ */
+async function ensureRoute() {
+  if (routeReady) return;
+  const route = () =>
+    post('/channel/device', {
       device_key: config.deviceKey,
       channel_type: 'fcm',
       provider_token: config.providerToken
     });
-    routeReady = true;
+  try {
+    await route();
+  } catch (e) {
+    if (!e || e.code !== 'device_key_not_found') throw e;
+    await registerDevice();
+    await route();
   }
+  routeReady = true;
+}
 
+async function ensureSubscribe() {
+  if (subscribed) return;
   if (!config.channelId) {
     const data = await post('/channel/subscribe', {
       device_key: config.deviceKey,
@@ -208,17 +262,27 @@ async function ensureOnce() {
     if (data.channel_name) config.channelName = String(data.channel_name);
     subscribed = true;
     await saveState({ channelId: config.channelId, channelName: config.channelName });
-  } else if (!subscribed) {
+    return;
+  }
+  try {
     await post('/channel/subscribe', {
       device_key: config.deviceKey,
       channel_id: config.channelId,
       password: config.channelPassword
     });
     subscribed = true;
+  } catch (e) {
+    /**
+     * 频道只存在于创建它的网关上：频道过期、网关数据被清都会到这里。
+     * 新建频道意味着手机必须重新扫码，所以不静默处理，直接把下一步告诉用户。
+     */
+    if (e && e.code === 'channel_not_found') {
+      const err = new Error('当前网关上没有原来的频道（换过网关或频道已失效），请点「重新配对」后让手机重新扫码');
+      err.code = 'channel_not_found';
+      throw err;
+    }
+    throw e;
   }
-
-  state.connected = true;
-  clearError();
 }
 
 /**
@@ -267,10 +331,7 @@ async function tick(force) {
   ticking = true;
   try {
     const next = await readConfig();
-    if (!sameConfig(next, config)) {
-      config = next;
-      resetTransportState();
-    }
+    applyConfig(next);
     if (!config.enabled) {
       state.connected = false;
       return;
@@ -301,6 +362,7 @@ function statusView(session) {
     lastPublishAt: state.lastPublishAt,
     hasEndpoint: state.hasEndpoint,
     error: state.error,
+    errorCode: state.errorCode,
     errorAt: state.errorAt,
     gateway: config.gateway,
     channelId: config.channelId || (session && session.channelId) || '',
@@ -311,11 +373,9 @@ function statusView(session) {
 /** 弹窗用：设置 + 会话 + 二维码 + 实时状态，一次取全 */
 async function info() {
   const next = await readConfig();
-  if (!sameConfig(next, config)) {
-    config = next;
-    resetTransportState();
-  }
-  await ensure();
+  applyConfig(next);
+  // 注册/订阅要联网：网关慢或不通时别把弹窗卡在「正在读取」，结果交给 status 反映
+  if (config.enabled) ensure().catch((e) => rememberError(e));
   const res = await dispatchRef('mobileSessionInfo');
   const session = (res && res.data && res.data.session) || {};
   const connect = protocol.connectPayloadPushGo({
@@ -337,9 +397,9 @@ async function rotate() {
   if (!res || !res.ok) throw new Error((res && res.message) || '轮换 PushGo 频道失败');
   resetTransportState();
   state.published = 0;
-  const infoData = await info();
+  // 轮换会清掉频道，必须等新频道建好再取快照，否则弹窗会短暂显示旧的空频道
   await tick(true);
-  return infoData;
+  return info();
 }
 
 /**

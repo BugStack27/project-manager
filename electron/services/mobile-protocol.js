@@ -107,12 +107,6 @@ function connectPayloadPushGo({ gateway, channel, password }) {
   });
 }
 
-/** PushGo op_id 只允许字母/数字/下划线/冒号/短横；把消息 id 稳定地映射过去 */
-function pushgoOpId(id) {
-  const clean = String(id || '').replace(/[^A-Za-z0-9_:-]/g, '-').slice(0, 128);
-  return clean || ('op-' + Date.now().toString(36));
-}
-
 /** keepAlive 每轮都是新消息（时间戳进 id），客户端只把它用来判定在线，不参与去重展示 */
 function keepaliveMessage(from, at, extra) {
   return {
@@ -138,6 +132,5 @@ module.exports = {
   deriveKey,
   sealMessage,
   connectPayloadPushGo,
-  pushgoOpId,
   keepaliveMessage
 };

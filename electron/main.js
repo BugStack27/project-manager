@@ -980,6 +980,20 @@ function startGui() {
       }
       // 手机端通道是进程级资源（PushGo 轮询与在线状态），与 mcpInfo 同一取舍：
       // 只暴露 info / rotate 两个动作，业务状态仍由 domain 的 mobile* 方法读写
+      /**
+       * 页面级提醒：手机端通信开着、但频道在当前网关上不存在时，顶部提示条要能直接看到，
+       * 不必点进弹窗。只读进程内状态，不触发任何网络。
+       */
+      if (method === 'mobileAlert') {
+        const res = await baseDispatch('mobileSessionInfo', {});
+        const on = !!(res && res.ok && res.data && res.data.settings && res.data.settings.enabled);
+        if (!on) return { ok: true, data: { needsRepair: false, message: '' } };
+        const st = mobileLink.statusView();
+        return {
+          ok: true,
+          data: { needsRepair: st.errorCode === 'channel_not_found', message: st.error || '' }
+        };
+      }
       if (method === 'mobileInfo') {
         try {
           return { ok: true, data: await mobileLink.info() };

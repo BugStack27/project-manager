@@ -6,9 +6,13 @@ import { DangerButton, Modal } from '../ui.jsx';
  * 传输层报错自带实现名（「PushGo HTTP 502」之类）。页面上只给用户看得懂的说法，
  * 原文塞进 title，排查时鼠标停一下还能看到。
  */
+const NETWORK_ERROR_RE = /fetch failed|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|aborted|timeout|timed out/i;
+
 function plainError(text) {
   const s = String(text || '');
-  return /pushgo/i.test(s) ? '暂时连不上手机端服务，正在自动重试' : s;
+  return /pushgo/i.test(s) || NETWORK_ERROR_RE.test(s)
+    ? '连不上手机端服务网关，正在自动重试'
+    : s;
 }
 
 /**
@@ -216,7 +220,7 @@ export default function MobileLinkModal({ onClose, notify }) {
             <span className="ml-dim">{st.hasEndpoint ? '已下发接入点' : '等待隧道地址'}</span>
             {st.lastPublishAt ? <span className="ml-dim">最近 {clock(st.lastPublishAt)}</span> : null}
           </div>
-          {st.error ? (
+          {info.settings.enabled && st.error ? (
             <p className="ml-err" title={st.error}>
               {plainError(st.error)}
             </p>

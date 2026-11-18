@@ -87,6 +87,8 @@ export const api = {
    * 通道连接是进程级资源（与 mcpInfo 同类），不进领域能力表。
    */
   mobileInfo: () => call('mobileInfo', {}),
+  /** 只读通道状态：页面级提示条用（判断是否需要重新配对），不触发联网 */
+  mobileAlert: () => call('mobileAlert', {}),
   /** 开关 / PushGo 网关；只写这两项，会话用 mobileRotate 换 */
   saveMobileSettings: (patch) => call('saveMobileSettings', { patch }),
   /** 换一套频道 + 密码：旧会话立即作废，手机端需重新扫码 */

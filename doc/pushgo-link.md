@@ -22,13 +22,14 @@ description: 手机端通信（PushGo Pull 原型）：设备注册、频道订�
   "v": 2,
   "type": "pm-mobile",
   "provider": "pushgo",
-  "gateway": "https://gateway.pushgo.dev",
+  "gateway": "https://gateway.pushgo.cn",
   "channel": "<26 位频道 ID>",
   "password": "<32 位频道密码>"
 }
 ```
 
-- `gateway`：公共 `https://gateway.pushgo.dev` / `https://gateway.pushgo.cn`，或自建网关。
+- `gateway`：公共网关固定用 `https://gateway.pushgo.cn`（`.dev` 在部分网络里连 TCP 都超时，
+  且两个域名不是同一套设备/频道数据，不做自动切换）；自建网关仍支持。
 - `channel`：桌面端首次打开弹窗时由网关创建，26 位大写 Crockford Base32。
 - `password`：桌面端生成，同时作为频道密码与端到端 AES-GCM 密钥。
 - 重新生成频道后旧频道立即作废，手机端必须重新扫码。
@@ -47,7 +48,8 @@ description: 手机端通信（PushGo Pull 原型）：设备注册、频道订�
   - `channel_id`、`password`
   - `title`（固定「项目管理台」）、`body`（空）
   - `ciphertext`：既有 AES-GCM 信封 `{"v":1,"n":"<iv>","d":"<密文+tag>"}` 的 JSON 字符串
-  - `op_id`：稳定的消息 id（清理成 PushGo 允许的字符），用于重发幂等
+  - `op_id`：**不要传**。网关自己生成并在响应里返回（`data.op_id` / `data.message_id`）；
+    2026-11-18 起公共网关对客户端传入的 `op_id` 直接回 400 `op_id_not_allowed`。
   - `metadata`：`{from: "server"|"client", kind: "review"|"question"|"answer"|"keepalive"}`
 - **接收**：`POST /v2/messages/pull`（`device_key`，按 `page_token` 翻页），逐条解 `payload.ciphertext`，处理后 `POST /v2/messages/ack`（`delivery_ids`）。
 - **去重**：信封里的 `id` 是稳定消息 id；两端都按 id 去重，重复的 delivery 直接 ACK。
@@ -55,7 +57,7 @@ description: 手机端通信（PushGo Pull 原型）：设备注册、频道订�
 - **在线与完成**：
   - 双方每分钟发一条 `keepalive`；手机端在线由桌面端最近收到的手机消息判定（150 秒）。
   - 桌面端 `keepalive` 的 payload 带 `pending` 与 `resolvedIds`；手机端收到后把已处理的 review/question 从待办移除。
-- **答案**：手机端 `answer` 使用固定答案 id 作为 `op_id`；桌面端 `mobileAnswer` 落库后，下一次 keepalive 带 `resolvedIds`。
+- **答案**：手机端 `answer` 走 `/remote/requirement/:rid/answer`（HTTP），不再发 PushGo 消息；桌面端落库后，下一次 keepalive 带 `resolvedIds`。
 - **验收即提交**：手机端通过需求（`review → done`）时，桌面端在落库前按默认勾选口径自动提交并推送工作区改动：提交信息取 `completion.commitMessage`（缺省 `#序号 标题`），没有仓库 / 路径失效 / 无改动则跳过提交；提交失败答案不落库（手机端可重试），推送失败只记日志、不阻断验收。答案回执里的 `commit` 字段带 `committed` / `shortSha` / `pushError`。
 
 ## 加密
@@ -75,7 +77,7 @@ description: 手机端通信（PushGo Pull 原型）：设备注册、频道订�
 
 ## 实现与验证
 
-- 桌面端：`electron/services/mobile-protocol.js`（v2 连接信息 / op_id / 去空格校验）、`electron/services/mobile-link.js`（设备、频道、发送、翻页 Pull、ACK、resolved keepalive）、`electron/services/domain/mobile.js`（设置、频道/设备会话）、`web/src/components/MobileLinkModal.jsx`（网关 + 二维码 + 频道）。
+- 桌面端：`electron/services/mobile-protocol.js`（v2 连接信息 / 去空格校验）、`electron/services/mobile-link.js`（设备、频道、发送、翻页 Pull、ACK、resolved keepalive）、`electron/services/domain/mobile.js`（设置、频道/设备会话）、`web/src/components/MobileLinkModal.jsx`（网关 + 二维码 + 频道）。
 - 手机端：`core/Protocol.kt`（v2 解析、频道 AAD）、`link/PushGoClient.kt`、`link/PushGoSession.kt`、`link/LinkManager.kt`（provider 分支）、连接详情 UI。
 - 验证：
   - `npm run check`、`npm run build` 通过。

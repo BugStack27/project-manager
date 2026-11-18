@@ -18,7 +18,13 @@ const protocol = require('../mobile-protocol');
  * 两套去重、两套「谁先到」的问题，而实际能在后台工作的只有 HTTP 长轮询那一条。
  */
 
-const DEFAULT_GATEWAY = 'https://gateway.pushgo.dev';
+/**
+ * 公共网关固定用 .cn：.dev 在部分网络里连 TCP 都超时，而两个域名又不是同一套数据，
+ * 来回切会把设备/频道切成两半。自建网关仍可从库里的 gateway 字段配置。
+ */
+const DEFAULT_GATEWAY = 'https://gateway.pushgo.cn';
+/** 历史上默认过的公共域名：一律归一到 .cn */
+const LEGACY_PUBLIC_GATEWAYS = new Set(['https://gateway.pushgo.dev']);
 const DEFAULTS = { enabled: false, gateway: DEFAULT_GATEWAY };
 const URL_MAX = 300;
 
@@ -31,9 +37,10 @@ function readSettings(db) {
   const gateway = typeof raw.gateway === 'string' && raw.gateway.trim()
     ? raw.gateway.trim()
     : DEFAULT_GATEWAY;
+  const normalized = gateway.replace(/\/+$/, '');
   return {
     enabled: raw.enabled === true,
-    gateway: gateway.replace(/\/+$/, '')
+    gateway: LEGACY_PUBLIC_GATEWAYS.has(normalized) ? DEFAULT_GATEWAY : normalized
   };
 }
 
@@ -58,7 +65,8 @@ function normalizeGateway(value) {
   if (u.protocol !== 'http:' && u.protocol !== 'https:') {
     throw bad('PushGo 网关只支持 http / https');
   }
-  return url.replace(/\/+$/, '');
+  const clean = url.replace(/\/+$/, '');
+  return LEGACY_PUBLIC_GATEWAYS.has(clean) ? DEFAULT_GATEWAY : clean;
 }
 
 /** 频道与会话按需生成；渠道 ID 由 PushGo 网关创建，link 层写入 */

@@ -1,9 +1,10 @@
 import DataCorruptBanner from './DataCorruptBanner.jsx';
 import GitAuthBanner from './GitAuthBanner.jsx';
 import McpFailBanner from './McpFailBanner.jsx';
+import MobileRepairBanner from './MobileRepairBanner.jsx';
 
 /**
- * 顶部提示条栈：数据文件损坏 / MCP 未启动 / git 凭据失效。
+ * 顶部提示条栈：数据文件损坏 / MCP 未启动 / git 凭据失效 / 手机端需重新配对。
  * 多条可能同时出现，粘性挂在容器上，避免各自的 sticky 在同一个 top 上叠成一堆。
  */
 export default function TopWarnStack({
@@ -20,9 +21,11 @@ export default function TopWarnStack({
   authRetrying,
   onLogin,
   onRecheckAuth,
-  onDismissAuth
+  onDismissAuth,
+  mobileRepair,
+  onOpenMobile
 }) {
-  if (!corrupt && !mcpFail && !showAuthWarn) return null;
+  if (!corrupt && !mcpFail && !showAuthWarn && !mobileRepair) return null;
   return (
     <div className="warnstack">
       {corrupt ? (
@@ -41,6 +44,9 @@ export default function TopWarnStack({
           onRetry={onRecheckAuth}
           onDismiss={onDismissAuth}
         />
+      ) : null}
+      {mobileRepair ? (
+        <MobileRepairBanner message={mobileRepair.message} onOpen={onOpenMobile} />
       ) : null}
     </div>
   );

@@ -19,6 +19,7 @@ import { useDeepLinks } from './hooks/useDeepLinks.js';
 import { useGit } from './hooks/useGit.js';
 import { useGitAuthWarning } from './hooks/useGitAuthWarning.js';
 import { useMcp } from './hooks/useMcp.js';
+import { useMobileAlert } from './hooks/useMobileAlert.js';
 import { useNavigation } from './hooks/useNavigation.js';
 import { useProjects } from './hooks/useProjects.js';
 import { useRequirements } from './hooks/useRequirements.js';
@@ -61,6 +62,8 @@ export default function App() {
   const [corrupt, setCorrupt] = useState(null);
 
   const { mcpFail, setMcpFail, mcpRetrying, openMcp, retryMcp } = useMcp({ notify, setModal });
+  /** 手机端通信的频道在当前网关上失效时，顶部直接提示重新配对（不必等用户点开弹窗） */
+  const mobileRepair = useMobileAlert();
 
   /** 全局搜索面板是否打开（Ctrl / ⌘ + K） */
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -705,6 +708,8 @@ export default function App() {
           onLogin={() => openTerminal(authProject)}
           onRecheckAuth={recheckGitAuth}
           onDismissAuth={dismissAuthWarn}
+          mobileRepair={mobileRepair}
+          onOpenMobile={() => setModal({ type: 'mobile' })}
         />
 
         {page === 'overview' ? (

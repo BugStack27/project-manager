@@ -98,6 +98,7 @@ status: accepted
 | 并发 | 3 个仓库同时跑 | 串行拖到几十秒，全并发打满网络 |
 | 跳过条件 | 归档、有命令在运行、路径不存在、非 git 仓库、工作区脏、无上游、已分叉 | 都是「本就不该自动拉」的正常情况，不算失败 |
 | 结果判定 | 拉取前后比 HEAD sha，用 `rev-list --count` 算真实拉下的提交数；已是最新记为「跳过」 | `remoteStatus` 的 behind 基于本地已知引用，拉取前不可信；否则每次启动都写一条审计 |
+| 进度反馈 | 运行期间领域层维护逐项目进度（等待 / 正在同步 / 已完成 + 结果），代码同步弹窗每 700ms 轮询 `autoPullStatus` 渲染列表与「已完成 x/y」，结束后用最终结果覆盖并清空 | 多仓库一键拉取等待时间长，需要看到正在同步哪个、哪些已完成 |
 | 失败处理 | 不弹窗、不重试；只记审计 `git.pulled` / `git.pull_failed` 并把结果推给界面；凭据失效写 `noteAuthError` | 后台动作不该打断用户，细节留在代码同步设置与审计日志（见 `doc/event-log-and-notifications.md`） |
 | 命令工作目录 | 改路径时迁移旧路径本身及其子目录的命令登记 `cwd`；路径规整后比较，边界必须是分隔符，盘符根保留根形态 | 命令可能登记在子目录，且要防误伤兄弟目录 |
 | 运行中命令 | 不阻断改路径，只改登记值，下次启动生效 | 与项目设置「正在运行的命令不受影响」一致（见 `doc/launch-and-runs.md`） |
@@ -124,14 +125,14 @@ status: accepted
 | `electron/services/domain/changes.js` | `probeRepo`（路径失效 / 无 git 统一出口）、`gitCommits` / `gitChanges` / `gitRemote` / `gitDiff` / `gitCommitFiles` / `gitCommitDiff` / `gitPull` / `gitPush` / `gitCommit` |
 | `electron/services/domain/stats.js` | `gitSummary`（`pathMissing` / `behind` / `remoteAuth` 只读巡检缓存） |
 | `electron/services/domain/remote-check.js` | 远程巡检、`readRemoteCache` / `isRemoteFresh` / `noteRemote` / `noteAuthError` / `notePulled` / `recheck` |
-| `electron/services/domain/autopull.js` | `autoPullNow`（限并发、逐项目判定与跳过）、`autoPullStatus` |
+| `electron/services/domain/autopull.js` | `autoPullNow`（限并发、逐项目判定与跳过）、`autoPullStatus`（`last` + 运行期 `progress`） |
 | `electron/services/domain/{settings,projects,paths}.js` | `gitSettings` / `saveGitSettings`；项目 `autoPull` 三态写入；`rebaseCwd` 与 `updateProject` 的 `syncedCommands` |
 | `electron/main.js` / `electron/preload.js` | `scheduleStartupAutoPull` + `pm:auto-pull` 推送；`onAutoPull` 订阅（启动结果可能早于 React 挂载，留最近一份补发） |
 | `web/src/hooks/useGit.js` | 加载 / 后台刷新 / 按项目缓存 / 预取 / 聚焦校准 / 拉取推送提交 / 验收时提交推送（`commitAndPushPending`）/ 请求序号与 pid 守卫 |
 | `web/src/ChangesPage.jsx` | 项目信息条与四态空态、`RemoteSync`、`VisitButton`、提交按钮、路径失效入口 |
 | `web/src/GitPanel.jsx` | 提交树：两组行 + 提交行 + 当前改动文件行、`TotalStat`、缩进连线、加载更多、远程独有提交区块 |
 | `web/src/ChangeDiff.jsx` | 右面板：提交详情（markdown 说明 + 文件清单 + 单文件手风琴 diff）、当前改动文件 diff、窄栏 hint 空态 |
-| `web/src/components/{CommitModal,GitAuthBanner,GitSettingsModal,MarkdownText}.jsx` | 本地提交弹窗、凭据失效提示条、代码同步设置（总开关 / 巡检 / 最近结果）、markdown 唯一入口（`.md-body`，链接只放行 http(s)） |
+| `web/src/components/{CommitModal,GitAuthBanner,GitSettingsModal,MarkdownText}.jsx` | 本地提交弹窗、凭据失效提示条、代码同步设置（总开关 / 巡检 / 一键拉取与逐项目进度 / 最近结果）、markdown 唯一入口（`.md-body`，链接只放行 http(s)） |
 | `web/src/App.jsx` / `web/src/OverviewPage.jsx` | 选中态与右面板分发、改路径联动与重载、凭据提示装配；总览「路径失效」列与分组 |
 | `web/src/{api.js,forms.jsx,icons.jsx,constants.js}` 与 `web/src/styles/{changes,context,modal}.css` | IPC 通道；项目三态选择与提示文案；`IC.git` / `IC.pull` / `IC.push` / `IC.lock`；`CHG` 状态徽标映射；树 / diff / 远程块 / 提示条 / 提交弹窗样式 |
 

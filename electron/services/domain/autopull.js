@@ -16,6 +16,8 @@ const CONCURRENCY = 3;
 /** 进程内状态：同一时刻只跑一轮，界面重复点「立即执行」复用同一份结果 */
 let inflight = null;
 let lastRun = null;
+/** 本轮逐项目进度：只在运行期间有值，代码同步弹窗轮询 autoPullStatus 拿它画实时列表 */
+let progress = null;
 
 /** 项目级设置优先，未设置则跟随全局开关 */
 function isEnabled(project, globalOn) {
@@ -84,7 +86,14 @@ function logItem(item) {
   });
 }
 
-/** 限并发跑完全部候选项目，保持与 db 中项目顺序一致的结果列表 */
+/** 进度条目按项目 id 定位：并发 worker 完成顺序与列表顺序不一致，只能按 id 回写 */
+function setItem(projectId, patch) {
+  if (!progress) return;
+  const it = progress.items.find((x) => x.projectId === projectId);
+  if (it) Object.assign(it, patch);
+}
+
+/** 限并发跑完全部候选项目，保持与 db 中项目顺序一致的结果列表；顺带维护逐项目进度 */
 async function runAll(projects) {
   const results = new Array(projects.length);
   let cursor = 0;
@@ -93,12 +102,15 @@ async function runAll(projects) {
     for (;;) {
       const i = cursor++;
       if (i >= projects.length) return;
+      const p = projects[i];
+      setItem(p.id, { state: 'running' });
       try {
-        results[i] = await pullOne(projects[i]);
+        results[i] = await pullOne(p);
       } catch (e) {
-        const p = projects[i];
         results[i] = failed({ projectId: p.id, name: p.name }, 'internal_error', (e && e.message) || '内部错误');
       }
+      setItem(p.id, { ...results[i], state: 'done' });
+      if (progress) progress.done += 1;
     }
   }
 
@@ -122,16 +134,31 @@ function summarize(items, trigger, startedAt) {
 }
 
 async function runOnce(projects, trigger, startedAt) {
-  const items = await runAll(projects);
-  items.forEach(logItem);
-  lastRun = summarize(items, trigger, startedAt);
-  return lastRun;
+  progress = {
+    trigger,
+    startedAt,
+    total: projects.length,
+    done: 0,
+    items: projects.map((p) => ({ projectId: p.id, name: p.name, state: 'waiting' }))
+  };
+  try {
+    const items = await runAll(projects);
+    items.forEach(logItem);
+    lastRun = summarize(items, trigger, startedAt);
+    return lastRun;
+  } finally {
+    // 进度只服务于「正在同步」这段等待；结束后轮询方拿到的就是 running:false
+    progress = null;
+  }
 }
 
 function createAutoPull() {
   return {
-    /** 最近一轮结果：界面打开设置时用来展示「上次启动拉了什么」 */
-    autoPullStatus: () => ({ running: !!inflight, last: lastRun }),
+    /**
+     * 最近一轮结果 + 本轮进度：界面打开设置时展示「上次拉了什么」，
+     * 一键拉取期间轮询这里拿到逐项目状态（等待 / 正在同步 / 已完成）。
+     */
+    autoPullStatus: () => ({ running: !!inflight, last: lastRun, progress }),
 
     /**
      * 跑一轮自动拉取（启动时由主进程触发，也可由设置弹窗手动触发）。

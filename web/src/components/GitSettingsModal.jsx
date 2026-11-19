@@ -11,6 +11,16 @@ function describe(run) {
   return parts.length ? parts.join(' · ') : '已是最新，没有需要拉取的提交';
 }
 
+/** 进度列表里单个项目的状态文案：等待 / 正在同步 / 已同步完 / 已跳过 / 失败 */
+function progressText(it) {
+  if (!it || it.state === 'waiting') return '等待中';
+  if (it.state === 'running') return '正在同步…';
+  if (it.status === 'pulled') return '已同步' + (it.commits ? ' ' + it.commits + ' 个提交' : '');
+  if (it.status === 'failed') return it.message || '失败';
+  if (it.code === 'up_to_date') return '已是最新';
+  return it.message || '已跳过';
+}
+
 /** 后台巡检间隔的人话（600000 → 「10 分钟」） */
 function every(ms) {
   const min = Math.round((ms || 0) / 60000);
@@ -34,6 +44,8 @@ export default function GitSettingsModal({ onClose, notify }) {
   const [settings, setSettings] = useState(null);
   const [status, setStatus] = useState(null);
   const [scan, setScan] = useState(null);
+  /** 本轮逐项目进度：一键拉取期间轮询 autoPullStatus 拿到，结束后清空 */
+  const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   /** 正在跑的动作：'' | 'pull' | 'check' */
@@ -48,6 +60,8 @@ export default function GitSettingsModal({ onClose, notify }) {
       setSettings(s.git);
       setStatus(st);
       setScan(rc);
+      // 打开弹窗时可能已有一轮拉取在跑（启动自动拉取 / 另一个入口触发的）：直接接管它的进度
+      if (st && st.running && st.progress) setProgress(st.progress);
     } catch (e) {
       setError(e.message || '读取代码同步设置失败');
     } finally {
@@ -58,6 +72,36 @@ export default function GitSettingsModal({ onClose, notify }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  /**
+   * 有拉取在跑就轮询进度：一键拉取与「打开弹窗时启动拉取还没结束」共用同一条路径，
+   * 逐项目显示等待 / 正在同步 / 已完成。跑完后把最终状态落回 status，进度列表收掉。
+   */
+  const statusRunning = !!(status && status.running);
+  useEffect(() => {
+    if (!statusRunning) return undefined;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const st = await api.autoPullStatus();
+        if (!alive) return;
+        if (st && st.progress) setProgress(st.progress);
+        if (st && !st.running) {
+          setStatus(st);
+          setProgress(null);
+          api.remoteCheckStatus().then(setScan).catch(() => {});
+        }
+      } catch (_) {
+        // 进度只是辅助信息，取不到不影响拉取本身
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 700);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [statusRunning]);
 
   /** 开关即时生效：勾上就存，不必再找「保存」按钮；失败回滚并说明原因 */
   async function toggleSetting(key, checked) {
@@ -94,21 +138,34 @@ export default function GitSettingsModal({ onClose, notify }) {
 
   /**
    * 一键拉取：不看自动开关，把所有项目快进拉一遍（与「立即检查」同一口径：
-   * 手点下去就说明此刻想同步）。拉完再巡检一轮，把「还有几个待拉取」刷成最新。
+   * 手点下去就说明此刻想同步）。多仓库时等待可能很久，所以先置 running，
+   * 由下面的轮询把逐项目进度画出来；拉完再巡检一轮刷新待拉取数。
    */
   async function pullAll() {
     if (busy) return;
     setBusy('pull');
     setError('');
+    setProgress(null);
+    setStatus((s) => ({ running: true, last: s ? s.last : null }));
     try {
       const res = await api.autoPullNow(true);
       setStatus({ running: false, last: res });
+      // 用最终结果覆盖最后一次轮询：避免轮询恰好停在「还有几个没标完」的中间态
+      if (res && Array.isArray(res.items)) {
+        setProgress({
+          total: res.total,
+          done: res.total,
+          items: res.items.map((it) => ({ ...it, state: 'done' }))
+        });
+      }
       notify('同步完成：' + describe(res));
+      setBusy('check');
       await api.remoteCheckNow();
       setScan(await api.remoteCheckStatus());
     } catch (e) {
       setError(e.message || '拉取失败');
     } finally {
+      setProgress(null);
       setBusy('');
     }
   }
@@ -120,14 +177,24 @@ export default function GitSettingsModal({ onClose, notify }) {
   /** 失败列表：成功数已经在摘要里了，逐条列出来只为了看谁没拉成 */
   const failures = (last && last.items ? last.items : []).filter((it) => it.status === 'failed');
 
+  const currentSyncing = ((progress && progress.items) || []).find((it) => it.state === 'running');
+  const progressSub =
+    progress && progress.total
+      ? '已完成 ' + progress.done + '/' + progress.total + (currentSyncing ? ' · 正在同步 ' + currentSyncing.name : '')
+      : '逐个项目快进合并，稍等片刻';
+
   let heroTitle = '还没检查过远程';
   let heroSub = '点「检查更新」看看有没有新提交';
   if (busy === 'pull') {
-    heroTitle = '正在拉取…';
-    heroSub = '逐个项目快进合并，稍等片刻';
+    heroTitle = '正在同步…';
+    heroSub = progressSub;
   } else if (busy === 'check') {
     heroTitle = '正在检查远程…';
     heroSub = '只抓取引用，不改动代码';
+  } else if (statusRunning) {
+    // 打开弹窗时启动自动拉取还没跑完：给出同一份逐项目进度，并挡住会撞车的按钮
+    heroTitle = '正在同步…';
+    heroSub = progressSub;
   } else if (behindItems.length) {
     heroTitle = behindItems.length + ' 个项目有新提交';
     heroSub = '共 ' + behindCommits + ' 个提交待拉取' + (scan && scan.last ? ' · 检查于 ' + clock(scan.last.finishedAt) : '');
@@ -167,13 +234,13 @@ export default function GitSettingsModal({ onClose, notify }) {
               <div className="gs-hero-s">{heroSub}</div>
             </div>
             <div className="gs-hero-r">
-              <button className="btn sm ghost" onClick={checkRemote} disabled={!!busy || saving} title="重新查询远程有没有新提交">
+              <button className="btn sm ghost" onClick={checkRemote} disabled={!!busy || saving || statusRunning} title="重新查询远程有没有新提交">
                 {busy === 'check' ? '检查中…' : '检查更新'}
               </button>
               <button
                 className="btn sm primary"
                 onClick={pullAll}
-                disabled={!!busy || saving}
+                disabled={!!busy || saving || statusRunning}
                 title="把所有项目快进拉取到最新"
               >
                 {busy === 'pull' ? '拉取中…' : '一键拉取'}
@@ -181,7 +248,21 @@ export default function GitSettingsModal({ onClose, notify }) {
             </div>
           </div>
 
-          {behindItems.length ? (
+          {progress && progress.items && progress.items.length ? (
+            <ul className="apull-list gs-progress">
+              {progress.items.map((it) => (
+                <li key={it.projectId} className={(it.status === 'failed' ? 'failed ' : '') + it.state}>
+                  <span className="nm">{it.name}</span>
+                  <span className="nt">
+                    {it.state === 'running' ? <span className="spinner" /> : null}
+                    {progressText(it)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {!progress && behindItems.length ? (
             <ul className="apull-list gs-behind">
               {behindItems.map((it) => (
                 <li key={it.projectId}>

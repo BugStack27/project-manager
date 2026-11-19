@@ -303,6 +303,13 @@
   /* 最近一轮：一行摘要，不占版面 */
   .modal .gs-last{margin-top:8px;font-size:11.5px;line-height:1.5;color:var(--label-3)}
   .modal .gs-behind{margin-top:8px}
+  /* 代码同步弹窗：一键拉取期间的逐项目进度（等待 / 正在同步 / 已同步） */
+  .modal .gs-progress{margin-top:10px}
+  .modal .gs-progress .nt{display:inline-flex;align-items:center;gap:6px}
+  .modal .gs-progress .spinner{width:11px;height:11px;border-width:1.4px;flex:none}
+  .modal .gs-progress li.running .nt{color:var(--blue)}
+  .modal .gs-progress li.done .nt{color:var(--green-text)}
+  .modal .gs-progress li.failed .nt{color:var(--red-text)}
 
   /* ── 新增命令：项目类型识别 + 推荐命令 ────────── */
   /* 类型用带底色的小标签，后面跟一串等宽的识别依据（package.json / pom.xml…），

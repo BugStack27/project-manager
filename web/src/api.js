@@ -121,6 +121,7 @@ export const api = {
    * force=true 表示手点下去就同步全部项目，不受「启动自动拉取」总开关拦截。
    */
   autoPullNow: (force) => call('autoPullNow', { trigger: 'manual', force: !!force }),
+  /** 自动拉取状态：running / last（最近一轮结果）/ progress（运行期间的逐项目进度） */
   autoPullStatus: () => call('autoPullStatus', {}),
   /**
    * 远程巡检：后台按间隔 fetch 一轮，把「落后上游多少」放进领域层缓存，

@@ -1,4 +1,5 @@
 import { CommandForm, ProjectForm, RequirementForm, RequirementStatusForm } from '../forms.jsx';
+import ArchiveModal from './ArchiveModal.jsx';
 import AuditModal from './AuditModal.jsx';
 import BackupModal from './BackupModal.jsx';
 import CommitModal from './CommitModal.jsx';
@@ -20,6 +21,7 @@ export default function AppModals({
   archivedProjects,
   onClose,
   onNavigate,
+  onRestoredRequirements,
   onSaveProject,
   onArchiveProject,
   onSaveRequirement,
@@ -66,6 +68,10 @@ export default function AppModals({
           onConfirm={onConfirmStatusNote}
           onNavigate={onNavigate}
         />
+      )}
+
+      {modal.type === 'archive' && (
+        <ArchiveModal onClose={onClose} onRestored={onRestoredRequirements} notify={notify} />
       )}
 
       {modal.type === 'command' && (

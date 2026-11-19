@@ -22,7 +22,7 @@ const TYPES = new Set([
   'requirement.created', 'requirement.updated', 'requirement.claimed', 'requirement.completed',
   'requirement.released', 'requirement.asked', 'requirement.answered', 'requirement.timeout',
   'requirement.unlocked', 'requirement.relocked',
-  'requirement.status_changed', 'requirement.deleted', 'requirement.archived',
+  'requirement.status_changed', 'requirement.deleted', 'requirement.archived', 'requirement.restored',
   'command.created', 'command.updated', 'command.deleted', 'command.started', 'command.exited',
   'command.stopped', 'command.spawn_failed', 'command.detached', 'command.recovered',
   'data.restored', 'settings.changed',

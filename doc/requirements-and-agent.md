@@ -49,6 +49,7 @@ status: accepted
 | 进入自动选中 | 进入页面若面板展开且 `selReqId` 为空，自动选「编号最大的未完成需求」；删除当前后补选下一条 | 进入即看到最该处理的条目，不停在已消失的详情 |
 | 自动选中判定 | 仅 `page === 'req'`、数据就绪、面板展开、页签为「未完成」；以 `page\|pid` 为 key 每周期一次（`autoPick` ref），真正选中后才标记；已完成 / 已拒绝不选，切回「未完成」补选 | 5s / 2s 轮询会反复触发；右面板必须与列表可见行对齐 |
 | 正文链接外开 | 前端 `target="_blank"` 为主路径，主进程 `will-navigate` 兜底；`isAppUrl` 按 `DEV_URL` / 打包 URL 算基准，比较前去 hash / query / 末尾斜杠，前缀匹配必须带 `/` | 正文由外部 AI 写入，新入口可能绕过前端约定；带 `/` 防伪域名 |
+| 归档入口与恢复（2026-11-19） | 工具栏在列表 / 看板切换前放「已归档」按钮，弹窗列出数据目录 `archive/` 下的全部归档（跨项目，带项目名），逐条「恢复」回原项目的已完成；原项目已彻底删除时仍列出但禁用恢复 | 归档是应用内唯一让记录从列表与计数里消失的动作，必须和找回入口同时交付；恢复先写库再删归档文件，失败可重试且不会两边都丢 |
 | 协议放开范围 | `openExternalSafely` 只放行 http/https，其余 `preventDefault`；非 http 链接保持 inert（不加 `target`） | 避免 `file:` 等本地协议被外部内容触发 |
 
 ### 2.3 复制与文案口径
@@ -196,7 +197,8 @@ status: accepted
 
 | 文件（相对路径） | 职责 |
 |---|---|
-| `electron/services/domain/requirements.js` + `validators.js` + `ask-waiter.js` + `review-waiter.js` | `claimRequirement` / `completeRequirement` / `askRequirement` / `answerRequirement` / `releaseRequirement` / `deleteRequirement` / `setRequirementStatus`；六态（含 `candidate`）、`UNFINISHED`、认领与交付生命周期、`thread` 消息流；`/ask` 等 1 小时、`/complete` 等 2 小时（提问可多条并存，各按 `questionId` 独立等待），交付 / 释放 / 改状态 / 删除都唤醒挂起请求；`claimLocked` 是认领的唯一写入点；`assertTaskId` / `assertAgent` / `assertEncoded` |
+| `electron/services/domain/requirements.js` + `validators.js` + `ask-waiter.js` + `review-waiter.js` | `claimRequirement` / `completeRequirement` / `askRequirement` / `answerRequirement` / `releaseRequirement` / `deleteRequirement` / `setRequirementStatus`；六态（含 `candidate`）、`UNFINISHED`、认领与交付生命周期、`thread` 消息流；`/ask` 等 1 小时、`/complete` 等 2 小时（提问可多条并存，各按 `questionId` 独立等待），交付 / 释放 / 改状态 / 删除都唤醒挂起请求；`claimLocked` 是认领的唯一写入点；`assertTaskId` / `assertAgent` / `assertEncoded`；`archivedRequirements` / `restoreRequirement`（配合 `services/archive.js` 的 `findEntry` / `removeEntry`） |
+| `electron/services/{archive,event-log}.js` | 归档文件读写（`archive/<项目id>/<编号>-<id>.json`，`list` / `maxSeq` / `findEntry` / `removeEntry`，v1 扁平结构迁移）；`requirement.archived` / `requirement.restored` 事件 |
 | `electron/services/domain/agents.js` | Agent 注册表：`agents` / `createAgent` / `deleteAgent`（名称唯一、`store.uid('a')` 分配 AgentID），`db.agents` 随库持久化 |
 | `electron/services/domain/claim-gate.js` + `auto-claim.js` + `next-waiter.js` | 派发闸门（`doing` / `review` / `dirty` / `path_missing` / `git_timeout`、FIFO 排序、返回自己名下在做的任务）、`claimNextRequirement`（一次）与 `nextRequirement`（长等待）；`next-waiter.js` 的广播信号让新建 / 释放 / 撤销 / 验收 / 提交立即唤醒等待者 |
 | `electron/services/domain/refs.js` + `web/src/lib/req-refs.js` + `web/src/components/{ProjectRefInput,MarkdownText,MarkdownBody}.jsx` | 三类引用：服务端 `refNames` / `resolveRefs`（项目）、`reqRefSeqs` / `resolveReqRefs`（需求）、`fileRefPaths` / `resolveFileRefs`（文件）→ `reqView.refs` / `reqRefs` / `fileRefs`；前端换 chip（`linkifyRefs` / `linkifyReqRefs` / `linkifyFileRefs`）与分组输入候选（`activeRefQuery` / `classifyRefQuery` / `applyRef` / `applyReqRef` / `applyFileRef` / `refCandidates` / `reqCandidates` / `fileCandidates`） |
@@ -207,7 +209,8 @@ status: accepted
 | `electron/prompts.js` + `prompts/{scout,scout-stub,worker}.md` | `createPromptStore` + `REGISTRY`：启动覆盖、清理 `.bak` / `.baseline.json`、读取不缓存；巡检手册与执行手册真源 |
 | `electron/main.js` | `appBaseUrl` / `isAppUrl` / `openExternalSafely`、`setWindowOpenHandler` 与 `will-navigate`、组装 `promptStore`（`PM_PROMPT_DIR`） |
 | `web/src/RequirementDetail.jsx` | 扁平 `.rd-*` 详情、`buildContentText` / `buildAgentText`、`editing` / `draft` 内联保存、候选提示块内的「采纳 / 丢弃」、本次交付、待审核「通过 / 继续回复」区块、`MD_COMPONENTS` |
-| `web/src/RequirementsPage.jsx` | `counts`（含候选池）与 `unfinished` 筛选、候选池页签与看板列（`BOARD_COLUMNS.top`：未完成列「进行中 / 待审核」置顶）、`actionsFor` 的状态 / 审核分支（候选返回 `null`，不再出按钮；看板 `quiet` 让候选与终态同走「时间回底行、不占按钮行」）、整行选中态、认领徽标 |
+| `web/src/RequirementsPage.jsx` | `counts`（含候选池）与 `unfinished` 筛选、候选池页签与看板列（`BOARD_COLUMNS.top`：未完成列「进行中 / 待审核」置顶）、`actionsFor` 的状态 / 审核分支（候选返回 `null`，不再出按钮；看板 `quiet` 让候选与终态同走「时间回底行、不占按钮行」）、整行选中态、认领徽标、工具栏「已归档」入口 |
+| `web/src/components/ArchiveModal.jsx` | 已归档需求弹窗：`archivedRequirements` 列全部归档（项目名 / 编号 / 标题 / 归档时间），逐条 `restoreRequirement` 恢复；原项目已移除时禁用并说明；恢复后回调刷新当前需求列表与项目计数 |
 | `web/src/components/AiAccessModal.jsx` | 四个页签；Agent 管理页负责添加 / 列表 / 技能目录（卡片显示 AgentID 与每个目录的技能数，「添加 Agent」弹窗可一键选择本机已装客户端），自动认领页单独选择 Agent 并注入 AgentID，未选中禁止复制 |
 | `web/src/App.jsx` | `selReqId` / `openRequirement` / `deleteRequirement` / `saveRequirementDetail`、详情 `key`、进入自动选中、`applyStatus` 文案、验收时可选提交推送（`approveRequirementWithGit` / `confirmStatusWithGit`）、`AiAccessModal`、`pendingItems`（提问 + 待审核） |
 | `web/src/lib/commit-message.js` + `web/src/components/CommitModal.jsx` | 提交信息唯一真源：`buildCommitMessage` 只认 `completion.commitMessage`、`splitCommitMessage` 识别并保留标准类型前缀；弹窗不再展示会话说明 |
@@ -219,7 +222,7 @@ status: accepted
 | `web/src/Sidebar.jsx` | 项目行需求灯与 `lightsOf`、tooltip 与点击直达、「AI 停」徽标、「AI 接入」入口 |
 | `web/src/OverviewPage.jsx` | 待审核排序权重、「agent 已交付」副行与统计副行 |
 | `web/src/api.js` | 需求 / 项目 / 提示词通道方法 |
-| `web/src/lib/events-view.js` | `requirement.released` / `requirement.asked` / `requirement.answered` 文案、`via=next` 的认领显示为「自动认领」 |
+| `web/src/lib/events-view.js` | `requirement.released` / `requirement.asked` / `requirement.answered` / `requirement.archived` / `requirement.restored` 文案、`via=next` 的认领显示为「自动认领」 |
 | `web/src/RequirementDetail.jsx`（往返记录） | `thread` 消息流渲染（含 `reopen`）、待回答区块与回复框、旧需求按 `completion` / `feedback` 兼容 |
 | `web/src/styles/{requirements,panel,controls,tokens,modal}.css` | `.rd-*` / `.md-body` / `.row.req.sel`、`.src.claim`、`.st-review`、`.plight` 三态、青色语义色、`.mcp-cfg` |
 | `web/claim-test.html` | 手工验证页，支持 `?status=review` 与 `completion`；演示数据带一个被引用项目与一条技能解析结果（含 `agents` / `skills` 通道），用于核对引用项目与技能的悬停信息窗 |
@@ -262,6 +265,7 @@ status: accepted
 - Agent 注册表支持创建 / 删除，不支持改名：名称不可重复、AgentID 创建后不变。删除只影响后续可选项，已认领 / 交付过的任务仍保留原 AgentID，不会自动迁移到新 ID；名称查不到时界面回落显示这个 ID。
 - 右面板可窄至 240px，编辑区 textarea 仅纵向缩放；终态「填写备注」是独立弹窗，不属于详情内联编辑。
 - 候选池是唯一一个「能倒退回去」的入口：`todo → candidate` 允许（想法又觉得不成熟），但 `doing / review / done` 不行——已经有人开工或已有交付的活退回池子，会连认领与交付记录一起悬空。候选需求不参与归档判断：归档只认 `done`，丢弃请用「丢弃」到 `rejected`。
+- 已归档需求只在「已归档」弹窗里查看与恢复，跨项目一起列并标出原项目；恢复按原项目 id 落库，项目被彻底删除后归档只读保留、不可恢复到别的项目。恢复保留原编号与 `updatedAt`：新建需求时编号已把归档文件算进去，正常情况下不会撞号。
 
 ## 6. 后续候选
 

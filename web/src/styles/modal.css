@@ -168,6 +168,17 @@
   .berr{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--red-tint);color:var(--red-text);font-size:12px;line-height:1.5}
   .bwait{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;padding:10px;border-radius:10px;background:var(--blue-tint);color:var(--blue);font-size:12px;font-weight:600}
 
+  /* 已归档需求弹窗：逐条列出归档记录 + 一键恢复 */
+  .archreq-hint{margin:0 0 12px;font-size:12px;line-height:1.55;color:var(--label-3)}
+  .archreq-list{max-height:52vh;overflow:auto;margin:0 -4px;padding:0 4px}
+  .archreq-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;background:var(--fill-3)}
+  .archreq-row + .archreq-row{margin-top:4px}
+  .archreq-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .archreq-title{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;font-weight:600;color:var(--label)}
+  .archreq-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .archreq-proj{flex:none;padding:0 6px;border-radius:5px;background:rgb(var(--accent-rgb) / .12);color:var(--blue);font-size:11px;font-weight:600;line-height:1.7}
+  .archreq-meta{font-size:11px;color:var(--label-3)}
+
   /* 快捷键弹窗：逐行「名称 + 按键胶囊 + 修改 / 恢复默认」。
      录制态整行换蓝底并挂一枚「录制中」，一眼能看出按键会被哪一行吃掉。 */
   .sc-list{list-style:none;margin:0;padding:0;max-height:52vh;overflow:auto}

@@ -746,6 +746,7 @@ export default function App() {
             onNew={openNewRequirement}
             onStatus={changeStatus}
             onArchive={archiveRequirement}
+            onArchived={() => setModal({ type: 'archive' })}
             selId={selReqId}
             onSelect={openRequirement}
           />
@@ -847,6 +848,9 @@ export default function App() {
         archivedProjects={archivedProjects}
         onClose={() => setModal(null)}
         onNavigate={handleNavigate}
+        onRestoredRequirements={async () => {
+          await Promise.all([reloadRequirements(pid), loadProjects()]);
+        }}
         onSaveProject={saveProject}
         onArchiveProject={async () => {
           await archiveProject(modal.project);

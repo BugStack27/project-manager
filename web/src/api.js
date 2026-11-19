@@ -139,6 +139,10 @@ export const api = {
    * 之后列表、计数都不再包含它。只有 done 可归档，其余状态返回 409 not_archivable。
    */
   archiveRequirement: (rid) => call('archiveRequirement', { rid }),
+  /** 已归档需求清单（跨项目）：归档文件读自数据目录，恢复入口据此渲染 */
+  archivedRequirements: () => call('archivedRequirements', {}),
+  /** 恢复一条已归档需求：写回需求列表并删除归档文件；原项目已移除时 409 project_missing */
+  restoreRequirement: (rid) => call('restoreRequirement', { rid }),
   /**
    * note 传了（含空串）就整体替换原备注，不传则保留——完成/拒绝时用来覆盖过时的 AI 备注。
    * feedback 用于打回（待审核 → 进行中）与撤销重开（→ 未开始），存独立字段并随 /claim 与详情返回给 agent。

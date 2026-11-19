@@ -658,6 +658,67 @@ function createRequirements() {
     },
 
     /**
+     * 已归档需求清单：直接读数据目录的 archive/，跨项目一起给（归档文件里冗余存了项目名，
+     * 项目被删后仍知道它原来属于谁）。恢复入口只在这里取数据，列表与计数不掺归档。
+     */
+    archivedRequirements: () => {
+      const projects = new Map(store.get().projects.map((p) => [p.id, p]));
+      const list = archive.list().map((item) => {
+        const r = item.requirement;
+        const p = projects.get(r.projectId) || null;
+        return {
+          id: r.id,
+          /** 项目删除后归档仍能读，但恢复无处可落；界面据此禁用按钮并说明 */
+          projectName: (p && p.name) || (item.project && item.project.name) || '',
+          projectExists: !!p,
+          seq: r.seq,
+          title: r.title || '',
+          archivedAt: item.archivedAt || null
+        };
+      });
+      list.sort(
+        (a, b) =>
+          String(b.archivedAt || '').localeCompare(String(a.archivedAt || '')) ||
+          (b.seq || 0) - (a.seq || 0)
+      );
+      return { requirements: list };
+    },
+
+    /**
+     * 恢复一条已归档需求：把它放回 db.json，再删掉归档文件。
+     * 顺序不能反：先写库再删文件，写库失败时归档还在，可以重试；反过来则可能两边都没有。
+     * 原项目已被彻底删除时不恢复——没有项目可落，宁可留在归档里。
+     */
+    restoreRequirement: ({ rid }) => {
+      const item = archive.findEntry(assertTaskId(rid));
+      if (!item) fail('没有找到这条归档需求（可能已恢复，或归档文件已被删除）', 'not_archived', 404);
+      const r = item.requirement;
+      const db = store.get();
+      if (db.requirements.some((x) => x.id === r.id)) {
+        fail('这条需求已经在需求列表里，无需恢复', 'already_restored', 409);
+      }
+      if (!db.projects.some((x) => x.id === r.projectId)) {
+        fail('原项目已移除，无法恢复这条需求（归档文件仍在数据目录 archive/ 下）', 'project_missing', 409);
+      }
+      db.requirements.push(r);
+      store.save();
+      try {
+        archive.removeEntry(item);
+      } catch (e) {
+        // 库已经写回、功能可用；残留的归档文件下次恢复会被 already_restored 拦住，不会重复入列
+        process.stderr.write('[archive] 删除归档文件失败（' + item.name + '）：' + e.message + '\n');
+      }
+      eventLog.append({
+        type: 'requirement.restored',
+        projectId: r.projectId,
+        requirementId: r.id,
+        actor: actor.user(),
+        data: { ...snapshot(r) }
+      });
+      return { ok: true, id: r.id };
+    },
+
+    /**
      * 改状态。note 传了就整体替换备注（传空串即清空），不传则保留原备注。
      * 收尾状态（done / rejected）下原备注多为 AI 提需求时的判断，通常已过时，由调用方决定是否重写。
      * feedback 是给 agent 的回传原因：打回时说明改什么，撤销重开时说明为什么重开。

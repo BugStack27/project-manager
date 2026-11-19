@@ -194,11 +194,11 @@ export function useRequirements({ page, pid, project, modal, notify, setModal, l
    */
   async function archiveRequirement(r) {
     try {
-      const res = await api.archiveRequirement(r.id);
+      await api.archiveRequirement(r.id);
       await Promise.all([loadReqs(pid, true), loadProjects()]);
       setSelReqId((cur) => (cur === r.id ? null : cur));
-      // 带上落盘位置（archive/<项目目录>/<编号>-<id>.json），用户不用猜文件去哪了
-      notify('#' + r.seq + ' 已归档到 ' + ((res && res.file) || 'archive/'));
+      // 归档有应用内找回入口（工具栏「已归档」），提示里给出落点比给文件路径有用
+      notify('#' + r.seq + ' 已归档，可在「已归档」里恢复');
     } catch (e) {
       notify(e.message, 'warn');
       throw e;

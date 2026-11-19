@@ -20,6 +20,7 @@ const TYPE_LABEL = {
   'requirement.status_changed': '状态变更',
   'requirement.deleted': '删除需求',
   'requirement.archived': '归档需求',
+  'requirement.restored': '恢复需求',
   'command.created': '新增命令',
   'command.updated': '编辑命令',
   'command.deleted': '删除命令',
@@ -216,6 +217,8 @@ export function eventSummary(ev) {
       return '删除需求 ' + reqText(d);
     case 'requirement.archived':
       return '归档需求 ' + reqText(d) + (d.file ? ' → archive/' + d.file : '');
+    case 'requirement.restored':
+      return '恢复需求 ' + reqText(d) + '（回到已完成）';
     case 'command.created':
       return '新增命令 ' + cmdText(d);
     case 'command.updated': {

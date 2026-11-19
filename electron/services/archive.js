@@ -102,6 +102,7 @@ function collect(dir, out) {
     out.push({
       name,
       dir: path.basename(dir),
+      abs: path.join(dir, name),
       archivedAt: data.archivedAt || null,
       project: data.project || null,
       requirement: data.requirement
@@ -146,6 +147,20 @@ function count() {
 }
 
 /**
+ * 按需求 id 找一份归档。恢复功能用：界面只认需求 id，不必知道文件落在哪个项目目录。
+ */
+function findEntry(rid) {
+  const id = String(rid || '');
+  if (!id) return null;
+  return list().find((item) => item.requirement.id === id) || null;
+}
+
+/** 删除归档文件：记录写回 db.json 之后调用，失败由调用方决定怎么提示 */
+function removeEntry(item) {
+  fs.unlinkSync(item.abs);
+}
+
+/**
  * 把 v1 的扁平结构 需求/<编号>-<id>.json 迁到 archive/<项目>/，启动时跑一次。
  * 幂等：旧目录不存在就直接返回；单个文件迁移失败留在原地，下轮再试 ——
  * 列表与编号计算都还能读到旧目录，迁移期间不漏号也不丢文件。
@@ -187,4 +202,4 @@ function migrateLegacy() {
   return { moved, remain };
 }
 
-module.exports = { FOLDER, LEGACY_FOLDER, root, projectKey, write, list, maxSeq, count, migrateLegacy };
+module.exports = { FOLDER, LEGACY_FOLDER, root, projectKey, write, list, maxSeq, count, findEntry, removeEntry, migrateLegacy };

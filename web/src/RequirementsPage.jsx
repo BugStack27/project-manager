@@ -267,6 +267,7 @@ export default function RequirementsPage({
   onNew,
   onStatus,
   onArchive,
+  onArchived,
   selId,
   onSelect
 }) {
@@ -325,6 +326,14 @@ export default function RequirementsPage({
           <span className="board-hint">共 {requirements.length} 条</span>
         )}
         <div className="aside req-tools">
+          {/* 归档是唯一的「从列表里消失」动作，入口放在视图切换前面：看得见，才能找回 */}
+          <button
+            className="btn sm"
+            onClick={onArchived}
+            title="查看已归档需求，可一键恢复到已完成"
+          >
+            {IC.archive}已归档
+          </button>
           <div className="seg viewseg" role="group" aria-label="视图切换">
             <button
               className={view === 'list' ? 'active' : ''}

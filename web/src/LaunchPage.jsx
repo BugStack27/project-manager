@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { fmtClock, fmtDateTime, fmtDuration, isCommandActive, runExitLabel } from './format.js';
 import { IC } from './icons.jsx';
 import { ContextBar, Empty } from './ui.jsx';
+import { hoverProps } from './components/HoverCardLayer.jsx';
+import { scriptRef } from './lib/script-ref.js';
 
 export default function LaunchPage({
   project,
@@ -103,6 +105,9 @@ export default function LaunchPage({
             const active = isRun || (detached && detached.alive);
             const busy = !!pending[c.id];
             const on = selId === c.id;
+            /** 命令直接跑脚本时，悬停命令文本出脚本内容窗（与需求里的文件引用同一张卡） */
+            const script = project ? scriptRef(c, project) : null;
+            const scriptHover = script ? hoverProps.file({ path: script, exists: true }, project.id, null) : null;
             /** 整行可点：点启动项即把右侧面板切到这条命令的日志，不必再找「日志」按钮 */
             function openThis() {
               onLogs(c);
@@ -134,7 +139,16 @@ export default function LaunchPage({
                         {c.name}
                       </span>
                     ) : null}
-                    <span className="cmd-code" title={c.text}>
+                    <span
+                      className={'cmd-code' + (scriptHover ? ' is-script' : '')}
+                      {...scriptHover}
+                      title={scriptHover ? '' : c.text}
+                    >
+                      {scriptHover ? (
+                        <span className="cmd-script-ico" aria-hidden="true">
+                          {IC.script}
+                        </span>
+                      ) : null}
                       {c.text}
                     </span>
                     <span className={'run ' + (isRun ? 'running' : detached && detached.alive ? 'detached' : 'stopped')}>

@@ -39,6 +39,7 @@ export default function FileHoverCard({
   width,
   maxHeight,
   transform,
+  hint = '点击 chip 打开文件',
   onEnter,
   onLeave
 }) {
@@ -130,7 +131,7 @@ export default function FileHoverCard({
           {data && data.totalLines ? data.totalLines + ' 行' : ''}
           {truncated ? '（只显示前 ' + lines.length + ' 行）' : ''}
         </span>
-        <span>点击 chip 打开文件</span>
+        {hint ? <span>{hint}</span> : null}
       </div>
     </div>
   );

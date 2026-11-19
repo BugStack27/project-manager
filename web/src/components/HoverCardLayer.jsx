@@ -173,7 +173,12 @@ function bind(kind, payload) {
         return;
       }
       if (kind === 'file') {
-        later(my, el, () => ({ kind, projectId: payload.projectId, path: payload.path }));
+        later(my, el, () => ({
+          kind,
+          projectId: payload.projectId,
+          path: payload.path,
+          hint: payload.hint
+        }));
         return;
       }
       ensureIndex().then((idx) => {
@@ -191,15 +196,16 @@ function bind(kind, payload) {
  * chip 直接用：`<button {...hoverProps.project(id)}>`。
  * 绑上了就以信息窗为准，chip 自己的原生 `title` 必须让位（两套同时弹很影响观感）；
  * 绑不上的那些（解析不到项目 / 需求、技能目录已不在、文件受限或不存在）继续用原生提示说明原因。
- * 文件卡要读项目内文件，绑定时一并带 projectId 与解析过的相对路径（不给绝对路径）。
+ * 文件卡要读项目内文件，绑定时一并带 projectId 与解析过的相对路径（不给绝对路径）；
+ * 第三个参数可换页脚提示（启动台的脚本预览不是 chip，点它不会打开文件）。
  */
 export const hoverProps = {
   project: (projectId) => (projectId ? bind('project', projectId) : null),
   skill: (sk) => (sk && !skillMissing(sk) ? bind('skill', sk) : null),
   requirement: (rq) => (rq && rq.exists ? bind('requirement', rq) : null),
-  file: (fr, projectId) =>
+  file: (fr, projectId, hint) =>
     fr && fr.exists && !fr.restricted && !fr.directory && projectId
-      ? bind('file', { projectId, path: fr.path })
+      ? bind('file', { projectId, path: fr.path, hint })
       : null
 };
 
@@ -260,6 +266,7 @@ export function HoverCardLayer({ projects, archivedProjects, dirtyFiles, behindM
         width={cur.width}
         maxHeight={cur.maxHeight}
         transform={cur.transform}
+        hint={cur.hint}
         onEnter={cardEnter}
         onLeave={cardLeave}
       />,

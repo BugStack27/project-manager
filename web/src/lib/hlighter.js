@@ -38,6 +38,7 @@ const BY_EXT = {
   sh: 'bash',
   bash: 'bash',
   zsh: 'bash',
+  fish: 'bash',
   sql: 'sql',
   go: 'go',
   yml: 'yaml',
@@ -57,7 +58,17 @@ const BY_EXT = {
   rs: 'rust',
   swift: 'swift',
   diff: 'diff',
-  patch: 'diff'
+  patch: 'diff',
+  /* 启动台的脚本预览：挑脚本时常见这些后缀，别让内容窗退化成纯文本 */
+  ps1: 'powershell',
+  psm1: 'powershell',
+  bat: 'dos',
+  cmd: 'dos',
+  rb: 'ruby',
+  pl: 'perl',
+  pm: 'perl',
+  php: 'php',
+  lua: 'lua'
 };
 
 /** 没有扩展名但有固定语法的文件 */
@@ -77,6 +88,23 @@ export function langOf(p) {
   const dot = base.lastIndexOf('.');
   if (dot <= 0) return null;
   return BY_EXT[base.slice(dot + 1).toLowerCase()] || null;
+}
+
+/**
+ * 扩展名认不出时按首行 shebang 猜：无扩展名或被改名的小脚本（deploy、run）也能上色。
+ * 只认确定性的解释器名，猜不准就保持纯文本。
+ */
+function langOfText(text) {
+  const m = /^#!\s*(\S+)(?:\s+(\S+))?/.exec(String(text || '').split('\n', 1)[0].trim());
+  if (!m) return null;
+  // /usr/bin/env bash 取第二个词，/bin/bash 取路径最后一段
+  const cmd = String(m[2] || m[1]).split('/').pop();
+  if (/^(bash|sh|zsh|fish|dash|ksh)$/.test(cmd)) return 'bash';
+  if (/^python[0-9.]*$/.test(cmd)) return 'python';
+  if (/^(node|nodejs|deno|bun)$/.test(cmd)) return 'javascript';
+  if (/^(ruby|perl|php)$/.test(cmd)) return cmd;
+  if (/^(pwsh|powershell)$/.test(cmd)) return 'powershell';
+  return null;
 }
 
 /** 语言包的加载器：Vite 会把每个包拆成独立 chunk，所以只在真正用到时拉一个 */
@@ -105,7 +133,13 @@ const LOADERS = {
   rust: () => import('highlight.js/lib/languages/rust'),
   swift: () => import('highlight.js/lib/languages/swift'),
   diff: () => import('highlight.js/lib/languages/diff'),
-  dockerfile: () => import('highlight.js/lib/languages/dockerfile')
+  dockerfile: () => import('highlight.js/lib/languages/dockerfile'),
+  powershell: () => import('highlight.js/lib/languages/powershell'),
+  dos: () => import('highlight.js/lib/languages/dos'),
+  ruby: () => import('highlight.js/lib/languages/ruby'),
+  perl: () => import('highlight.js/lib/languages/perl'),
+  php: () => import('highlight.js/lib/languages/php'),
+  lua: () => import('highlight.js/lib/languages/lua')
 };
 
 let engine = null;
@@ -188,7 +222,7 @@ function splitHighlighted(html) {
  * @returns {Promise<string[]|null>} null = 认不出语言 / 引擎不可用，调用方走纯文本
  */
 export async function highlightLines(text, path) {
-  const lang = langOf(path);
+  const lang = langOf(path) || langOfText(text);
   if (!lang) return null;
   const hljs = await loadEngine(lang);
   if (!hljs || !hljs.getLanguage(lang)) return null;

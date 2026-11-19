@@ -38,6 +38,8 @@ export const api = {
   deleteProject: (id) => call('deleteProject', { id }),
   revealProject: (id) => call('revealProject', { id }),
   ides: (refresh) => call('ides', { refresh: !!refresh }),
+  /** 切换某个项目偏好的 IDE（只记选择，不拉起窗口） */
+  setProjectIde: (id, ideId) => call('setProjectIde', { id, ideId }),
   openInIde: (id, ideId) => call('openInIde', { id, ideId }),
   openInTerminal: (id) => call('openInTerminal', { id }),
   /** 版本与平台：侧栏品牌区的版本号用（domain 层不引 electron，值由主进程注入） */

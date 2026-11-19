@@ -209,6 +209,8 @@ function projectView(p) {
     aiScout: p.aiScout !== false,
     /** 启动自动拉取：true / false 为项目自定义，null 表示跟随全局设置 */
     autoPull: typeof p.autoPull === 'boolean' ? p.autoPull : null,
+    /** 项目偏好的 IDE：菜单里选过或打开过才写；为空时界面退回全局 lastIdeId */
+    ideId: p.ideId || null,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt || p.createdAt,
     requirementCount: reqs.length,

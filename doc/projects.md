@@ -29,7 +29,7 @@ status: accepted
 | IDE 发现来源 | 开始菜单 `.lnk` + `readShortcutLink` 解析目标为主；常见安装路径、JetBrains 目录树（含 Toolbox）与 PATH 白名单 exe 兜底，按 id 跳过已找到的 | PATH 里几乎没有 IDE 命令、注册表覆盖也有限，快捷方式一次能捞出多个；兜底覆盖无快捷方式的安装形态，不做全盘遍历 |
 | 识别口径 | exe 文件名 → `{id, name}` 白名单映射，未命中一律忽略；按 `id` 去重，先扫到的优先 | 开始菜单有大量非 IDE 快捷方式，只认已知产品才不会误报 |
 | 启动器型 IDE | 目标不是白名单 exe 且名字像 IDE 时，去快捷方式 `cwd` 及其上 3 层找本体 | Qoder 快捷方式指向 Launcher，本体在 `cwd` 指向的安装目录 |
-| 默认与切换 | `db.settings.lastIdeId` 全局记住上次使用；选中另一项只切换选中态并关闭菜单，不立即打开 | 每项目单独记需额外字段；拉起外部窗口不能被「切工具」顺带触发 |
+| 默认与切换 | 项目自己的偏好记在 `project.ideId`，没选过的项目才退回 `db.settings.lastIdeId`（全局上次打开）；选中另一项只切换选中态并关闭菜单，不立即打开 | 不同技术栈的项目习惯用不同 IDE，切项目不该再切一次；拉起外部窗口不能被「切工具」顺带触发 |
 | 扫描时机 | 进程内缓存，仅在「重新扫描」时重扫 | 每次点按钮扫盘会明显卡顿 |
 | 图标来源 | 自行解析 exe 的 PE 资源（`RT_GROUP_ICON` + `RT_ICON`），转 PNG 后以 dataURL 下发，从 48px 起 | `app.getFileIcon()` 在无窗口进程下全部返回同一张占位图 |
 | 终端优先级 | Windows Terminal → PowerShell → cmd；macOS 用 Terminal；Linux 尝试常见模拟器；只用 `spawn` 参数数组（`shell: false`），启动成功后 `unref()`，失败换下一个 | 用系统默认终端无需配置；`wt.exe` 缺失时必须可靠回退 |
@@ -87,7 +87,7 @@ Kotlin、Java、Maven、Gradle、npm 已作为项目名后的技术栈图标支�
 | 文件（相对路径） | 职责 |
 |---|---|
 | `electron/services/{ide,icon,terminal}.js` | `scan` / `open` / `reset` 多来源发现与启动；`get` / `extract` 解析 PE 图标；`open(dir)` / `candidates` 按平台尝试并回退终端 |
-| `electron/services/domain/{system,validators,projects}.js` | `ides` / `openInIde` / `openInTerminal` 与 `assertProjectDir`；`deleteProject` 仅归档项目、拒绝运行中、清理需求 / 命令 / 日志 |
+| `electron/services/domain/{system,validators,projects}.js` | `ides` / `openInIde` / `setProjectIde` / `openInTerminal` 与 `assertProjectDir`；项目 IDE 偏好写在 `project.ideId`；`deleteProject` 仅归档项目、拒绝运行中、清理需求 / 命令 / 日志 |
 | `electron/services/project-detect.js`、`electron/services/domain/views.js` | `detectProfile(path)` 按根目录特征识别 Android / Obsidian / IntelliJ / Electron / JavaFX / Spring Boot 与技术栈并缓存；`projectView` 下发 `kind` + `stacks` |
 | `electron/services/android-icon.js`、`electron/services/project-icon.js`、`electron/services/domain/projects.js` | Android launcher 资源解析；IntelliJ 插件图标、Electron 配置 / exe 图标、JavaFX 资源图标、Spring favicon；`projectIcon` 按需下发 |
 | `web/src/api.js`、`web/src/ui.jsx` | `projectIcon(id)` 通道；真实图标按项目缓存、懒加载，失败只请求一次 |
@@ -96,7 +96,7 @@ Kotlin、Java、Maven、Gradle、npm 已作为项目名后的技术栈图标支�
 | `web/src/{Sidebar,OverviewPage}.jsx`、`web/src/components/ProjectPalette.jsx` | 项目行、归档分组、总览与切换面板改用 `ProjectIcon` + `ProjectStackIcon`；侧栏行 tooltip 补充技术栈列表 |
 | `web/src/components/ProjectHoverCard.jsx`、`web/src/styles/sidebar.css` | 项目行悬停信息卡：身份 / 技术栈 / 路径 / 计数 / 提醒分层展示；定位、延时与收起逻辑 |
 | `web/src/components/HoverCardLayer.jsx` + `{RequirementHoverCard,FileHoverCard}.jsx` | 悬停信息卡的唯一实例：延时开 / 收起、锚点跑位与离开文档时收起、按锚点周围空间定坐标并 portal 到 `body`；需求详情的四类引用 chip（项目 / 需求 / 文件 / 技能）都走这里，文件卡额外按需读内容并支持卡内滚动 |
-| `web/src/ides.js`、`web/src/ui.jsx` | 模块级 Promise 记忆化共享扫描；`IdeButton`（主键 + 切换菜单 + 重新扫描） |
+| `web/src/ides.js`、`web/src/ui.jsx` | 模块级 Promise 记忆化共享扫描 + 各项目会话内的选择缓存；`IdeButton`（主键 + 切换菜单 + 重新扫描，选择按项目落库） |
 | `web/src/App.jsx` / `web/src/forms.jsx` | `PageBar` 工具槽渲染 `IdeButton`；`openTerminal` 成功静默、失败走警告；归档拆分、恢复与删除；编辑态的恢复指引 |
 | `web/src/Sidebar.jsx` | 终端菜单项；`.parch` 折叠分组、恢复与删除按钮（进行中 id 防重复、`armedId` 两步确认） |
 | `web/src/components/ProjectMenu.jsx`、`web/src/styles/sidebar.css` | 侧栏 / 总览共用的项目菜单增加「归档项目」：分隔线隔开、就地两步确认、确认态标红 |

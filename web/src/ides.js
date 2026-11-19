@@ -10,7 +10,13 @@ let data = null;
 let pending = null;
 
 /**
- * 取 IDE 列表（含上次使用的 ideId）。
+ * 本轮会话里各项目最新选过的 IDE。
+ * 落库后项目列表要等下一次轮询才刷新，先记在内存里，避免切走再切回来时闪回旧值。
+ */
+const chosenByProject = new Map();
+
+/**
+ * 取 IDE 列表（含全局上次使用的 ideId）。
  * @param {boolean} refresh 强制重新扫描（装机列表可能变了）
  */
 export function loadIdes(refresh) {
@@ -35,7 +41,21 @@ export function loadIdes(refresh) {
   return pending;
 }
 
-/** 打开成功后同步本地缓存里的「上次使用」，避免下次进页面又跳回旧值 */
-export function rememberIde(ideId) {
+/** 菜单里切换成功后调用：只记项目偏好，不把「没打开的 IDE」算成全局上次使用 */
+export function rememberProjectIde(projectId, ideId) {
+  if (projectId && ideId) chosenByProject.set(projectId, ideId);
+}
+
+/** 打开成功后调用：项目偏好与全局上次使用都变了 */
+export function rememberOpenedIde(projectId, ideId) {
+  rememberProjectIde(projectId, ideId);
   if (data) data = { ...data, lastIdeId: ideId };
+}
+
+/**
+ * 项目该用哪个 IDE：内存里的最新选择 → 已落库的项目偏好 → 全局上次使用。
+ * 返回值可能不在当前安装列表里，调用方再按列表兜底。
+ */
+export function preferredIde(projectId, savedIdeId, lastIdeId) {
+  return (projectId && chosenByProject.get(projectId)) || savedIdeId || lastIdeId || null;
 }

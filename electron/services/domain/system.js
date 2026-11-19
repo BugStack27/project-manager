@@ -36,7 +36,8 @@ function createSystem(native) {
 
     /**
      * 本机已安装的 IDE 列表。
-     * 结果在服务层缓存，只有 refresh:true 才重新扫盘；lastIdeId 供界面默认选中上次用的那个。
+     * 结果在服务层缓存，只有 refresh:true 才重新扫盘；lastIdeId 是全局上次使用的，
+     * 只给还没有项目偏好的项目兜底（项目自己的选择在 project.ideId 上）。
      */
     ides: ({ refresh }) => {
       const data = ide.scan({ refresh: !!refresh, native: { readShortcut: native.readShortcut } });
@@ -52,9 +53,27 @@ function createSystem(native) {
       const p = findProject(id);
       const target = assertProjectDir(p);
       const res = ide.open(target, ideId, { native: { readShortcut: native.readShortcut } });
+      // 打开成功即记住这个项目的偏好；全局 lastIdeId 继续给没偏好的项目兜底
+      p.ideId = res.id;
       store.get().settings.lastIdeId = res.id;
       store.save();
       return { ok: true, path: target, ide: res };
+    },
+
+    /**
+     * 切换某个项目偏好的 IDE（菜单里选中时调用，不拉起窗口）。
+     * 只认扫描结果里的 id；不动 updatedAt 与审计日志，这是界面偏好而不是项目内容变更。
+     */
+    setProjectIde: ({ id, ideId }) => {
+      const p = findProject(id);
+      const want = String(ideId || '');
+      const data = ide.scan({ native: { readShortcut: native.readShortcut } });
+      if (!data.ides.some((i) => i.id === want)) {
+        fail('未找到 IDE：' + (want || '(空)') + '，请重新扫描', 'ide_not_found', 404);
+      }
+      p.ideId = want;
+      store.save();
+      return { ok: true, ideId: want };
     },
 
     /**

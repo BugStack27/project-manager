@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { PROJECT_STACK_LABELS } from './constants.js';
 import { avatarColor, avatarInk, initials } from './format.js';
-import { loadIdes, rememberIde } from './ides.js';
+import { loadIdes, preferredIde, rememberOpenedIde, rememberProjectIde } from './ides.js';
 import {
   AndroidIcon,
   ElectronIcon,
@@ -261,11 +261,17 @@ export function PageBar({ title, icon, titleSlot, onBack, children }) {
   );
 }
 
+/** 已安装列表里挑一个可用 id：给定项没有就退回第一个 */
+function pickInstalled(list, ideId) {
+  return list.some((i) => i.id === ideId) ? ideId : list[0] ? list[0].id : null;
+}
+
 /**
  * 「在 IDE 中打开」拆分组按钮。
- * 主键直接用上次用过的 IDE，右侧箭头切换；数据与报错都在组件内自理，
+ * 主键直接用本项目记住的 IDE，右侧箭头切换；数据与报错都在组件内自理，
  * 免得把 notify 从 App 一路透传到需求 / 启动台 / 修改记录三个页面。
  * 渲染位置在中区顶部状态栏的右侧操作槽。
+ * 选择按项目记：切项目后主键回到该项目自己的 IDE，没选过的才沿用全局上次使用。
  */
 export function IdeButton({ project }) {
   const [ides, setIdes] = useState([]);
@@ -277,12 +283,14 @@ export function IdeButton({ project }) {
 
   useEffect(() => {
     let alive = true;
+    setOpen(false);
+    setError(null);
     loadIdes()
       .then((res) => {
         if (!alive) return;
         const list = res.ides || [];
         setIdes(list);
-        setPicked(list.some((i) => i.id === res.lastIdeId) ? res.lastIdeId : list[0] ? list[0].id : null);
+        setPicked(pickInstalled(list, preferredIde(project && project.id, project && project.ideId, res.lastIdeId)));
       })
       .catch((e) => {
         if (alive) setError(e.message);
@@ -290,7 +298,7 @@ export function IdeButton({ project }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [project && project.id]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -326,7 +334,7 @@ export function IdeButton({ project }) {
     try {
       await api.openInIde(project.id, ideId);
       setPicked(ideId);
-      rememberIde(ideId);
+      rememberOpenedIde(project.id, ideId);
       setOpen(false);
     } catch (e) {
       setError(e.message);
@@ -335,12 +343,18 @@ export function IdeButton({ project }) {
     }
   }
 
-  /** 菜单里选 IDE 只切换选中项，不直接打开：打开必须点主键，避免误点就把窗口拉起来 */
-  function choose(ideId) {
+  /** 菜单里选 IDE 只切换选中项，不直接打开：打开必须点主键，避免误点就把窗口拉起来。
+   *  选中即落库到项目，下次切回这个项目还是它。 */
+  async function choose(ideId) {
     setPicked(ideId);
-    rememberIde(ideId);
     setOpen(false);
     setError(null);
+    try {
+      await api.setProjectIde(project.id, ideId);
+      rememberProjectIde(project.id, ideId);
+    } catch (e) {
+      setError(e.message);
+    }
   }
 
   async function rescan() {
@@ -350,7 +364,12 @@ export function IdeButton({ project }) {
       const res = await loadIdes(true);
       const list = res.ides || [];
       setIdes(list);
-      setPicked((cur) => (list.some((i) => i.id === cur) ? cur : list[0] ? list[0].id : null));
+      setPicked((cur) => {
+        const want = list.some((i) => i.id === cur)
+          ? cur
+          : preferredIde(project && project.id, project && project.ideId, res.lastIdeId);
+        return pickInstalled(list, want);
+      });
       if (!list.length) setError('未检测到已安装的 IDE');
     } catch (e) {
       setError(e.message);

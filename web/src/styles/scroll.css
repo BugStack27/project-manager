@@ -10,3 +10,10 @@
   .scrolling::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.5);background-clip:content-box;border:3.5px solid transparent}
   /* 日志区滑块更淡（沿用原观感）；.logs.scrolling 特异性高于通用 hover，故 logs 悬停也保持这一档 */
   .logs.scrolling::-webkit-scrollbar-thumb{background:rgba(120,120,128,.26);background-clip:content-box;border:3.5px solid transparent}
+  /* 例外：文件预览悬停窗（.fhover）的代码区与 markdown 区常驻显示滑块。
+     这两块内容随时可能超出高度，滑块隐去后就看不出还能不能滚；只作用于 .fhover 内部，
+     特异性高于 .scrolling，不影响其他滚动区。 */
+  .fhover .fhover-code::-webkit-scrollbar-thumb,
+  .fhover .fhover-md::-webkit-scrollbar-thumb{background:rgba(120,120,128,.34);background-clip:content-box}
+  .fhover .fhover-code::-webkit-scrollbar-thumb:hover,
+  .fhover .fhover-md::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.5);background-clip:content-box}

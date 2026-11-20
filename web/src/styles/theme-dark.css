@@ -147,3 +147,8 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:transparent;backgro
 html[data-theme="dark"] .scrolling::-webkit-scrollbar-thumb{background:rgba(120,120,128,.44);background-clip:content-box}
 html[data-theme="dark"] .scrolling::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.60);background-clip:content-box}
 html[data-theme="dark"] .logs.scrolling::-webkit-scrollbar-thumb{background:rgba(120,120,128,.34);background-clip:content-box}
+/* 文件预览悬停窗例外：滑块常驻（与 scroll.css 同一条规则，暗色只提一档色值） */
+html[data-theme="dark"] .fhover .fhover-code::-webkit-scrollbar-thumb,
+html[data-theme="dark"] .fhover .fhover-md::-webkit-scrollbar-thumb{background:rgba(120,120,128,.44);background-clip:content-box}
+html[data-theme="dark"] .fhover .fhover-code::-webkit-scrollbar-thumb:hover,
+html[data-theme="dark"] .fhover .fhover-md::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.60);background-clip:content-box}

@@ -146,7 +146,11 @@ html[data-theme="dark"] .commit-type-menu .opt.t-revert{--tc:#FF6482;--tb:rgba(2
 html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:transparent;background-clip:content-box}
 html[data-theme="dark"] .scrolling::-webkit-scrollbar-thumb{background:rgba(120,120,128,.44);background-clip:content-box}
 html[data-theme="dark"] .scrolling::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.60);background-clip:content-box}
-html[data-theme="dark"] .logs.scrolling::-webkit-scrollbar-thumb{background:rgba(120,120,128,.34);background-clip:content-box}
+/* 命令日志区 / diff 区滑块常驻（与 scroll.css 同一条规则，暗色只提一档色值）。
+   这里必须带 html[data-theme] 前缀：上面那条全局 ::-webkit-scrollbar-thumb 特异性更高，否则会被压回透明。 */
+html[data-theme="dark"] .logs::-webkit-scrollbar-thumb{background:rgba(120,120,128,.34);background-clip:content-box}
+html[data-theme="dark"] .diff-scroll::-webkit-scrollbar-thumb{background:rgba(120,120,128,.44);background-clip:content-box}
+html[data-theme="dark"] .diff-scroll::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.60);background-clip:content-box}
 /* 文件预览悬停窗例外：滑块常驻（与 scroll.css 同一条规则，暗色只提一档色值） */
 html[data-theme="dark"] .fhover .fhover-code::-webkit-scrollbar-thumb,
 html[data-theme="dark"] .fhover .fhover-md::-webkit-scrollbar-thumb{background:rgba(120,120,128,.44);background-clip:content-box}

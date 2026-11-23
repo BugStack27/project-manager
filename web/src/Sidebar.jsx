@@ -46,6 +46,7 @@ export default function Sidebar({
   onReveal,
   onOpenTerminal,
   onOpenView,
+  onNotify,
   width,
   collapsed,
   onToggle,
@@ -588,6 +589,7 @@ export default function Sidebar({
                 onOpenTerminal={onOpenTerminal}
                 onReveal={onReveal}
                 onArchive={onArchiveProject}
+                onNotify={onNotify}
               />
             </div>
           );

@@ -98,7 +98,7 @@ function CmdButton({ items, label, tone, busy, onPick }) {
   );
 }
 
-function ProjectRow({ p, projects, git, onOpen, onStart, onStop, onEditProject, onArchiveProject, onReveal, onOpenTerminal }) {
+function ProjectRow({ p, projects, git, onOpen, onStart, onStop, onEditProject, onArchiveProject, onReveal, onOpenTerminal, onNotify }) {
   const cmds = p.commands || [];
   /** 在跑的（含分离仍存活）：既能展示也都能停 —— 分离的按库里 hostPid 结束进程树 */
   const running = cmds.filter(isCommandActive);
@@ -275,6 +275,7 @@ function ProjectRow({ p, projects, git, onOpen, onStart, onStop, onEditProject, 
           onOpenTerminal={onOpenTerminal}
           onReveal={onReveal}
           onArchive={onArchiveProject}
+          onNotify={onNotify}
         />
       </div>
     </div>
@@ -295,6 +296,7 @@ export default function OverviewPage({
   onArchiveProject,
   onReveal,
   onOpenTerminal,
+  onNotify,
   onCreateProject
 }) {
   const [idleOpen, setIdleOpen] = useState(false);
@@ -371,7 +373,8 @@ export default function OverviewPage({
     onEditProject,
     onArchiveProject,
     onReveal,
-    onOpenTerminal
+    onOpenTerminal,
+    onNotify
   };
 
   return (

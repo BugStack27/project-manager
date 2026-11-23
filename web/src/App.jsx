@@ -657,6 +657,7 @@ export default function App() {
         onReveal={revealProject}
         onOpenTerminal={openTerminal}
         onOpenView={gotoProject}
+        onNotify={notify}
         width={leftW}
         collapsed={layout.leftCollapsed}
         onToggle={() => setLayout((l) => ({ ...l, leftCollapsed: !l.leftCollapsed }))}
@@ -723,6 +724,7 @@ export default function App() {
             onArchiveProject={archiveProjectFromMenu}
             onReveal={revealProject}
             onOpenTerminal={openTerminal}
+            onNotify={notify}
             onCreateProject={openCreateProject}
           />
         ) : page === 'statistics' ? (

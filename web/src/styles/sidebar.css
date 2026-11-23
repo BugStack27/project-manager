@@ -197,6 +197,12 @@
   .pmenu-item.pmenu-term .ico{color:var(--label)}
   .pmenu-item.pmenu-folder .ico{color:var(--folder)}
   .pmenu-item.pmenu-folder:hover .ico{color:var(--folder-hover)}
+  /* 复制路径：一级只放一个入口，绝对 / 相对收进右侧二级菜单 */
+  .pmenu-subwrap{display:flex;flex-direction:column;flex:none}
+  .pmenu-item.pmenu-parent .pmenu-chev{margin-left:auto;flex:none;display:grid;place-items:center;color:var(--label-3)}
+  .pmenu-item.pmenu-parent .pmenu-chev svg{width:12px;height:12px}
+  .pmenu-item.pmenu-parent[aria-expanded="true"]{background:rgb(var(--ink-rgb) / .08)}
+  .pmenu-flyout{z-index:81}
   /* 归档项：与打开类操作分隔；确认态整行标红，避免误点 */
   .pmenu-sep{height:1px;margin:3px 4px;flex:none;background:var(--sep)}
   .pmenu-item.pmenu-archive.armed{background:var(--red-tint);color:var(--red-text);font-weight:600}

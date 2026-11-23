@@ -51,9 +51,9 @@ status: accepted
 | 决策点 | 结论 | 理由 |
 |---|---|---|
 | 图标优先级 | 有专属图标就显示；没有就回退首字母 + 身份色头像，不再用类型图标顶替主图标 | 三个同类项目（如三个 Obsidian 插件）用同一个标志时，侧栏收起后完全分不出来；首字母保留项目区分度 |
-| 识别口径 | 只看项目根目录和一级模块：`AndroidManifest.xml` → Android；`manifest.json` 的 `minAppVersion` → Obsidian 插件 / 主题；`.obsidian` 目录 → Obsidian 库；IntelliJ Platform Gradle 插件或 `META-INF/plugin.xml` → IntelliJ 插件；`package.json` 依赖 electron → Electron；Maven / Gradle 使用 JavaFX → JavaFX；使用 Spring Boot → Spring Boot。技术栈另从 `pom.xml` / `build.gradle(.kts)` / `src/main/java|kotlin` / `package.json` 识别 Maven、Gradle、Kotlin、Java、npm | 与启动命令推荐共用「只认根目录特征」的原则，零配置、不误判普通 Node 项目 |
-| 识别成本 | `projectView` 返回 `kind` + `stacks`；按路径 + 构建文件 / 源码目录 mtime/size 缓存，列表轮询只做少量 `stat` | 侧栏 5 秒轮询，不能每次都读构建文件 |
-| 技术栈图标 | 项目名后紧跟一个 12px 技术栈图标，优先级：平台 / 框架 > Kotlin > 构建工具（Gradle / Maven）> Java > npm；完整技术栈列表写在图标 tooltip 与侧栏行提示里 | 图标在名称的扫读路径上，不遮挡首字母；收起侧栏后随名称隐藏，避免只剩昵称时仍挤一堆类型标志 |
+| 识别口径 | 只看项目根目录和一级模块：`AndroidManifest.xml` → Android；`manifest.json` 的 `minAppVersion` → Obsidian 插件 / 主题；`.obsidian` 目录 → Obsidian 库；IntelliJ Platform Gradle 插件或 `META-INF/plugin.xml` → IntelliJ 插件；`package.json` 依赖 electron → Electron；Maven / Gradle 使用 JavaFX → JavaFX；使用 Spring Boot → Spring Boot。技术栈另从 `pom.xml` / `build.gradle(.kts)` / `src/main/java\|kotlin` / `package.json` / `Cargo.toml` / `go.mod` / Python 工程文件 / compose 文件识别 Maven、Gradle、Kotlin、Java、npm、Rust、Go、Python、Docker；根目录一个技术栈都认不出时，兜底扫一级子目录的构建标记（最多一层，跳过 `node_modules` 等依赖 / 产物目录） | 与启动命令推荐共用「只认根目录特征」的原则，零配置、不误判普通 Node 项目；多模块仓库的构建文件常在一级模块，但继续往下扫会过度分析 |
+| 识别成本 | `projectView` 返回 `kind` + `stacks`；按路径 + 构建文件 / 源码目录 mtime/size 缓存，列表轮询只做少量 `stat`；只有兜底扫过子目录的项目才多 stat 一级目录 | 侧栏 5 秒轮询，不能每次都读构建文件 |
+| 技术栈图标 | 项目名后紧跟一个 12px 技术栈图标，优先级：平台 / 框架 > Kotlin / Java / Go / Rust / Python > 构建工具（Gradle / Maven）> npm > Docker；完整技术栈列表写在图标 tooltip 与侧栏行提示里 | 图标在名称的扫读路径上，不遮挡首字母；收起侧栏后随名称隐藏，避免只剩昵称时仍挤一堆类型标志 |
 | 收起态 | 只显示主图标（专属图标或首字母），技术栈图标隐藏；悬停行可看完整技术栈 | 收起侧的识别目标是「区分项目」，不承担架构说明；架构信息回到展开态与 tooltip |
 | 真实图标 | Android 按 `android:icon` 找 launcher 资源；IntelliJ 取 `META-INF/pluginIcon.svg`；Electron 取 electron-builder 配置 / 常见图标目录 / 已打包 exe；JavaFX 扫 `resources` 下的 `icon.*`；Spring Boot 取 `static/favicon.*`；`projectIcon` 按需取，不进列表轮询 | 图标 dataURL 体积大，不能每 5 秒随项目列表下发 |
 | 图标主题 | 纯黑矢量图标在深色界面反色，纯白图标在浅色界面反色；彩色图标保持原样 | Android 矢量图标常是单色，直接放深色底上会看不见 |
@@ -80,7 +80,7 @@ status: accepted
 | POI / Excel | `pom.xml` 依赖 `poi-ooxml` | Excel 风格图标 |
 | 多模块 / 多端仓库 | 根目录无构建标记，构建文件在一级模块 | 扫描一级模块；命中多个类型时显示「多端 / 多模块」图标或固定取桌面客户端图标 |
 
-Kotlin、Java、Maven、Gradle、npm 已作为项目名后的技术栈图标支持，不再属于第二批；剩下的主要是需要专属主图标或更深层扫描的项目类型。多模块仓库需先确定展示策略：同时包含 Tauri、Electron 和 Spring Boot 的仓库显示单个客户端图标会误导，统一用「多端」图标更稳。
+Kotlin、Java、Maven、Gradle、npm 已作为项目名后的技术栈图标支持，不再属于第二批；剩下的主要是需要专属主图标或更深层扫描的项目类型。多模块仓库的一级子目录技术栈兜底已在 2026-11-23 实现（见 `doc/subfolder-tech-stack.md`），主图标仍不取子目录类型；多端主图标的展示策略仍未定：同时包含 Tauri、Electron 和 Spring Boot 的仓库显示单个客户端图标会误导，统一用「多端」图标更稳。
 
 ## 3. 交付物
 
@@ -88,7 +88,7 @@ Kotlin、Java、Maven、Gradle、npm 已作为项目名后的技术栈图标支�
 |---|---|
 | `electron/services/{ide,icon,terminal}.js` | `scan` / `open` / `reset` 多来源发现与启动；`get` / `extract` 解析 PE 图标；`open(dir)` / `candidates` 按平台尝试并回退终端 |
 | `electron/services/domain/{system,validators,projects}.js` | `ides` / `openInIde` / `setProjectIde` / `openInTerminal` 与 `assertProjectDir`；项目 IDE 偏好写在 `project.ideId`；`deleteProject` 仅归档项目、拒绝运行中、清理需求 / 命令 / 日志 |
-| `electron/services/project-detect.js`、`electron/services/domain/views.js` | `detectProfile(path)` 按根目录特征识别 Android / Obsidian / IntelliJ / Electron / JavaFX / Spring Boot 与技术栈并缓存；`projectView` 下发 `kind` + `stacks` |
+| `electron/services/project-detect.js`、`electron/services/domain/views.js` | `detectProfile(path)` 按根目录特征识别 Android / Obsidian / IntelliJ / Electron / JavaFX / Spring Boot 与技术栈并缓存，根目录无技术栈时兜底扫一级子目录；`projectView` 下发 `kind` + `stacks` |
 | `electron/services/android-icon.js`、`electron/services/project-icon.js`、`electron/services/domain/projects.js` | Android launcher 资源解析；IntelliJ 插件图标、Electron 配置 / exe 图标、JavaFX 资源图标、Spring favicon；`projectIcon` 按需下发 |
 | `web/src/api.js`、`web/src/ui.jsx` | `projectIcon(id)` 通道；真实图标按项目缓存、懒加载，失败只请求一次 |
 | `web/src/ui.jsx`、`web/src/icons.jsx`、`web/src/constants.js` | `ProjectIcon` 选专属图标 / 首字母；`ProjectStackIcon` 在项目名后显示技术栈；Android / Obsidian / Spring / Electron / IntelliJ / JavaFX / Kotlin / Java / Gradle / Maven / npm 图标；`PROJECT_STACK_LABELS` 文案 |
@@ -118,10 +118,10 @@ Kotlin、Java、Maven、Gradle、npm 已作为项目名后的技术栈图标支�
 - macOS / Linux 的 IDE 与终端分支、PowerShell / cmd 回退未在真机复测；IDE 侧与状态栏按钮交互待运行期验收。
 - 彻底删除不可撤销且仅归档项目可用，需求与运行日志随登记一并删除；恢复不拦截同名，无归档时间与批量操作。
 - 标签功能已整体移除；旧数据中的 `tags` 字段保留但不再读取，也不提供迁移脚本。
-- 类型识别目前覆盖 Android、Obsidian、IntelliJ 插件、Electron、JavaFX、Spring Boot；技术栈额外覆盖 Maven、Gradle、Kotlin、Java、npm。新增类型需在 `project-detect.detectProfile`、`project-icon.js`、前端 `ProjectIcon` 各加一处映射。不支持手动指定项目图标或手动指定技术栈。
+- 类型识别目前覆盖 Android、Obsidian、IntelliJ 插件、Electron、JavaFX、Spring Boot；技术栈额外覆盖 Maven、Gradle、Kotlin、Java、npm、Rust、Go、Python、Docker。新增类型需在 `project-detect.detectProfile`、`project-icon.js`、前端 `ProjectIcon` 各加一处映射。不支持手动指定项目图标或手动指定技术栈。
 - Android 图标只认根目录 / 一级模块，模块目录改名后需重启；资源支持 PNG / WebP / JPG / VectorDrawable，自适应图标只取 foreground、不合成背景；图标文件变化在重启后生效。
 - Electron / IntelliJ / JavaFX 找不到专属图标、Spring Boot 没有 favicon 时，主图标回退首字母；项目名后仍显示对应技术栈图标。
-- 名称后只显示一个主类型，完整列表在 tooltip；侧栏收起后技术栈图标随名称隐藏。根目录没有构建标记的多模块仓库（标记在一级模块）stacks 为空，留到第二批处理。
+- 名称后只显示一个主类型，完整列表在 tooltip；侧栏收起后技术栈图标随名称隐藏。根目录没有构建标记的多模块仓库会兜底扫一级子目录，但只看文件 / 源码目录是否存在，最多 30 个目录；Electron / Spring / Obsidian 这类要读内容的类型仍只认根目录。
 - 第二批（Tauri、React / Vue、POI、多模块扫描）尚未实现，规划见 §2.5。
 - 列表只通过 `kind` 触发一次 `projectIcon` 请求；同一项目切换路径会重新取图，取图失败的请求不自动重试。
 

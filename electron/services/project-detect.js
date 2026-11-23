@@ -2,8 +2,9 @@
 
 /**
  * 项目类型识别与启动命令推荐。
- * 只看项目根目录里的特征文件（package.json / pom.xml / build.gradle …），
- * 不扫描子目录、不执行任何命令，识别不出来就返回空结果，不影响手动添加。
+ * 类型与启动命令只认项目根目录的特征文件（package.json / pom.xml / build.gradle …）；
+ * 技术栈在根目录一个都认不出时，兜底看一级子目录（构建文件在一级模块的多模块仓库）。
+ * 不读子目录里的文件内容、不执行任何命令，识别不出来就返回空结果，不影响手动添加。
  */
 
 const fs = require('fs');
@@ -68,6 +69,92 @@ function firstWithExt(dir, ext) {
   } catch (_) {
     return null;
   }
+}
+
+/** 兜底扫子目录时跳过：依赖、产物、虚拟环境目录，扫了只会把别人的技术栈算进来 */
+const SUBDIR_SKIP = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  'out',
+  'target',
+  'bin',
+  'obj',
+  'vendor',
+  'coverage',
+  'venv',
+  '__pycache__'
+]);
+
+/** 兜底扫描最多看这么多一级子目录：大仓里每个包都数一遍既慢也没有展示价值 */
+const MAX_SUBDIRS = 30;
+
+const COMPOSE_FILES = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'];
+
+function hasPython(dir) {
+  return (
+    isFile(dir, 'manage.py') ||
+    isFile(dir, 'pyproject.toml') ||
+    isFile(dir, 'requirements.txt') ||
+    (isFile(dir, 'main.py') && isFile(dir, 'app.py'))
+  );
+}
+
+/** 构建 / 包管理 / 运行环境类技术栈：看特征文件是否存在，不读内容 */
+function buildStackIds(dir) {
+  const ids = [];
+  if (isFile(dir, 'package.json')) ids.push('npm');
+  if (isFile(dir, 'pom.xml')) ids.push('maven');
+  if (isFile(dir, 'build.gradle') || isFile(dir, 'build.gradle.kts')) ids.push('gradle');
+  if (isFile(dir, 'Cargo.toml')) ids.push('rust');
+  if (isFile(dir, 'go.mod')) ids.push('go');
+  if (hasPython(dir)) ids.push('python');
+  if (COMPOSE_FILES.some((n) => isFile(dir, n))) ids.push('docker');
+  return ids;
+}
+
+/** 源码目录能看出的语言：与根目录同一套结构，子目录按一级模块算 */
+function languageIdsIn(dir) {
+  const ids = [];
+  if (isDir(dir, 'src/main/java') || isDir(dir, 'app/src/main/java')) ids.push('java');
+  if (isDir(dir, 'src/main/kotlin') || isDir(dir, 'app/src/main/kotlin')) ids.push('kotlin');
+  return ids;
+}
+
+/** 一级子目录候选：跳过隐藏目录与依赖 / 产物目录，按名字排序取前 MAX_SUBDIRS 个 */
+function candidateSubdirs(dir) {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (_) {
+    return [];
+  }
+  return entries
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.') && !SUBDIR_SKIP.has(e.name))
+    .map((e) => ({ name: e.name, dir: path.join(dir, e.name) }))
+    .sort((a, b) => (a.name < b.name ? -1 : 1))
+    .slice(0, MAX_SUBDIRS);
+}
+
+/** 一级子目录的新增 / 删除 / 改名会改目录 mtime：兜底结果只在这些时候需要重算 */
+function subdirSig(dir) {
+  return (
+    'sub:' +
+    candidateSubdirs(dir)
+      .map((s) => s.name + ':' + fileSig(s.dir))
+      .join('|')
+  );
+}
+
+/** 根目录一个技术栈都认不出时，才往一级子目录找；只看到这一层 */
+function subdirStacks(dir) {
+  const stacks = [];
+  for (const sub of candidateSubdirs(dir)) {
+    for (const id of [...buildStackIds(sub.dir), ...languageIdsIn(sub.dir)]) {
+      if (!stacks.includes(id)) stacks.push(id);
+    }
+  }
+  return stacks;
 }
 
 /** 命令前缀按锁文件判定包管理器，没锁文件按 npm */
@@ -235,7 +322,10 @@ function fileSig(file) {
  *   - package.json 依赖 electron → Electron；任何 package.json → npm；
  *   - Maven / Gradle 使用 JavaFX / Spring Boot / Kotlin；
  *   - src/main/java、src/main/kotlin → Java / Kotlin；
- *   - pom.xml / build.gradle(.kts) → Maven / Gradle。
+ *   - pom.xml / build.gradle(.kts) → Maven / Gradle；
+ *   - Cargo.toml / go.mod / Python 工程文件 / compose 文件 → Rust / Go / Python / Docker。
+ * 根目录一个技术栈都认不出时，兜底扫一级子目录的构建标记（构建文件在一级模块的多模块仓库）；
+ * 子目录只看文件与源码目录是否存在，不读内容，因此 electron / spring / obsidian 这类仍只认根目录。
  * 普通 Node 项目的 package.json 不会带 minAppVersion，因此不会误判。
  */
 function detectProfile(root) {
@@ -259,6 +349,17 @@ function detectProfile(root) {
     'pom.xml',
     'build.gradle',
     'build.gradle.kts',
+    'Cargo.toml',
+    'go.mod',
+    'manage.py',
+    'pyproject.toml',
+    'requirements.txt',
+    'main.py',
+    'app.py',
+    'docker-compose.yml',
+    'docker-compose.yaml',
+    'compose.yml',
+    'compose.yaml',
     'src/main/resources/META-INF/plugin.xml',
     'src/main/java',
     'src/main/kotlin',
@@ -269,7 +370,10 @@ function detectProfile(root) {
     .join('|');
   const sig = fileSig(manifestPath) + '|' + fileSig(vaultPath) + '|' + androidSig + '|' + buildSig;
   const cached = PROFILE_CACHE.get(dir);
-  if (cached && cached.sig === sig) return cached.profile;
+  // 兜底扫过子目录的项目（subSig 非空）才在轮询里多看一次目录 mtime，其余照旧只 stat 根目录
+  if (cached && cached.sig === sig && (cached.subSig === null || cached.subSig === subdirSig(dir))) {
+    return cached.profile;
+  }
 
   const manifest = readJson(dir, 'manifest.json');
   const pkg = readJson(dir, 'package.json');
@@ -278,8 +382,6 @@ function detectProfile(root) {
   const deps = (pkg && { ...pkg.dependencies, ...pkg.devDependencies }) || {};
   const pluginXml = isFile(dir, 'src/main/resources/META-INF/plugin.xml');
   const android = findAndroidModule(dir);
-  const pomFile = isFile(dir, 'pom.xml');
-  const gradleFile = isFile(dir, 'build.gradle') || isFile(dir, 'build.gradle.kts');
 
   let obsidianKind = null;
   if (manifest && typeof manifest.minAppVersion === 'string') {
@@ -317,12 +419,17 @@ function detectProfile(root) {
   if (spring) add('spring-boot');
   if (kotlin) add('kotlin');
   if (java) add('java');
-  if (gradleFile) add('gradle');
-  if (pomFile) add('maven');
-  if (pkg) add('npm');
+  buildStackIds(dir).forEach(add);
+
+  // 根目录一个技术栈都没有，才看一级子目录；有结果时 subSig 记录候选目录状态，供下次失效判定
+  let subSig = null;
+  if (!stacks.length) {
+    subdirStacks(dir).forEach(add);
+    subSig = subdirSig(dir);
+  }
 
   const profile = { kind, stacks };
-  PROFILE_CACHE.set(dir, { sig, profile });
+  PROFILE_CACHE.set(dir, { sig, subSig, profile });
   return profile;
 }
 

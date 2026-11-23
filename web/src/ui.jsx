@@ -5,7 +5,9 @@ import { avatarColor, avatarInk, initials } from './format.js';
 import { loadIdes, preferredIde, rememberOpenedIde, rememberProjectIde } from './ides.js';
 import {
   AndroidIcon,
+  DockerIcon,
   ElectronIcon,
+  GoIcon,
   GradleIcon,
   IC,
   IntellijPluginIcon,
@@ -15,6 +17,8 @@ import {
   MavenIcon,
   NpmIcon,
   ObsidianIcon,
+  PythonIcon,
+  RustIcon,
   SpringIcon
 } from './icons.jsx';
 import { highlightRuns } from './lib/pinyin.js';
@@ -133,12 +137,16 @@ const STACK_ICONS = {
   'spring-boot': SpringIcon,
   kotlin: KotlinIcon,
   java: JavaIcon,
+  go: GoIcon,
+  rust: RustIcon,
+  python: PythonIcon,
   gradle: GradleIcon,
   maven: MavenIcon,
-  npm: NpmIcon
+  npm: NpmIcon,
+  docker: DockerIcon
 };
 
-/** 主类型优先级：平台 / 框架 > 语言 > 构建工具 > 包管理器 */
+/** 主类型优先级：平台 / 框架 > 语言 > 构建工具 > 包管理器 > 运行环境 */
 const STACK_ORDER = [
   'android',
   'obsidian-plugin',
@@ -152,7 +160,11 @@ const STACK_ORDER = [
   'gradle',
   'maven',
   'java',
-  'npm'
+  'go',
+  'rust',
+  'python',
+  'npm',
+  'docker'
 ];
 
 function primaryStack(stacks) {

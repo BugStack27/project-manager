@@ -98,6 +98,26 @@ export function NpmIcon({ size = 16 }) {
   return brand('npm', size);
 }
 
+/** Go */
+export function GoIcon({ size = 16 }) {
+  return brand('go', size);
+}
+
+/** Rust */
+export function RustIcon({ size = 16 }) {
+  return brand('rust', size);
+}
+
+/** Python */
+export function PythonIcon({ size = 16 }) {
+  return brand('python', size);
+}
+
+/** Docker */
+export function DockerIcon({ size = 16 }) {
+  return brand('docker', size);
+}
+
 /** 界面单色图标：文件名即 IC 的 key，例如 ui/chevDown.svg → IC.chevDown */
 export const IC = Object.fromEntries(
   Object.entries(UI).map(([name, source]) => [name, <SvgIcon key={name} source={source} />])

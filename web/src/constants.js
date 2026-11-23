@@ -80,9 +80,13 @@ export const PROJECT_STACK_LABELS = {
   'spring-boot': 'Spring Boot',
   kotlin: 'Kotlin',
   java: 'Java',
+  go: 'Go',
+  rust: 'Rust',
+  python: 'Python',
   gradle: 'Gradle',
   maven: 'Maven',
-  npm: 'npm'
+  npm: 'npm',
+  docker: 'Docker'
 };
 
 /** git 文件状态码（status --porcelain / name-status）→ 徽标文案与配色 */

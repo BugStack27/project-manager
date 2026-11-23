@@ -138,7 +138,7 @@ function DiffImages({ image, path, before, after }) {
   ].filter((s) => s.src);
   if (!sides.length) {
     const mb = Math.round((image.maxBytes || 0) / 1024 / 1024);
-    return <div className="diff-empty">图片读取失败{mb ? '或超过 ' + mb + 'MB' : ''}，不显示内容</div>;
+    return <div className="diff-empty">图片过大{mb ? '（超过 ' + mb + 'MB）' : ''}或读取失败，未显示预览</div>;
   }
   // 只有一侧时点明是新增还是删除，避免把「另一侧取不到」误读成对比失败
   const only = image.old ? '（已删除）' : '（新增）';
@@ -172,7 +172,7 @@ function DiffImages({ image, path, before, after }) {
   );
 }
 
-/** 差异正文：已跟踪 / 提交 → 统一 diff 着色；未跟踪 → 文件正文；图片 → 直接画图 */
+/** 差异正文：已跟踪 / 提交 → 统一 diff 着色；未跟踪 → 文件正文；图片 → 直接画图；svg 图 + 源码 diff */
 function DiffBlock({ state, path }) {
   if (!state || state.loading) {
     return (
@@ -185,13 +185,27 @@ function DiffBlock({ state, path }) {
   if (state.error) return <div className="diff-empty" style={{ color: 'var(--red-text)' }}>{state.error}</div>;
   const d = state.data || {};
   if (d.image) {
+    const untracked = !!d.untracked;
+    // svg 这类文本图片同时给了 diff / 正文，叠在预览图下面；纯二进制图没有这段
+    const text = untracked ? d.content || '' : d.diff || '';
     return (
-      <DiffImages
-        image={d.image}
-        path={path}
-        before={d.untracked ? '' : d.sha ? '提交前' : 'HEAD'}
-        after={d.untracked ? '未跟踪文件' : d.sha ? '提交后' : '工作区'}
-      />
+      <div className="diff-mixed">
+        <DiffImages
+          image={d.image}
+          path={path}
+          before={untracked ? '' : d.sha ? '提交前' : 'HEAD'}
+          after={untracked ? '未跟踪文件' : d.sha ? '提交后' : '工作区'}
+        />
+        {text ? (
+          <>
+            <div className="diff-head">
+              {untracked ? '未跟踪文件内容' : d.sha ? 'diff · ' + d.sha.slice(0, 7) : 'diff · HEAD → 工作区'}
+              {d.truncated ? <span className="warn"> · 已截断</span> : null}
+            </div>
+            <DiffText text={text} untracked={untracked} path={path} />
+          </>
+        ) : null}
+      </div>
     );
   }
   if (d.binary) return <div className="diff-empty">二进制文件，不显示内容</div>;

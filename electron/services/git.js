@@ -822,7 +822,7 @@ function resolveInside(cwd, relPath) {
   return abs === root || abs.startsWith(root + path.sep) ? abs : null;
 }
 
-/** 能按图片预览的扩展名 → MIME；svg 本身是文本，仍走 diff 着色，不在此列 */
+/** 能按图片预览的扩展名 → MIME；svg 是文本格式，额外保留源码 diff（见 fileDiff / commitFileDiff） */
 const IMAGE_MIME = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -831,7 +831,8 @@ const IMAGE_MIME = {
   '.webp': 'image/webp',
   '.bmp': 'image/bmp',
   '.ico': 'image/x-icon',
-  '.avif': 'image/avif'
+  '.avif': 'image/avif',
+  '.svg': 'image/svg+xml'
 };
 
 /** 单张图片上限：再大就别把 base64 塞进 IPC，界面按「图片过大」提示 */
@@ -839,6 +840,11 @@ const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 
 function imageMime(relPath) {
   return IMAGE_MIME[path.extname(String(relPath || '')).toLowerCase()] || null;
+}
+
+/** 文本型图片（目前只有 svg）：既给预览图，也给源码 diff —— 藏掉 diff 等于丢功能 */
+function isTextImage(relPath) {
+  return path.extname(String(relPath || '')).toLowerCase() === '.svg';
 }
 
 /** 图片字节 → data URL；空 / 取不到 / 超限返回 null */
@@ -918,21 +924,29 @@ async function fileDiff(cwd, relPath, untracked) {
   const mime = imageMime(p);
   if (untracked) {
     const res = readUntracked(cwd, p);
-    if (mime && res.binary) res.image = imagePayload(mime, null, readLocalImage(cwd, p));
+    if (mime && !res.directory) res.image = imagePayload(mime, null, readLocalImage(cwd, p));
     return res;
   }
 
   if (mime) {
     const oldBuf = await readGitBlob(cwd, 'HEAD:./' + p);
     const newBuf = readLocalImage(cwd, p);
-    return {
+    const out = {
       path: p,
       untracked: false,
-      binary: true,
+      binary: !isTextImage(p),
       image: imagePayload(mime, oldBuf, newBuf),
       diff: '',
       truncated: false
     };
+    if (!out.binary) {
+      const r = await runGit(cwd, ['diff', '--no-color', '--relative', 'HEAD', '--', p]);
+      if (r.unavailable) fail('未检测到 git 可执行程序', 'git_unavailable', 501);
+      const t = trim(r.stdout);
+      out.diff = t.text;
+      out.truncated = t.truncated || !!r.overflow;
+    }
+    return out;
   }
 
   const r = await runGit(cwd, ['diff', '--no-color', '--relative', 'HEAD', '--', p]);
@@ -1016,14 +1030,23 @@ async function commitFileDiff(cwd, sha, relPath) {
       readGitBlob(cwd, s + '^:./' + p),
       readGitBlob(cwd, s + ':./' + p)
     ]);
-    return {
+    const out = {
       sha: s,
       path: p,
-      binary: true,
+      binary: !isTextImage(p),
       image: imagePayload(mime, oldBuf, newBuf),
       diff: '',
       truncated: false
     };
+    if (!out.binary) {
+      const r = await runGit(cwd, ['show', '--no-color', '--format=', '-M', '--first-parent', '--relative', s, '--', p]);
+      if (r.unavailable) fail('未检测到 git 可执行程序', 'git_unavailable', 501);
+      if (r.code !== 0) fail('提交不存在', 'commit_not_found', 404);
+      const t = trim(r.stdout);
+      out.diff = t.text;
+      out.truncated = t.truncated || !!r.overflow;
+    }
+    return out;
   }
 
   const r = await runGit(cwd, ['show', '--no-color', '--format=', '-M', '--first-parent', '--relative', s, '--', p]);

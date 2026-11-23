@@ -138,3 +138,8 @@
   .dimg-box:hover{border-color:var(--edge-strong)}
   .dimg-box:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
   .dimg-box img{display:block;max-width:100%;max-height:min(52vh,460px);object-fit:contain}
+  /* 文本型图片（svg）：预览图在上、源码 diff 在下，共用外层一个滚动容器；
+     内层 .diff-scroll 不再自己滚，否则滚轮会落进嵌套的小框里 */
+  .diff-mixed{flex:1;min-height:0;overflow:auto;background:var(--bg-sunken);display:flex;flex-direction:column}
+  .diff-mixed .diff-scroll{flex:none;min-height:0;max-height:none;overflow:visible;background:transparent}
+  .cfile-diff .diff-mixed{max-height:min(50vh,420px);overflow:auto;background:var(--bg-sunken);border-top:1px solid var(--sep);border-bottom:1px solid var(--sep)}

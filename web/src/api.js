@@ -186,8 +186,11 @@ export const api = {
   gitRemote: (id, fetch, force) => call('gitRemote', { id, fetch: !!fetch, force: !!force }),
   gitPull: (id) => call('gitPull', { id }),
   gitPush: (id) => call('gitPush', { id }),
-  /** 自动暂存项目目录内的全部改动后提交到本地（不推送） */
-  gitCommit: (id, message) => call('gitCommit', { id, message }),
+  /**
+   * 自动暂存项目目录内的全部改动后提交到本地（不推送）；
+   * requirementId 有值时，提交成功后把新提交的 hash 记到那条需求上
+   */
+  gitCommit: (id, message, requirementId) => call('gitCommit', { id, message, requirementId }),
   /** 用系统浏览器打开远程仓库地址（只放行 http/https） */
   openUrl: (url) => call('openUrl', { url }),
   gitDiff: (id, path, untracked) => call('gitDiff', { id, path, untracked: !!untracked }),

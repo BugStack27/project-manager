@@ -289,6 +289,7 @@ export default function RequirementDetail({
   onRelock,
   onOpenAudit,
   onViewChanges,
+  onOpenCommit,
   onClose,
   notify,
 }) {
@@ -349,6 +350,8 @@ export default function RequirementDetail({
   const fileRefs = Array.isArray(requirement.fileRefs) ? requirement.fileRefs : [];
   /** 技能关联：同样由服务端按正文 `{UseSkill:x}` 解析，`exists:false` 表示目录已不在 */
   const skills = Array.isArray(requirement.skills) ? requirement.skills : [];
+  /** 关联提交：带需求上下文的提交成功后由服务端自动写入，按时间倒序 */
+  const commits = Array.isArray(requirement.commits) ? requirement.commits : [];
   const updated =
     requirement.updatedAt && requirement.updatedAt !== requirement.createdAt;
 
@@ -927,6 +930,35 @@ export default function RequirementDetail({
                 </span>
               </div>
             </div>
+          ) : null}
+
+          {commits.length ? (
+            <>
+              <div className="rd-sec">关联提交</div>
+              {/* 提交时自动写入的 hash：从这里直接跳回修改记录里那次提交，看当时的文件清单与 diff */}
+              <div className="rd-commits">
+                {commits.map((c) => (
+                  <div className="rd-commit" key={c.sha || c.at}>
+                    <span className="rd-commit-sha" title={c.sha}>
+                      {c.shortSha || String(c.sha || "").slice(0, 7)}
+                    </span>
+                    <span className="rd-commit-subj" title={c.subject || ""}>
+                      {c.subject || "（没有提交说明）"}
+                    </span>
+                    <span className="meta">{fmtDateTime(c.at)}</span>
+                    <button
+                      type="button"
+                      className="rd-commit-open"
+                      onClick={() => onOpenCommit && onOpenCommit(c.sha)}
+                      disabled={!c.sha}
+                      title="在修改记录里打开这次提交"
+                    >
+                      查看改动
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : null}
 
           {threadRounds.length ? (

@@ -207,7 +207,12 @@ async function commitAndPushApproved(methods, r) {
   if (!(changes.counts && changes.counts.total > 0)) return out;
 
   try {
-    const res = await methods.gitCommit({ id: r.projectId, message: approvalCommitMessage(r) });
+    // 带需求 id：手机端验收的提交同样要回写到需求的关联提交里
+    const res = await methods.gitCommit({
+      id: r.projectId,
+      message: approvalCommitMessage(r),
+      requirementId: r.id
+    });
     out.committed = true;
     out.shortSha = (res && res.shortSha) || '';
   } catch (e) {

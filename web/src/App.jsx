@@ -840,6 +840,7 @@ export default function App() {
         onRelockRequirement={relockRequirement}
         onOpenAudit={(payload) => setModal({ type: 'audit', ...payload })}
         onViewChanges={() => gotoProject(project, 'changes', { openWorking: true })}
+        onOpenCommit={(sha) => gotoProject(project, 'changes', { commitSha: sha })}
         notify={notify}
       />
 

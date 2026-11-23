@@ -41,7 +41,7 @@ function createDomain(deps) {
     createAutoClaim(),
     createCommands(),
     createBackups(native),
-    createChanges(),
+    createChanges(() => methods),
     createStats(),
     createSystem(native),
     createEvents(),

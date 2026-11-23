@@ -62,7 +62,9 @@ export default function CommitModal({ project, requirement, changeCount, onClose
     const head = commitType ? commitType + ': ' + title : title;
     const message = body.trim() ? head + '\n\n' + body.trim() : head;
     try {
-      await onSubmit(message, approve && requirement ? requirement.id : null);
+      // 第三个参数是「这条提交归属的需求」：不管是否勾选自动审核，
+      // 提交成功后 hash 都会记到它身上，之后能在需求详情里回看这次改动
+      await onSubmit(message, approve && requirement ? requirement.id : null, requirement ? requirement.id : null);
     } catch (e2) {
       setErr(e2.message || '提交失败');
       setBusy(false);

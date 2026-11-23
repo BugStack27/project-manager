@@ -68,6 +68,15 @@
   /* 需求 / 文件引用：与项目引用同为可点（跳详情 / 打开文件），沿用蓝色不另起色相；文件名用等宽字体便于辨认 */
   .ref-chip.file-chip{font-family:var(--mono);font-weight:500}
   .rd-file .rd-ref-name{font-family:var(--mono);font-size:11px}
+  /* 关联提交：一行一次提交，短 hash 用等宽体；说明可省略，行尾「查看改动」跳修改记录里的那次提交 */
+  .rd-commits{display:flex;flex-direction:column;gap:6px;padding:2px 4px 0}
+  .rd-commit{display:flex;align-items:baseline;gap:8px;min-width:0;font-size:12px}
+  .rd-commit-sha{flex:none;font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:5px;background:var(--blue-tint);color:var(--blue)}
+  .rd-commit-subj{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--label-2)}
+  .rd-commit .meta{flex:none}
+  .rd-commit-open{flex:none;padding:0;border:0;background:none;font:inherit;font-size:12px;color:var(--blue);cursor:pointer}
+  .rd-commit-open:hover:not(:disabled){text-decoration:underline}
+  .rd-commit-open:disabled{color:var(--label-4);cursor:default}
   .rd-empty{padding:0 4px;font-size:13px;color:var(--label-3)}
   .rd-note{padding:0 4px;font-size:13px;color:var(--label-2);line-height:1.62;white-space:pre-wrap;word-break:break-word}
   .rd-foot{display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px 4px 0;border-top:1px solid var(--sep)}

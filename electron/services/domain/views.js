@@ -101,6 +101,16 @@ function reqView(r) {
         }
       : null,
     /**
+     * 关联提交：只记真正产生过新提交的那些（带需求上下文的提交成功后自动写入），
+     * 按时间倒序、上限 20 条。只给界面展示与跳转用，不参与派发与状态判断。
+     */
+    commits: (Array.isArray(r.commits) ? r.commits : []).map((c) => ({
+      sha: c.sha || '',
+      shortSha: c.shortSha || String(c.sha || '').slice(0, 7),
+      subject: c.subject || '',
+      at: c.at || null
+    })),
+    /**
      * 回传原因：只记最近一次，随 /claim 与需求详情返回。
      * kind 区分打回（rejection）与撤销重开（reopen），老数据没有 kind 一律按打回处理。
      */

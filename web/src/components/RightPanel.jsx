@@ -58,6 +58,7 @@ export default function RightPanel({
   onRelockRequirement,
   onOpenAudit,
   onViewChanges,
+  onOpenCommit,
   notify
 }) {
   return (
@@ -119,6 +120,7 @@ export default function RightPanel({
             onRelock={() => onRelockRequirement(selReq)}
             onOpenAudit={onOpenAudit}
             onViewChanges={onViewChanges}
+            onOpenCommit={onOpenCommit}
             onClose={onClosePanel}
             notify={notify}
           />

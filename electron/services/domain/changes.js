@@ -22,7 +22,11 @@ async function probeRepo(p) {
   return { repo: !!pr.repo, prefix: pr.prefix || '' };
 }
 
-function createChanges() {
+/**
+ * @param {() => object} [getMethods] 运行时取整张能力表：提交成功后要调
+ *   linkRequirementCommit 把 hash 写回需求，避免模块间直接互引（与 mobile 同一模式）
+ */
+function createChanges(getMethods) {
   return {
     /* ── 修改记录（git：只读 + 快进拉取 + 推送当前分支 + 提交本地改动，后三者是仅有的写操作） ── */
 
@@ -159,11 +163,30 @@ function createChanges() {
       return res;
     },
 
-    /** 提交项目目录内全部改动：自动暂存后提交到本地，不推送 */
-    gitCommit: async ({ id, message }) => {
+    /**
+     * 提交项目目录内全部改动：自动暂存后提交到本地，不推送。
+     * 带了 requirementId 且本次确实产生新提交时，顺手把 hash 记到需求上 ——
+     * hash 只有这一刻拿得到，漏掉就只能靠人补；关联失败只记日志，不改写提交结果。
+     */
+    gitCommit: async ({ id, message, requirementId }) => {
       const p = findProject(id);
       if (!(await probeRepo(p)).repo) fail('该项目不是 git 仓库', 'not_repo', 409);
       const res = await git.commitAll(p.path, message);
+      if (requirementId && res && res.sha) {
+        try {
+          const methods = typeof getMethods === 'function' ? getMethods() : null;
+          if (methods && typeof methods.linkRequirementCommit === 'function') {
+            methods.linkRequirementCommit({
+              rid: requirementId,
+              projectId: p.id,
+              sha: res.sha,
+              subject: res.subject
+            });
+          }
+        } catch (e) {
+          process.stderr.write('[changes] 关联需求提交失败：' + ((e && e.message) || e) + '\n');
+        }
+      }
       // 提交后工作区可能变干净：唤醒挂起的 /next，别让项目一直停在 dirty 阻断上
       notifyTaskAvailable();
       return res;

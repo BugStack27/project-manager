@@ -441,12 +441,16 @@ export function useGit({ pid, pidRef, page, projects, notify, setModal, openRigh
     });
   }, [pid, pidRef, gitChanges, setModal]);
 
-  /** 提交改动：成功即关闭弹窗；勾选了自动审核时再验收需求，失败只提示不回滚提交 */
+  /**
+   * 提交改动：成功即关闭弹窗；勾选了自动审核时再验收需求，失败只提示不回滚提交。
+   * linkReqId 是弹窗里带需求上下文的那条需求：不管有没有勾自动审核，
+   * 这次提交产生的 hash 都会记到它身上（勾不勾只决定是否同时改状态）。
+   */
   const submitCommit = useCallback(
-    async (message, approveReqId) => {
+    async (message, approveReqId, linkReqId) => {
       if (!pid) throw new Error('没有选中项目');
       const target = pid;
-      const res = await api.gitCommit(target, message);
+      const res = await api.gitCommit(target, message, linkReqId || null);
       if (pidRef.current !== target) return; // 提交期间切了项目：结果属于旧项目
       setModal(null);
 
@@ -485,7 +489,8 @@ export function useGit({ pid, pidRef, page, projects, notify, setModal, openRigh
 
       let shortSha = '';
       try {
-        const res = await api.gitCommit(target, message);
+        // 带需求 id：这次验收提交的 hash 要回写到需求详情里，方便之后从需求回看改动
+        const res = await api.gitCommit(target, message, requirement.id);
         shortSha = (res && res.shortSha) || '';
       } catch (e) {
         // 没有可提交的改动不是失败：改动可能已在别处提交，接着推送即可

@@ -59,6 +59,9 @@ function claimLocked(r, who, via) {
 /** 往返消息最多保留的条数：超出丢最早的，避免长生命周期需求把 db.json 与 /next 的回传撑大 */
 const THREAD_MAX = 50;
 
+/** 需求上保留的关联提交条数：同一需求可能多轮交付，留最近 20 条足够回看 */
+const COMMITS_MAX = 20;
+
 /**
  * 提问可以带候选（agent 说「这几个方案选一个」），用户在界面上点一下就填进回答框。
  * 只做形状约束：字符串数组、去空去重、最多 5 条、单条 120 字符——候选是给眼睛看的短句，
@@ -608,6 +611,38 @@ function createRequirements() {
         data: { ...snapshot(r), agent: askedBy, source: 'user', note: t, questionId: target.id }
       });
       return { requirement: reqView(r) };
+    },
+
+    /**
+     * 把一次真实产生的提交挂到需求上：只认提交真正落盘后拿到的 sha，
+     * 「没有新改动、只推送了已有提交」时不调用（用户 2026-11-23 确认）。
+     * 不移动 updatedAt —— 提交是需求之外的副作用，不该把需求在列表里的更新时间往前推；
+     * 关联失败由调用方兜底（提交已经成功，不能反过来报成提交失败）。
+     */
+    linkRequirementCommit: ({ rid, projectId, sha, subject }) => {
+      const r = findReq(assertTaskId(rid));
+      const s = String(sha || '').trim();
+      if (!/^[0-9a-f]{7,40}$/i.test(s)) fail('提交 hash 格式不正确：' + (s || '(空)'), 'bad_sha', 400);
+      if (projectId && r.projectId !== projectId) fail('需求不属于该项目，不能关联这次提交', 'bad_project', 400);
+      const commits = Array.isArray(r.commits) ? r.commits : [];
+      if (commits.some((c) => c && c.sha === s)) return { ok: true, duplicate: true, commits };
+
+      const entry = {
+        sha: s,
+        shortSha: s.slice(0, 7),
+        subject: String(subject || '').trim().slice(0, 200),
+        at: nowIso()
+      };
+      r.commits = [entry, ...commits].slice(0, COMMITS_MAX);
+      store.save();
+      eventLog.append({
+        type: 'requirement.commit_linked',
+        projectId: r.projectId,
+        requirementId: r.id,
+        actor: actor.user(),
+        data: { ...snapshot(r), sha: entry.sha, shortSha: entry.shortSha, subject: entry.subject }
+      });
+      return { ok: true, duplicate: false, commit: entry, commits: r.commits };
     },
 
     deleteRequirement: ({ rid }) => {

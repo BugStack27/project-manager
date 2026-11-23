@@ -18,6 +18,7 @@ const TYPE_LABEL = {
   'requirement.answered': '回答提问',
   'requirement.timeout': '提问超时',
   'requirement.status_changed': '状态变更',
+  'requirement.commit_linked': '关联提交',
   'requirement.deleted': '删除需求',
   'requirement.archived': '归档需求',
   'requirement.restored': '恢复需求',
@@ -213,6 +214,11 @@ export function eventSummary(ev) {
           : noteSuffix(d.note);
       return reqText(d) + '：' + statusLabel(d.from) + ' → ' + statusLabel(d.to) + extra;
     }
+    case 'requirement.commit_linked':
+      return (
+        reqText(d) + ' 关联提交 ' + (d.shortSha || '') +
+        (d.subject ? '：' + clip(d.subject) : '')
+      );
     case 'requirement.deleted':
       return '删除需求 ' + reqText(d);
     case 'requirement.archived':

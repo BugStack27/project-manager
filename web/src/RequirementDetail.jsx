@@ -765,8 +765,8 @@ export default function RequirementDetail({
           {fileRefs.length ? (
             <div className="rd-refs">
               <span className="rd-refs-lead">引用文件</span>
-              {/* 只引用本项目的文件：点一下用系统默认程序打开；悬停就地读内容（行号 + 语法高亮）。
-                  不存在/越界/密钥/目录标失效，这些退回原生 title 说明原因，不出内容窗。 */}
+              {/* 只引用本项目的文件或目录：点一下用系统默认程序打开；悬停文件就地读内容、悬停目录列一级条目。
+                  不存在/越界/密钥标失效，这些退回原生 title 说明原因，不出信息窗。 */}
               {fileRefs.map((fr) => {
                 const fHover = hoverProps.file(fr, requirement.projectId);
                 return (

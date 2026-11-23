@@ -14,10 +14,10 @@ import { activeSkillQuery, applySkill, loadSkills, skillCandidates } from '../li
 
 /**
  * 需求正文输入框：在 textarea 上叠一层候选面板，支持两种触发：
- * - `@` 选引用 → 项目写成 `@{项目名}`、本项目需求写成 `@{#序号}`、本项目文件写成 `@{file:路径}`
+ * - `@` 选引用 → 项目写成 `@{项目名}`、本项目需求写成 `@{#序号}`、本项目文件或目录写成 `@{file:路径}`
  * - `/` 选技能 → 写成 `{UseSkill:source/名字}`
  *
- * `@` 弹层按「项目 / 需求 / 文件」分组：直接打字三组都筛，`#` 开头只列需求、`file:` 开头只列文件。
+ * `@` 弹层按「项目 / 需求 / 文件目录」分组：直接打字三组都筛，`#` 开头只列需求、`file:` 开头只列文件与目录。
  * 需求与文件清单按当前项目懒加载一次（进程内缓存），不随每次按键重取。
  *
  * 为什么不用 contenteditable：正文是 markdown，用户要的仍是能自由换行、粘贴、
@@ -174,7 +174,7 @@ export default function ProjectRefInput({
   }
 
   const isSkill = !!sug && sug.kind === 'skill';
-  const GROUP_LABEL = { project: '项目', req: '本项目需求', file: '本项目文件', skill: '技能' };
+  const GROUP_LABEL = { project: '项目', req: '本项目需求', file: '本项目文件 / 目录', skill: '技能' };
 
   function renderRow(item, i) {
     const on = i === sug.index;
@@ -221,10 +221,11 @@ export default function ProjectRefInput({
       );
     }
     const f = item.data;
-    const base = f.path.split('/').pop();
+    const base = f.path.split('/').filter(Boolean).pop();
     return (
       <button {...common} key={item.key} title={f.path}>
         <span className="refsug-name">{base}</span>
+        {f.directory ? <span className="refsug-tag">目录</span> : null}
         <span className="refsug-path">{f.path}</span>
       </button>
     );
@@ -256,7 +257,7 @@ export default function ProjectRefInput({
                   : '全部技能'
                 : sug.query
                   ? '@' + sug.query
-                  : '项目 / 需求 / 文件'}
+                  : '项目 / 需求 / 文件目录'}
             </span>
           </div>
           {sug.items.length ? (
@@ -272,7 +273,7 @@ export default function ProjectRefInput({
                 );
               })}
               <div className="refsug-hint">
-                {isSkill ? '↑↓ 选择 · Enter 插入 · Esc 关闭' : '↑↓ 选择 · Enter 插入 · # 选需求 · file: 选文件 · Esc 关闭'}
+                {isSkill ? '↑↓ 选择 · Enter 插入 · Esc 关闭' : '↑↓ 选择 · Enter 插入 · # 选需求 · file: 选文件 / 目录 · Esc 关闭'}
               </div>
             </>
           ) : isSkill ? null : (

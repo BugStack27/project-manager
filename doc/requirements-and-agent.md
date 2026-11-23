@@ -193,6 +193,18 @@ status: accepted
 | 边界 | 仍受 `fileSnippet(full)` 的 600 行上限，截断时页脚照旧标注「只显示前 N 行」；截断若落在代码围栏中间，尾部按未闭合围栏渲染 | 上限是逐行 DOM 渲染的性能保险，markdown 预览同样不该一次塞几千行 |
 | 验证 | `npm run check` / `npm run build`；用演示数据桥在**打包产物**与**vite dev**两种模式下各跑一遍真实界面：引用项目 / 需求 / 文件 / 技能四行与正文 chip 都能出卡且无原生 title 兜底，`.md` 卡渲染出标题 / 加粗 / 行内代码 / 列表 / 表格，非 markdown 文件仍是行号 + 高亮；临时脚本跑完删净 | 只测「没报错」不够，要看渲染出来的东西是不是 markdown；dev 与产物两种模块语义都要覆盖，HMR 环的问题只在长期运行窗口里出现 |
 
+### 2.13 文件引用支持文件夹（2026-11-23）
+
+| 决策点 | 结论 | 理由 |
+|---|---|---|
+| 语法 | 沿用 `@{file:相对路径}`，不新增 `@{dir:…}` | `resolveFileRefs` 早已回 `directory` 与绝对路径，存量正文与 agent 契约都不用动 |
+| 候选补全 | `files.list` 返回文件 + 目录（每项带 `directory`）：git 模式从文件路径反推父目录，遍历回退模式直接收目录；目录在同分时排在文件前，候选行标「目录」 | 「选不到目录」是本次的主缺口；空目录在 git 模式下不出现，换来的是天然尊重 `.gitignore` |
+| 悬停 | 目录 chip 也出卡：`projectDir` 列一级条目（名称 / 类型 / 大小，限 200），跳过 `SKIP_DIRS` 与 `DENY_RE` 命中的条目；不递归、不读文件内容 | 看目录里有什么只需一级；递归或预读会把悬停变成一次扫盘 |
+| 点击 | 仍走 `shell.openPath`，目录即打开资源管理器 | 与文件同一套，不为目录另造入口 |
+| agent 侧 | 不扩载荷：`fileRefs` 仍是 `name` / `path` / `absPath` / `exists` / `directory` / `restricted` / `reason`，不附目录条目 | 读目录是 agent 按 `absPath` 自己的事，塞条目清单会拖慢 `/next` |
+| 上限 | 候选与文件共用 4000；目录悬停单卡 200，超出标 `truncated` | 大目录逐条渲染会卡 |
+| 不做 | 两级目录树、目录内搜索、递归预览、目录内文件内容预读 | 本次只解决「候选里选不到、悬停看不到」 |
+
 ## 3. 交付物
 
 | 文件（相对路径） | 职责 |
@@ -202,8 +214,8 @@ status: accepted
 | `electron/services/domain/agents.js` | Agent 注册表：`agents` / `createAgent` / `deleteAgent`（名称唯一、`store.uid('a')` 分配 AgentID），`db.agents` 随库持久化 |
 | `electron/services/domain/claim-gate.js` + `auto-claim.js` + `next-waiter.js` | 派发闸门（`doing` / `review` / `dirty` / `path_missing` / `git_timeout`、FIFO 排序、返回自己名下在做的任务）、`claimNextRequirement`（一次）与 `nextRequirement`（长等待）；`next-waiter.js` 的广播信号让新建 / 释放 / 撤销 / 验收 / 提交立即唤醒等待者 |
 | `electron/services/domain/refs.js` + `web/src/lib/req-refs.js` + `web/src/components/{ProjectRefInput,MarkdownText,MarkdownBody}.jsx` | 三类引用：服务端 `refNames` / `resolveRefs`（项目）、`reqRefSeqs` / `resolveReqRefs`（需求）、`fileRefPaths` / `resolveFileRefs`（文件）→ `reqView.refs` / `reqRefs` / `fileRefs`；前端换 chip（`linkifyRefs` / `linkifyReqRefs` / `linkifyFileRefs`）与分组输入候选（`activeRefQuery` / `classifyRefQuery` / `applyRef` / `applyReqRef` / `applyFileRef` / `refCandidates` / `reqCandidates` / `fileCandidates`） |
-| `electron/services/files.js` + `git.js`（`lsFiles`）+ `domain/system.js`（`projectFiles` / `revealFile`） | 文件候选清单（git ls-files + 遍历回退，过滤密钥、限量）与「用默认程序打开文件」；路径安全复用 `snippet.js` 导出的 `assertRelPath` / `resolveInside` / `DENY_RE` |
-| `web/src/components/{HoverCardLayer,RequirementHoverCard,FileHoverCard,MarkdownBody}.jsx` + `styles/{sidebar,evidence}.css` | 四类引用 chip 共用的悬停层；需求信息卡（编号 / 标题 / 状态 / 正文摘要）、文件内容窗（`fileSnippet` 按需读 + 行号 + hljs 高亮 + 限高可滚；`.md` / `.markdown` 改由 `MarkdownBody` 渲染）；`MarkdownBody` 是 `MarkdownText` 与文件卡共用的纯 markdown 渲染层；见 §2.11、§2.12 |
+| `electron/services/files.js` + `git.js`（`lsFiles`）+ `domain/system.js`（`projectFiles` / `projectDir` / `revealFile`） | 文件与目录候选清单（git ls-files + 反推父目录、遍历回退，过滤密钥、限量）、目录一级条目（`readDir`，限 200）与「用默认程序打开文件 / 目录」；路径安全复用 `snippet.js` 导出的 `assertRelPath` / `resolveInside` / `DENY_RE` |
+| `web/src/components/{HoverCardLayer,RequirementHoverCard,FileHoverCard,MarkdownBody}.jsx` + `styles/{sidebar,evidence}.css` | 四类引用 chip 共用的悬停层；需求信息卡（编号 / 标题 / 状态 / 正文摘要）、文件内容窗（`fileSnippet` 按需读 + 行号 + hljs 高亮 + 限高可滚；`.md` / `.markdown` 改由 `MarkdownBody` 渲染）、目录条目卡（`projectDir` + 名称 / 类型 / 大小，见 §2.13）；`MarkdownBody` 是 `MarkdownText` 与文件卡共用的纯 markdown 渲染层；见 §2.11、§2.12 |
 | `electron/services/domain/views.js` + `projects.js` | `reqView.claim` / `completion` / `feedback`（含 `kind`）、`projectView.aiScout` / `reviewCount` / `candidateCount` / `questions` / `reviews`；`createProject` / `updateProject` 读写 `aiScout` |
 | `electron/mcp-http.js` + `dispatch.js` | `GET /claim`、`GET /next`、`POST /complete`、`POST /ask`、`POST /release`（一张路由表，按方法分 query / json）、`GET /prompt/<id>.txt`、端口固定、`initialize.instructions`；409 透出当前认领者 |
 | `electron/prompts.js` + `prompts/{scout,scout-stub,worker}.md` | `createPromptStore` + `REGISTRY`：启动覆盖、清理 `.bak` / `.baseline.json`、读取不缓存；巡检手册与执行手册真源 |
@@ -250,7 +262,7 @@ status: accepted
 
 - 正文 HTML 标签按纯文本显示（`rehype-raw` 未启用）；GFM 语法由 `remark-gfm` 支持，其中表格在 `MarkdownBody.jsx` 外套滚动容器、样式见 `panel.css`（右面板窄列只滚表格、不撑宽正文）；`mailto:` / `tel:` 点击无反应，扩协议需显式白名单并重评风险。
 - `@{项目名}` 按当前库里的项目名精确匹配（忽略大小写）：项目改名后旧引用立刻变成失效态，需手动改正文；引用不产生反向依赖，被引用的项目照常可删除 / 归档。`@{#序号}` / `@{file:路径}` 同理：需求归档删除、文件改名删除后标失效，不反向阻止删除。
-- 项目 `refs` 只带库里现成的数据（项目记录 + 需求标题），不读磁盘、不解析项目类型；`reqRefs` 的正文也来自库内。`fileRefs` 只为判存在 / 解析绝对路径做 `stat` / `realpath`，**不读文件内容**：agent 想知道技术栈要看目录本身，工作台不替它扫仓库（会拖慢 `/next`）。
+- 项目 `refs` 只带库里现成的数据（项目记录 + 需求标题），不读磁盘、不解析项目类型；`reqRefs` 的正文也来自库内。`fileRefs` 只为判存在 / 解析绝对路径做 `stat` / `realpath`，**不读文件内容**：agent 想知道技术栈要看目录本身，工作台不替它扫仓库（会拖慢 `/next`）。引用目录时 agent 只拿 `directory: true` 与 `absPath`，不附条目清单（§2.13）。
 - 切换需求时未保存改动直接丢弃，不做离开确认或本地暂存（用户明确取舍）。
 - 待审核长期不处理会一直留在未完成列表：agent 的 `/complete` 最多等 30 分钟，超时后请求结束但交付仍在，用户之后可以随时在详情面板通过或回复。
 - `GET` 带副作用、仅本机可达且无鉴权；`agent` 名称自报，不能作安全凭证；MCP 侧没有任何改状态的工具（2026-11-06 起连 `pm_set_requirement_status` 一并删除），要改状态只能在界面上点；旧渲染包读到 `review` 取不到 `STATUS[status]`，升级需前后端一起换；历史 GBK 乱码（`#3`）不清理。

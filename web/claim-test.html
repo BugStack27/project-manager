@@ -70,7 +70,7 @@
         projectId: 'p_test',
         seq: 7,
         title: '测试认领需求',
-        body: '这是需求正文，界面口径见 @{灯塔控制台}，使用 {UseSkill:pdf}',
+        body: '这是需求正文，界面口径见 @{灯塔控制台}，目录引用 @{file:web/src/components}，文件引用 @{file:web/vite.config.js}，使用 {UseSkill:pdf}',
         // 引用项目与技能的解析结果与服务端 reqView 同形，用来核对 chip 悬停出的信息窗
         refs: [
           {
@@ -84,7 +84,27 @@
           }
         ],
         reqRefs: [],
-        fileRefs: [],
+        // 文件引用解析结果：一条目录、一条文件，用来核对目录角标与悬停一级条目
+        fileRefs: [
+          {
+            name: 'file:web/src/components',
+            path: 'web/src/components',
+            absPath: 'D:\\demo\\web\\src\\components',
+            exists: true,
+            directory: true,
+            restricted: false,
+            reason: null
+          },
+          {
+            name: 'file:web/vite.config.js',
+            path: 'web/vite.config.js',
+            absPath: 'D:\\demo\\web\\vite.config.js',
+            exists: true,
+            directory: false,
+            restricted: false,
+            reason: null
+          }
+        ],
         skills: [SKILL],
         note: '这是需求备注',
         source: 'ai',
@@ -176,6 +196,46 @@
           ]
         },
         scoutPrompt: { stub: '' },
+        // @ 候选：文件与目录同列，目录带 directory:true（与服务端 projectFiles 同形）
+        projectFiles: {
+          files: [
+            { path: 'web', directory: true },
+            { path: 'web/src', directory: true },
+            { path: 'web/src/App.jsx', directory: false },
+            { path: 'web/vite.config.js', directory: false }
+          ],
+          truncated: false,
+          source: 'git'
+        },
+        // 目录引用悬停卡：一级条目（名称 / 类型 / 大小），与服务端 projectDir 同形
+        projectDir: {
+          path: 'web/src/components',
+          entries: [
+            { name: 'styles', directory: true, size: null },
+            { name: 'FileHoverCard.jsx', directory: false, size: 5820 },
+            { name: 'HoverCardLayer.jsx', directory: false, size: 9100 },
+            { name: 'MarkdownText.jsx', directory: false, size: 6400 }
+          ],
+          total: 4,
+          truncated: false
+        },
+        // 文件引用悬停窗：与 fileSnippet 同形
+        fileSnippet: {
+          path: 'web/vite.config.js',
+          exists: true,
+          binary: false,
+          directory: false,
+          restricted: false,
+          tooLarge: false,
+          totalLines: 3,
+          lines: [
+            { n: 1, text: "import { defineConfig } from 'vite';" },
+            { n: 2, text: 'export default defineConfig({ base: "./" });' },
+            { n: 3, text: '' }
+          ],
+          hit: null,
+          lineOutOfRange: false
+        },
         gitSummary: { total: 1, repoCount: 0, dirtyCount: 0, projects: [] },
         gitCommits: { isRepo: false, branch: null, commits: [], hasMore: false },
         gitChanges: { isRepo: false, branch: null, clean: true, counts: { total: 0 }, files: [] },

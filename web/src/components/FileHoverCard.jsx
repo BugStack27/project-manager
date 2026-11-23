@@ -4,11 +4,13 @@ import { highlightLines } from '../lib/hlighter.js';
 import MarkdownBody from './MarkdownBody.jsx';
 
 /**
- * 文件引用的悬停窗：就地显示文件内容，带行号与语法高亮。
+ * 文件 / 目录引用的悬停窗。
  *
- * 与需求备注的证据浮层同一套：内容走 fileSnippet（只读、只认项目根内、密钥/二进制/超限只回标记），
- * 高亮走 lib/hlighter.js 的按需加载引擎，代码区直接复用 .ev-code 的行样式与 hljs 配色。
- * 每次出卡重新读一次 —— 文件是会改的，缓存内容会让悬浮窗说旧话；引擎加载失败就保持纯文本。
+ * 文件：就地显示内容，带行号与语法高亮。与需求备注的证据浮层同一套：内容走 fileSnippet
+ * （只读、只认项目根内、密钥/二进制/超限只回标记），高亮走 lib/hlighter.js 的按需加载引擎，
+ * 代码区直接复用 .ev-code 的行样式与 hljs 配色。
+ * 目录：改走 projectDir 列一级条目（名称 / 类型 / 大小，限 200 条），不递归、不读文件内容。
+ * 每次出卡重新读一次 —— 文件与目录都会变，缓存会让悬浮窗说旧话；引擎加载失败就保持纯文本。
  *
  * markdown 文件（.md / .markdown）改由 MarkdownBody 渲染：悬停是为了看文档写了什么，
  * 逐行源码反而难读。不引 MarkdownText 是为了避开它与 HoverCardLayer 的循环依赖（见 doc §4）。
@@ -29,37 +31,46 @@ function describe(data) {
   return '';
 }
 
-const baseName = (p) => String(p || '').split(/[\\/]/).pop();
+const baseName = (p) => String(p || '').split(/[\\/]/).filter(Boolean).pop();
+
+/** 条目大小 → 人话；目录没有大小，调用方自己写「目录」 */
+function sizeText(n) {
+  if (n === null || n === undefined) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10 * 1024 ? 1 : 0) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
 
 export default function FileHoverCard({
   projectId,
   path,
+  directory = false,
   left,
   top,
   width,
   maxHeight,
   transform,
-  hint = '点击 chip 打开文件',
+  hint,
   onEnter,
   onLeave
 }) {
   const [state, setState] = useState({ loading: true, data: null, error: null });
   const [hl, setHl] = useState(null);
-  const isMarkdown = MD_RE.test(path);
+  const isMarkdown = !directory && MD_RE.test(path);
 
   useEffect(() => {
     let alive = true;
     setState({ loading: true, data: null, error: null });
     setHl(null);
-    // line/end 传 1 只为满足契约：full=true 时主进程直接从第 1 行读到上限
-    api
-      .fileSnippet(projectId, path, 1, 1, true)
+    // 文件用 full=true 从第 1 行读到上限；line/end 传 1 只为满足契约
+    const req = directory ? api.projectDir(projectId, path) : api.fileSnippet(projectId, path, 1, 1, true);
+    req
       .then((data) => alive && setState({ loading: false, data, error: null }))
       .catch((e) => alive && setState({ loading: false, data: null, error: e.message }));
     return () => {
       alive = false;
     };
-  }, [projectId, path]);
+  }, [projectId, path, directory]);
 
   // 高亮是纯装饰：引擎没加载出来、语言认不出、hljs 抛错，都只是保持纯文本
   // markdown 走渲染视图，不需要也给不起行号对齐的高亮结果
@@ -81,9 +92,11 @@ export default function FileHoverCard({
   }, [state.data, path, isMarkdown]);
 
   const data = state.data;
-  const note = describe(data);
+  const note = directory ? '' : describe(data);
   const lines = (data && data.lines) || [];
-  const truncated = !!data && data.totalLines > lines.length;
+  const truncated = !directory && !!data && data.totalLines > lines.length;
+  const entries = (directory && data && data.entries) || [];
+  const footerHint = hint || (directory ? '点击 chip 打开文件夹' : '点击 chip 打开文件');
 
   return (
     <div
@@ -102,6 +115,20 @@ export default function FileHoverCard({
         <div className="fhover-empty"><span className="spinner" />正在读取…</div>
       ) : state.error ? (
         <div className="fhover-empty err">{state.error}</div>
+      ) : directory ? (
+        entries.length === 0 ? (
+          <div className="fhover-empty">（空文件夹）</div>
+        ) : (
+          <div className="fhover-dir">
+            {entries.map((e) => (
+              <div className="fhover-dir-row" key={e.name}>
+                <span className={'fhover-dir-ico' + (e.directory ? ' dir' : '')}>{e.directory ? '▸' : '·'}</span>
+                <span className="fhover-dir-name" title={e.name}>{e.name}</span>
+                <span className="fhover-dir-size">{e.directory ? '目录' : sizeText(e.size)}</span>
+              </div>
+            ))}
+          </div>
+        )
       ) : note ? (
         <div className="fhover-empty">{note}</div>
       ) : lines.length === 0 ? (
@@ -128,10 +155,13 @@ export default function FileHoverCard({
 
       <div className="fhover-ft">
         <span>
-          {data && data.totalLines ? data.totalLines + ' 行' : ''}
-          {truncated ? '（只显示前 ' + lines.length + ' 行）' : ''}
+          {directory
+            ? (data ? data.total + ' 项' : '') +
+              (data && data.truncated ? '（只显示前 ' + entries.length + ' 项）' : '')
+            : (data && data.totalLines ? data.totalLines + ' 行' : '') +
+              (truncated ? '（只显示前 ' + lines.length + ' 行）' : '')}
         </span>
-        {hint ? <span>{hint}</span> : null}
+        {footerHint ? <span>{footerHint}</span> : null}
       </div>
     </div>
   );

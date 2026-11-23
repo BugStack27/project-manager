@@ -201,11 +201,13 @@ export const api = {
   fileSnippet: (id, path, line, end, full) => call('fileSnippet', { id, path, line, end, full: !!full }),
 
   /**
-   * 项目文件清单：需求正文「@ 引用文件」的候选补全用。只读、只在项目根内，
-   * 返回 { files:[{path}], truncated, source }；密钥 / 依赖目录不在其中。
+   * 项目文件与目录清单：需求正文「@ 引用文件」的候选补全用。只读、只在项目根内，
+   * 返回 { files:[{path, directory}], truncated, source }；密钥 / 依赖目录不在其中。
    */
   projectFiles: (id) => call('projectFiles', { id }),
-  /** 用系统默认程序打开项目内的一个文件（文件引用 chip 点击）；越界 / 密钥由主进程拒绝 */
+  /** 目录的一级条目（目录引用悬停卡）：只读、只认项目根内，跳过依赖/版本库目录，限 200 条 */
+  projectDir: (id, path) => call('projectDir', { id, path }),
+  /** 用系统默认程序打开项目内的一个文件或目录（引用 chip 点击）；越界 / 密钥由主进程拒绝 */
   revealFile: (id, path) => call('revealFile', { id, path }),
 
   /**

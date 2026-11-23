@@ -233,11 +233,18 @@ export function reqCandidates(requirements, query, currentSeq) {
   return rows.slice(0, 8).map((x) => x.r);
 }
 
-/** 文件候选：全路径与文件名都参与匹配（文件名命中加权），空查询按路径排序取前 8 条 */
+/** 文件 / 目录候选：全路径与末尾名字都参与匹配（名字命中加权）；同分时目录在前，空查询同理 */
 export function fileCandidates(files, query) {
   const q = String(query || '').trim();
   const list = (Array.isArray(files) ? files : []).filter((f) => f && f.path);
-  if (!q) return list.slice().sort((a, b) => a.path.localeCompare(b.path)).slice(0, 8);
+  /** 目录排在同分文件前：引用文件夹是本次扩展的主用途 */
+  const dirRank = (f) => (f.directory ? 0 : 1);
+  if (!q) {
+    return list
+      .slice()
+      .sort((a, b) => dirRank(a) - dirRank(b) || a.path.localeCompare(b.path))
+      .slice(0, 8);
+  }
 
   const rows = [];
   for (const f of list) {
@@ -248,7 +255,7 @@ export function fileCandidates(files, query) {
     if (!score) continue;
     rows.push({ f, score });
   }
-  rows.sort((a, b) => b.score - a.score || a.f.path.localeCompare(b.f.path));
+  rows.sort((a, b) => b.score - a.score || dirRank(a.f) - dirRank(b.f) || a.f.path.localeCompare(b.f.path));
   return rows.slice(0, 8).map((x) => x.f);
 }
 

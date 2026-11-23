@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const store = require('../store');
 const ide = require('../ide');
 const terminal = require('../terminal');
@@ -94,6 +95,27 @@ function createSystem(native) {
       const p = findProject(id);
       const root = assertProjectDir(p);
       return files.list(root);
+    },
+
+    /**
+     * 目录的一级条目：文件引用里的目录 chip 悬停时用。只读一级，不递归、不读文件内容；
+     * 路径校验与 fileSnippet / revealFile 同口径（项目根内、拒绝密钥与依赖目录）。
+     */
+    projectDir: ({ id, path: relPath }) => {
+      const p = findProject(id);
+      const root = assertProjectDir(p);
+      const rel = snippet.assertRelPath(relPath);
+      if (snippet.DENY_RE.test(rel)) fail('该目录不允许查看（密钥/凭据/依赖目录）', 'restricted', 403);
+      const abs = snippet.resolveInside(root, rel);
+      let st;
+      try {
+        st = fs.statSync(abs);
+      } catch (_) {
+        fail('目录不存在：' + rel, 'not_found', 404);
+      }
+      if (!st.isDirectory()) fail('不是目录：' + rel, 'not_directory', 400);
+      const out = files.readDir(abs);
+      return { path: rel.replace(/\\/g, '/').replace(/\/+$/, ''), ...out };
     },
 
     /**

@@ -18,7 +18,7 @@ status: accepted
 
 | 决策点 | 结论 | 理由 |
 |------|------|------|
-| 入口位置 | 侧栏底部「设置与数据」→「数据」组 →「备份与恢复」 | 低频操作不占导航；按用途分组后与通知 / 记录入口分开 |
+| 入口位置 | 侧栏底部「设置与数据」→「数据」→ 二级菜单「备份与恢复」 | 低频操作不占导航；数据相关三项（备份与恢复 / 数据文件 / 审计日志）收进同一个二级菜单 |
 | 恢复生效方式 | 覆盖后 `app.relaunch()` + `app.exit(0)` 自动重启 | 跳过 before-quit → shutdown 的保存，避免内存旧库写回 |
 | 有命令在运行 | 用 `runner.isActive` 判断，已分离且宿主存活的进程同样拦截（409 `commands_running`），提示先到启动台停止 | 进程退出会把内存旧库写回，静默覆盖恢复结果；分离进程不被 `isRunning` 算到，2026-10-31 修正 |
 | 恢复前保全 | 当前库复制为 `backups/manual-YYYYMMDD-HHmmss.json`，不参与 7 天清理 | 恢复可撤回；同秒重名追加序号 |
@@ -41,7 +41,7 @@ status: accepted
 | `web/src/components/BackupModal.jsx` | 分组快照列表、坏文件禁用、两步确认、执行态与错误展示 |
 | `web/src/components/DataCorruptBanner.jsx` | 损坏提示条：说明现状 + 数据文件 / 备份与恢复出口 |
 | `web/src/components/AppModals.jsx` | `backup` 弹窗分支 |
-| `web/src/Sidebar.jsx` | 侧栏底部「设置与数据」→「数据」组的「备份与恢复 / 数据文件」入口 |
+| `web/src/Sidebar.jsx` | 侧栏底部「设置与数据」→「数据」行的二级菜单（备份与恢复 / 数据文件 / 审计日志） |
 | `web/src/App.jsx` | 弹窗接线；启动自检后渲染提示条 |
 | `web/src/icons.jsx` | `archive` / `alert` 图标 |
 | `web/src/styles/{sidebar,modal,warnbar,responsive}.css` | 入口、弹窗、提示条样式与窄窗适配 |

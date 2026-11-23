@@ -5,13 +5,16 @@ import { PROJECT_KIND_LABELS, PROJECT_STACK_LABELS } from './constants.js';
 import { avatarColor } from './format.js';
 import { IC, PanelIcon } from './icons.jsx';
 import { behindBadge, behindTip } from './lib/git-view.js';
-import { THEME_LABELS, THEMES } from './lib/theme.js';
+import { THEME_LABELS } from './lib/theme.js';
 import { SKIN_LABELS, SKINS } from './lib/skin.js';
 import { VIEWS } from './lib/page-meta.js';
 import { ProjectIcon, ProjectStackIcon } from './ui.jsx';
 
 /** 灯 → 视图名的映射：tooltip 与中区标题下拉用同一套叫法，改名时只改 page-meta 一处 */
 const VIEW_LABEL = Object.fromEntries(VIEWS.map((v) => [v.key, v.label]));
+
+/** 二级菜单宽度：数据是普通竖列表，外观要放下一排四个选项 */
+const SUB_WIDTH = { data: 168, appearance: 252 };
 
 export default function Sidebar({
   projects,
@@ -61,18 +64,21 @@ export default function Sidebar({
   const hoverTimer = useRef(null);
   /** 行 → 卡片之间有一段空隙：延时收起，卡片接住鼠标时由 onMouseEnter 撤掉 */
   const hoverCloseTimer = useRef(0);
-  /* ── 外观 / 皮肤：各一行入口 + 右侧二级菜单 ────────────────────
-     平铺会把「界面」组撑得过长；收成行后右侧显示当前值，选项放进二级菜单。
-     两行共用一套二级菜单机制（openSub 标记当前展开的是哪行），fixed 定位避免被 .datapop 的 overflow:auto 裁掉。 */
-  const [openSub, setOpenSub] = useState(null); // 'theme' | 'skin' | null
+  /* ── 「数据」与「外观」：各一行入口 + 右侧二级菜单 ──────────────
+     数据相关三项收进「数据」子菜单；皮肤与明暗合并成「外观」一行，
+     子菜单里三种皮肤与暗色并排，跟随系统单列。两行共用一套二级菜单机制
+     （openSub 标记当前展开的是哪行），fixed 定位避免被 .datapop 的 overflow:auto 裁掉。 */
+  const [openSub, setOpenSub] = useState(null); // 'data' | 'appearance' | null
   const [subPos, setSubPos] = useState(null); // { left, bottom }
-  const subWrapRef = useRef(null);
+  const dataWrapRef = useRef(null);
+  const appearWrapRef = useRef(null);
   const subRef = useRef(null);
-  const themeRowRef = useRef(null);
-  const skinRowRef = useRef(null);
+  const dataRowRef = useRef(null);
+  const appearRowRef = useRef(null);
   const subCloseTimer = useRef(null);
   const subFocusOnOpen = useRef(false);
-  const subRowRef = (key) => (key === 'skin' ? skinRowRef : themeRowRef);
+  const subRowRef = (key) => (key === 'data' ? dataRowRef : appearRowRef);
+  const subWrapRef = (key) => (key === 'data' ? dataWrapRef : appearWrapRef);
 
   const closeSub = () => {
     clearTimeout(subCloseTimer.current);
@@ -91,7 +97,7 @@ export default function Sidebar({
     const el = subRowRef(key).current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const width = 168;
+    const width = SUB_WIDTH[key] || 168;
     const gap = 6;
     const roomRight = window.innerWidth - 8 - (r.right + gap);
     const left = roomRight >= width ? r.right + gap : r.left - width - gap;
@@ -105,7 +111,9 @@ export default function Sidebar({
     if (!openSub) return undefined;
     if (subFocusOnOpen.current) {
       subFocusOnOpen.current = false;
-      subRef.current?.querySelector('[role="menuitemradio"]')?.focus();
+      subRef.current
+        ?.querySelector('[role="menuitem"], [role="menuitemradio"]')
+        ?.focus();
     }
     const close = () => setOpenSub(null);
     document.addEventListener('scroll', close, true);
@@ -146,8 +154,9 @@ export default function Sidebar({
   };
 
   const onSubKeyDown = (e) => {
-    // Esc / ←：只收二级菜单，不牵连整个「设置与数据」浮层（stopPropagation 挡住 window 上的 Esc）
-    if (e.key === 'Escape' || e.key === 'ArrowLeft') {
+    // Esc / ←：只收二级菜单，不牵连整个「设置与数据」浮层（stopPropagation 挡住 window 上的 Esc）。
+    // 外观是一排横选项，← 留给同级导航，返回上级只认 Esc
+    if (e.key === 'Escape' || (e.key === 'ArrowLeft' && openSub !== 'appearance')) {
       e.preventDefault();
       e.stopPropagation();
       const row = subRowRef(openSub).current;
@@ -155,28 +164,33 @@ export default function Sidebar({
       row?.focus();
       return;
     }
-    const items = Array.from(subRef.current?.querySelectorAll('[role="menuitemradio"]') || []);
+    const items = Array.from(
+      subRef.current?.querySelectorAll('[role="menuitem"], [role="menuitemradio"]') || []
+    );
     if (!items.length) return;
+    const n = items.length;
     const i = items.indexOf(document.activeElement);
     let next = -1;
-    if (e.key === 'ArrowDown') next = (i + 1) % items.length;
-    else if (e.key === 'ArrowUp') next = (i - 1 + items.length) % items.length;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = i < 0 ? 0 : (i + 1) % n;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = i < 0 ? n - 1 : (i - 1 + n) % n;
     else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = items.length - 1;
+    else if (e.key === 'End') next = n - 1;
     if (next < 0) return;
     e.preventDefault();
     items[next].focus();
   };
 
   /** 焦点整体离开「行 + 子菜单」才收起；否则点中某项时会先被自己的 blur 关掉 */
-  const onSubBlur = () => {
+  const onSubBlur = (key) => {
     setTimeout(() => {
-      const wrap = subWrapRef.current;
+      const wrap = subWrapRef(key).current;
       if (wrap && !wrap.contains(document.activeElement)) setOpenSub(null);
     }, 0);
   };
 
   const themeIcon = theme === 'system' ? IC.auto : theme === 'light' ? IC.sun : IC.moon;
+  /** 外观行尾：浅色显示所选皮肤名，深色与跟随系统显示明暗名 */
+  const appearanceLabel = theme === 'light' ? SKIN_LABELS[skin] : THEME_LABELS[theme];
 
   // 「已归档」分组：默认收起，展开状态只记在本次会话
   const [archivedOpen, setArchivedOpen] = useState(false);
@@ -374,6 +388,10 @@ export default function Sidebar({
 
   /** 有未拉取提交的项目数：底部「设置与数据」入口与「代码同步」项共用一个口径 */
   const behindProjects = Object.keys(behinds).length;
+
+  /** 入口 tooltip：数据三项已收进二级菜单，这里只点到分组 */
+  const menuSummary =
+    '数据（备份与恢复 / 数据文件 / 审计日志）/ 通知与集成 / 键盘快捷键 / 外观 / 检查更新';
 
   /** 项目行悬停提示：路径 + 灯的含义 + 候选池条数。
    *  必须挂在整行上——灯在 hover 时会被「更多操作」按钮挤向左侧（不是被顶掉），
@@ -681,11 +699,7 @@ export default function Sidebar({
           aria-expanded={!!dataPop}
           aria-haspopup="true"
           aria-label={dataPop ? '收起设置与数据' : '展开设置与数据'}
-          title={
-            dataPop
-              ? '收起：备份与恢复 / 通知设置 / 代码同步 / AI 接入 / 手机端通信 / 键盘快捷键 / 审计日志 / 检查更新'
-              : '备份与恢复 / 通知设置 / 代码同步 / AI 接入 / 手机端通信 / 键盘快捷键 / 审计日志 / 检查更新'
-          }
+          title={(dataPop ? '收起：' : '') + menuSummary}
         >
           <span className="ico">{IC.gear}</span>
           <span className="lbl">设置与数据</span>
@@ -710,31 +724,73 @@ export default function Sidebar({
             aria-label="设置与数据"
           >
             <div className="datapop-group">
-              <div className="datapop-hd">数据</div>
-              <button
-                className="datapop-item"
-                role="menuitem"
-                onClick={() => {
-                  setDataPop(null);
-                  onOpenBackup();
-                }}
-                title="查看最近 7 天快照与手动安全备份，一键恢复"
-              >
-                <span className="ico">{IC.archive}</span>
-                备份与恢复
-              </button>
-              <button
-                className="datapop-item"
-                role="menuitem"
-                onClick={() => {
-                  setDataPop(null);
-                  onOpenDataDir();
-                }}
-                title="在系统文件管理器中打开数据目录（db.json / backups / runs）"
-              >
-                <span className="ico">{IC.folder}</span>
-                数据文件
-              </button>
+              <div className="theme-wrap" ref={dataWrapRef} onMouseLeave={scheduleCloseSub}>
+                <button
+                  ref={dataRowRef}
+                  className="datapop-item"
+                  role="menuitem"
+                  aria-haspopup="menu"
+                  aria-expanded={openSub === 'data'}
+                  onClick={() => (openSub === 'data' ? closeSub() : openSubMenu('data', true))}
+                  onMouseEnter={() => openSubMenu('data', false)}
+                  onKeyDown={onSubRowKeyDown('data')}
+                  title="备份与恢复、数据文件与审计日志"
+                >
+                  <span className="ico">{IC.database}</span>
+                  数据
+                  <span className="tail">{IC.chev}</span>
+                </button>
+                {openSub === 'data' && subPos ? (
+                  <div
+                    ref={subRef}
+                    className="theme-sub"
+                    style={{ left: subPos.left, bottom: subPos.bottom }}
+                    role="menu"
+                    aria-label="数据"
+                    onMouseEnter={() => clearTimeout(subCloseTimer.current)}
+                    onMouseLeave={scheduleCloseSub}
+                    onKeyDown={onSubKeyDown}
+                    onBlur={() => onSubBlur('data')}
+                  >
+                    <button
+                      className="datapop-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setDataPop(null);
+                        onOpenBackup();
+                      }}
+                      title="查看最近 7 天快照与手动安全备份，一键恢复"
+                    >
+                      <span className="ico">{IC.archive}</span>
+                      备份与恢复
+                    </button>
+                    <button
+                      className="datapop-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setDataPop(null);
+                        onOpenDataDir();
+                      }}
+                      title="在系统文件管理器中打开数据目录（db.json / backups / runs）"
+                    >
+                      <span className="ico">{IC.folder}</span>
+                      数据文件
+                    </button>
+                    <button
+                      className="datapop-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setDataPop(null);
+                        onOpenAudit();
+                      }}
+                      title="查看项目、需求、命令与数据恢复的只读记录"
+                    >
+                      <span className="ico">{IC.list}</span>
+                      审计日志
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className="datapop-group">
               <div className="datapop-hd">通知与集成</div>
@@ -811,139 +867,110 @@ export default function Sidebar({
                 键盘快捷键
                 <span className="tail">{shortcutsHint || null}</span>
               </button>
-              {/* 外观 / 皮肤：各一行入口 + 右侧二级菜单。右侧常显当前值，选中态另有勾选图标与字重，
-                  不只靠颜色；选完只收子菜单，浮层留着让用户当场看到界面变化。 */}
-              <div className="theme-wrap" ref={subWrapRef} onMouseLeave={scheduleCloseSub}>
+              {/* 皮肤与明暗合并成一行「外观」：二级菜单里三种皮肤与暗色并排，
+                  跟随系统单列在下方；行尾常显当前选择。选完只收子菜单，浮层留着
+                  让用户当场看到界面变化。 */}
+              <div className="theme-wrap" ref={appearWrapRef} onMouseLeave={scheduleCloseSub}>
                 <button
-                  ref={themeRowRef}
+                  ref={appearRowRef}
                   className="datapop-item"
                   role="menuitem"
                   aria-haspopup="menu"
-                  aria-expanded={openSub === 'theme'}
-                  onClick={() => (openSub === 'theme' ? closeSub() : openSubMenu('theme', true))}
-                  onMouseEnter={() => openSubMenu('theme', false)}
-                  onKeyDown={onSubRowKeyDown('theme')}
-                  title={'外观：' + THEME_LABELS[theme] + '，可选跟随系统 / 浅色 / 深色'}
+                  aria-expanded={openSub === 'appearance'}
+                  onClick={() =>
+                    openSub === 'appearance' ? closeSub() : openSubMenu('appearance', true)
+                  }
+                  onMouseEnter={() => openSubMenu('appearance', false)}
+                  onKeyDown={onSubRowKeyDown('appearance')}
+                  title={'外观：' + appearanceLabel + '，可选三种皮肤或暗色模式'}
                 >
                   <span className="ico">{themeIcon}</span>
                   外观
                   <span className="tail">
-                    {THEME_LABELS[theme]}
+                    {appearanceLabel}
                     {IC.chev}
                   </span>
                 </button>
-                <button
-                  ref={skinRowRef}
-                  className="datapop-item"
-                  role="menuitem"
-                  aria-haspopup="menu"
-                  aria-expanded={openSub === 'skin'}
-                  onClick={() => (openSub === 'skin' ? closeSub() : openSubMenu('skin', true))}
-                  onMouseEnter={() => openSubMenu('skin', false)}
-                  onKeyDown={onSubRowKeyDown('skin')}
-                  title={'皮肤：' + SKIN_LABELS[skin] + '，浅色界面的配色方案（清透 / 暖纸 / 活力），深色模式不生效'}
-                >
-                  <span className="ico">{IC.skin}</span>
-                  皮肤
-                  <span className="tail">
-                    {SKIN_LABELS[skin]}
-                    {IC.chev}
-                  </span>
-                </button>
-                {openSub && subPos ? (
+                {openSub === 'appearance' && subPos ? (
                   <div
                     ref={subRef}
-                    className="theme-sub"
+                    className="theme-sub appearance-sub"
                     style={{ left: subPos.left, bottom: subPos.bottom }}
                     role="menu"
-                    aria-label={openSub === 'skin' ? '皮肤' : '外观'}
+                    aria-label="外观"
                     onMouseEnter={() => clearTimeout(subCloseTimer.current)}
                     onMouseLeave={scheduleCloseSub}
                     onKeyDown={onSubKeyDown}
-                    onBlur={onSubBlur}
+                    onBlur={() => onSubBlur('appearance')}
                   >
-                    {openSub === 'theme'
-                      ? THEMES.map((key) => {
-                          const active = theme === key;
-                          return (
-                            <button
-                              key={key}
-                              className="datapop-item theme-opt"
-                              role="menuitemradio"
-                              aria-checked={active}
-                              onClick={() => {
-                                onSetTheme(key);
-                                closeSub();
-                                themeRowRef.current?.focus();
-                              }}
-                              title={
-                                key === 'system'
-                                  ? '跟随系统的浅色/深色设置，系统切换时界面实时跟随'
-                                  : key === 'light'
-                                    ? '始终使用浅色界面'
-                                    : '始终使用深色界面'
-                              }
-                            >
-                              <span className="ico">
-                                {key === 'system' ? IC.auto : key === 'light' ? IC.sun : IC.moon}
-                              </span>
-                              {THEME_LABELS[key]}
-                              <span className="tail">{active ? IC.check : null}</span>
-                            </button>
-                          );
-                        })
-                      : (
-                        <>
-                          {SKINS.map((key) => {
-                            const active = skin === key;
-                            return (
-                              <button
-                                key={key}
-                                className="datapop-item theme-opt"
-                                role="menuitemradio"
-                                aria-checked={active}
-                                onClick={() => {
-                                  onSetSkin(key);
-                                  closeSub();
-                                  skinRowRef.current?.focus();
-                                }}
-                                title={
-                                  key === 'crisp'
-                                    ? '清透：略深冷灰底 + 纯白卡片强分层，最贴近原风格'
-                                    : key === 'warm'
-                                      ? '暖纸：暖纸底 + 暖墨字 + 琥珀强调，温润耐看'
-                                      : '活力：纯白 + 电光蓝强调 + 最强对比（默认）'
-                                }
-                              >
-                                <span className="ico">
-                                  <span className={'skin-sw skin-sw-' + key} aria-hidden="true" />
-                                </span>
-                                {SKIN_LABELS[key]}
-                                <span className="tail">{active ? IC.check : null}</span>
-                              </button>
-                            );
-                          })}
-                          <div className="theme-sub-hint">皮肤仅用于浅色模式</div>
-                        </>
-                      )}
+                    <div className="appearance-grid">
+                      {SKINS.map((key) => {
+                        const active = theme === 'light' && skin === key;
+                        return (
+                          <button
+                            key={key}
+                            className="appearance-tile"
+                            role="menuitemradio"
+                            aria-checked={active}
+                            onClick={() => {
+                              onSetSkin(key);
+                              onSetTheme('light');
+                              closeSub();
+                              appearRowRef.current?.focus();
+                            }}
+                            title={
+                              (key === 'crisp'
+                                ? '清透：略深冷灰底 + 纯白卡片强分层，最贴近原风格'
+                                : key === 'warm'
+                                  ? '暖纸：暖纸底 + 暖墨字 + 琥珀强调，温润耐看'
+                                  : '活力：纯白 + 电光蓝强调 + 最强对比（默认）') +
+                              '，选中即切到浅色'
+                            }
+                          >
+                            <span className="ico">
+                              <span className={'skin-sw skin-sw-' + key} aria-hidden="true" />
+                            </span>
+                            {SKIN_LABELS[key]}
+                          </button>
+                        );
+                      })}
+                      <button
+                        className="appearance-tile"
+                        role="menuitemradio"
+                        aria-checked={theme === 'dark'}
+                        onClick={() => {
+                          onSetTheme('dark');
+                          closeSub();
+                          appearRowRef.current?.focus();
+                        }}
+                        title="暗色模式：整体深色界面，皮肤不生效"
+                      >
+                        <span className="ico">{IC.moon}</span>
+                        暗色
+                      </button>
+                    </div>
+                    <button
+                      className="datapop-item appearance-auto"
+                      role="menuitemradio"
+                      aria-checked={theme === 'system'}
+                      onClick={() => {
+                        onSetTheme('system');
+                        closeSub();
+                        appearRowRef.current?.focus();
+                      }}
+                      title="跟随系统的浅色 / 深色设置，系统切换时界面实时跟随"
+                    >
+                      <span className="ico">{IC.auto}</span>
+                      跟随系统
+                      <span className="tail">{theme === 'system' ? IC.check : null}</span>
+                    </button>
+                    <div className="theme-sub-hint">皮肤仅用于浅色模式</div>
                   </div>
                 ) : null}
               </div>
             </div>
             <div className="datapop-group">
-              <div className="datapop-hd">记录与关于</div>
-              <button
-                className="datapop-item"
-                role="menuitem"
-                onClick={() => {
-                  setDataPop(null);
-                  onOpenAudit();
-                }}
-                title="查看项目、需求、命令与数据恢复的只读记录"
-              >
-                <span className="ico">{IC.list}</span>
-                审计日志
-              </button>
+              <div className="datapop-hd">关于</div>
               <button
                 className="datapop-item"
                 role="menuitem"

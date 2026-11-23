@@ -12,7 +12,7 @@ status: accepted
 ## 1. 目标与范围
 
 - 亮色界面「近白叠近白 + 低饱和 + 大量灰字」显得灰蒙蒙。提供三套可选浅色皮肤让用户按气质挑选，默认「活力」。
-- 在「设置与数据 → 外观」处新增「皮肤」入口。**暗色模式不动**。
+- 在「设置与数据 → 界面 → 外观」处并入皮肤选项（与明暗开关同一行入口）。**暗色模式不动**。
 
 ## 2. 关键决策
 
@@ -23,7 +23,7 @@ status: accepted
 - **皮肤与主题正交**：`useTheme` 同时管 `data-theme` + `data-skin`，一个 effect 写两者并 `setAppearance(isDark, 皮肤底色)`；切换瞬间加 `theme-switching` 禁过渡（即时换色，非渐变）。
 - **窗口/标题栏联动**：`setAppearance` 增加 `lightBg` 参数，主进程校验 hex 后设窗口底色与 Windows 标题栏覆盖色，标题栏与内容同色。
 - **首帧防闪**：`index.html` 内联脚本读 `pm.ui.skin`（默认 vivid）写 `data-skin`，与 `lib/skin.js` 同源；`main.jsx` 兜底。
-- **菜单**：外观 / 皮肤两行共用一套二级菜单机制（`openSub` 标记当前展开行），保留键盘/焦点/悬停/点外收起；皮肤项带双色色板 + 「仅浅色生效」脚注。
+- **菜单**：皮肤与明暗合并为一行「外观」（`openSub` 标记当前展开行），二级菜单里三种皮肤与暗色并排成一排、跟随系统单列下方，保留键盘/焦点/悬停/点外收起；行尾常显当前皮肤或明暗，皮肤项带双色色板 + 「仅浅色生效」脚注，选皮肤即切到浅色。
 
 ## 3. 交付物
 
@@ -32,7 +32,7 @@ status: accepted
 | `web/src/styles/skins.css` | 三套浅色皮肤令牌（scoped 到 light），`index.css` 在 tokens 后引入 |
 | `web/src/lib/skin.js` | 皮肤偏好：键 / 取值 / 默认 / 读写 / 各皮肤主底色 `SKIN_BG` |
 | `web/src/hooks/useTheme.js` | 同管 theme + skin，写 `data-skin`、联动窗口底色，返回 `skin/setSkin` |
-| `web/src/Sidebar.jsx` / `icons.jsx` | 统一二级菜单 + 皮肤行 + 调色盘图标 |
+| `web/src/Sidebar.jsx` / `icons.jsx` | 统一二级菜单 + 合并后的「外观」行（皮肤与暗色并排）+ 调色盘 / 明暗图标 |
 | `web/src/styles/{tokens,sidebar,controls}.css` | accent 通道派生、硬编码蓝转换、色板与脚注样式 |
 | `web/index.html` / `web/src/main.jsx` | 首帧 `data-skin` + 兜底 |
 | `electron/{preload,ipc,main}.js` | `setAppearance` 增加皮肤底色参数（校验 hex） |

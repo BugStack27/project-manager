@@ -30,7 +30,7 @@ status: accepted
 | 主题模式 | 三态 `system / light / dark`，单一真源 `lib/theme.js` |
 | 偏好存储 | `localStorage['pm.ui.theme']` 裸字符串，不走 `db.settings` |
 | 实现分层 | 浅色值留在 `tokens.css`，暗色只在 `theme-dark.css` 重定义 |
-| 切换入口 | 侧栏「⋯」菜单「界面」分组内一行「外观」+ 向右二级菜单 |
+| 切换入口 | 侧栏「设置与数据」浮层「界面」分组内一行「外观」+ 向右二级菜单；子菜单里三种皮肤与暗色并排，跟随系统单列下方 |
 | 配色原则 | 只调明度不换色相；对比度按用途分级 |
 | 切换行为 | 瞬时切换、只换色不动布局 |
 | 身份色 | 24 色按 id 排序后的序号取色，跨主题稳定 |
@@ -109,7 +109,7 @@ status: accepted
 | `web/src/styles/theme-dark.css` / `web/src/styles/index.css` | 暗色唯一定义处（全部 token 重定义、`color-scheme: dark`、滚动条补丁）；`index.css` 保证它在 `responsive.css` 之前引入 |
 | `web/src/styles/*.css` | 各域文件（controls / pagebar / sidebar / context / requirements / overview / changes / stats / evidence / palette / launch / modal / warnbar）改用 `var()` 与 RGB 三元组 |
 | `web/src/icons.jsx` | `sun` / `moon` / `auto` 三图标 |
-| `web/src/Sidebar.jsx` | 「外观」行 + `theme-opt` 二级菜单（`menuitemradio`、键盘导航、延迟收起） |
+| `web/src/Sidebar.jsx` | 「外观」行 + 皮肤 / 暗色并排的二级菜单（`menuitemradio`、键盘导航、延迟收起） |
 | `web/src/App.jsx` | 接入 `useTheme()` 并向 Sidebar 透传 `theme` / `onSetTheme` |
 | `electron/ipc.js` / `preload.js` / `main.js` | `pm:appearance` 单向通道、`setAppearance`、`applyAppearance` / `syncChromeOnShow`（窗口底色与 Windows `titleBarOverlay` 跟随） |
 | `electron/splash.html` | 启动卡片双主题配色 |
@@ -125,6 +125,7 @@ status: accepted
 - **暗色「按下态」要更亮而不是更暗**：深底上压暗几乎不可见，`--red-press` 取 `#E33B31`，与浅色 `#E5332A` 不是同一条推导。
 - **Windows 会忽略对隐藏窗口设置的标题栏覆盖色**：渲染端首屏就报主题，而主窗口要等 `pm:renderer-ready` 才 `show()`，三个系统按钮会停在建窗配色。修法是主进程记住最近一次生效主题（`appearanceDark`），在 `reveal()` 之后与窗口 `show`（托盘恢复）时各刷一次 `syncChromeOnShow()`；建窗仍按 `nativeTheme.shouldUseDarkColors` 给初值，保证首帧不闪。
 - **外观选择器最终改为「一行 + 二级菜单」**：三行平铺让菜单多出 4 行、整体过长。子菜单用 `position:fixed`，因为 `.datapop` 是 `overflow:auto`，内部绝对定位会被裁剪；fixed 又会在浮层内滚动或窗口缩放时脱离锚点，故这两种情况直接收起。行与子菜单间有 6px 空隙，鼠标移出用 **140ms 延迟收起**并由子菜单 `mouseenter` 取消——`mouseleave` 判的是布局几何而非 DOM 包含关系，子菜单虽在同一 wrapper 子树内，物理上却在 wrapper 盒子之外。
+- **2026-11-23 皮肤并入外观一行**：原来「外观」「皮肤」两行各带二级菜单，用户反馈入口重复；合并后子菜单里三种皮肤与暗色并排成一排（横排四格，`menuitemradio` + 浅底蓝字标记当前项），跟随系统单列在下方，皮肤与暗色共用一个 `openSub` 机制。选皮肤会同时切到浅色，避免深色下点了没反应。
 - **「浅色像素基线不变」是硬约束**：任何 token 化都要保证解析值与替换前字面量逐项相等，不用「差不多」。验收以构建通过 + 计算样式逐项比对为准，截图逐像素 diff 留人工复核。
 - **审计脚本不进 `npm run check`**：它是验收工具（读 CSS 算对比度），与 `node --check` 的语法检查不是一类，避免每次检查都跑一遍。
 

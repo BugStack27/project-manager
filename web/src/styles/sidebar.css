@@ -156,12 +156,22 @@
   .datapop-item .ico{width:17px;height:17px;flex:none;display:grid;place-items:center;color:var(--label-2)}
   .datapop-item:hover .ico{color:var(--label)}
   .datapop-item .tail{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--label-4);font-variant-numeric:tabular-nums}
-  /* 外观二级菜单：与 .datapop 同族，向右弹出。用 fixed 是因为 .datapop 是 overflow:auto，
+  /* 二级菜单：与 .datapop 同族，向右弹出。用 fixed 是因为 .datapop 是 overflow:auto，
      在它内部用绝对定位会被裁剪；z-index 高于 .datapop（80）压住主浮层。 */
   .theme-sub{position:fixed;z-index:81;width:168px;background:var(--card);border-radius:10px;box-shadow:var(--sh-sheet);padding:4px}
-  /* 选中项：不做底色胶囊，靠右侧勾选图标 + 字重（颜色只作辅助） */
-  .datapop-item.theme-opt[aria-checked="true"]{font-weight:600}
-  .datapop-item.theme-opt .tail{color:var(--blue)}
+  /* 外观二级菜单：三种皮肤与暗色并排成一排，跟随系统单列一行 */
+  .theme-sub.appearance-sub{width:252px;padding:6px}
+  .appearance-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+  .appearance-tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 2px 7px;border:0;border-radius:8px;background:transparent;color:var(--label);font:inherit;font-size:11.5px;cursor:pointer;transition:background .12s,color .12s}
+  .appearance-tile:hover{background:rgb(var(--ink-rgb) / .08)}
+  .appearance-tile:active{transform:scale(.98)}
+  .appearance-tile .ico{width:18px;height:18px;display:grid;place-items:center;color:var(--label-2)}
+  .appearance-tile:hover .ico{color:var(--label)}
+  /* 选中项：浅底 + 蓝字加粗，不只靠颜色一个维度 */
+  .appearance-tile[aria-checked="true"]{background:rgb(var(--ink-rgb) / .07);color:var(--blue);font-weight:600}
+  .appearance-tile[aria-checked="true"] .ico{color:var(--blue)}
+  .appearance-tile .skin-sw{width:15px;height:15px;border-radius:5px}
+  .appearance-auto{margin-top:4px}
   /* 皮肤选项的双色色板：左上该皮肤底色、右下强调色，一眼看出配色取向 */
   .skin-sw{width:14px;height:14px;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.18);background:linear-gradient(135deg,var(--sw-bg) 0 50%,var(--sw-ac) 50% 100%)}
   .skin-sw-crisp{--sw-bg:#EDF0F4;--sw-ac:#0A6CFF}

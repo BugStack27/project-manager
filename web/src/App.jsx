@@ -320,6 +320,15 @@ export default function App() {
     notify('「新建」只在需求中心与启动台可用', 'info');
   }, [page, project, notify]);
 
+  /** 快捷键「项目设置」：没有选中项目时给一句提示，避免被当成快捷键失灵 */
+  const openProjectSettings = useCallback(() => {
+    if (!project) {
+      notify('先选一个项目，再打开项目设置', 'warn');
+      return;
+    }
+    setModal({ type: 'project', mode: 'edit', project });
+  }, [project, notify]);
+
   /** 快捷键「切换视图页签」：在项目的三个视图间循环；总览 / 统计或没有选中项目时不响应 */
   const cycleView = useCallback(() => {
     const keys = VIEWS.map((v) => v.key);
@@ -338,6 +347,7 @@ export default function App() {
       run: toggleRunPalette,
       switchProject: toggleProjectPalette,
       create: createInView,
+      projectSettings: openProjectSettings,
       shortcuts: () => setModal({ type: 'shortcuts' })
     }
   });

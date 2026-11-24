@@ -71,6 +71,12 @@ export const SHORTCUT_ACTIONS = [
     default: { mod: true, alt: false, shift: false, key: 'n' }
   },
   {
+    id: 'projectSettings',
+    label: '项目设置',
+    desc: '打开当前选中项目的设置弹窗',
+    default: { mod: true, alt: false, shift: false, key: ',' }
+  },
+  {
     id: 'shortcuts',
     label: '快捷键设置',
     desc: '打开这个弹窗，查看与修改快捷键',

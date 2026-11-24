@@ -196,6 +196,39 @@ function cmdView(c) {
   };
 }
 
+/**
+ * 项目扩展信息：只在单项目详情 / 认领 / 更新结果里下发，不进 5 秒项目列表轮询。
+ * 关联只解析目标当前的名字与路径，目标被归档或删除时如实标记，不做级联清理。
+ */
+function projectExtras(p) {
+  const db = store.get();
+  const ex = (p && p.extras) || {};
+  const links = (Array.isArray(ex.links) ? ex.links : []).map((l) => {
+    const target = db.projects.find((x) => x.id === l.projectId);
+    return {
+      id: l.id,
+      projectId: l.projectId,
+      note: l.note || '',
+      name: target ? target.name : '',
+      path: target ? target.path : '',
+      archived: !!(target && target.archived),
+      exists: !!target
+    };
+  });
+  const env = (Array.isArray(ex.env) ? ex.env : []).map((e) => ({
+    id: e.id,
+    key: e.key || '',
+    value: e.value || ''
+  }));
+  const rules = (Array.isArray(ex.rules) ? ex.rules : []).map((r) => ({
+    id: r.id,
+    title: r.title || '',
+    body: r.body || '',
+    enabled: r.enabled !== false
+  }));
+  return { links, env, rules };
+}
+
 function projectView(p) {
   const db = store.get();
   const profile = detectProfile(p.path);
@@ -315,4 +348,4 @@ function projectView(p) {
   };
 }
 
-module.exports = { reqView, runView, cmdView, projectView };
+module.exports = { reqView, runView, cmdView, projectView, projectExtras };

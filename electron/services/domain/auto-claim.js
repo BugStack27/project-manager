@@ -21,7 +21,7 @@ const { PROBE_TIMEOUT } = require('./constants');
 const { fail } = require('./errors');
 const { assertAgent } = require('./validators');
 const { findReq } = require('./lookups');
-const { reqView } = require('./views');
+const { reqView, projectExtras } = require('./views');
 const { planDispatch, resolveDispatch } = require('./claim-gate');
 const { claimLocked, expireStaleQuestions } = require('./requirements');
 const {
@@ -78,7 +78,8 @@ function viewOf(project, r, resumed) {
   return {
     agent: r.claim.agent,
     requirement: reqView(r),
-    project: { id: project.id, name: project.name, path: project.path },
+    // 扩展信息平铺在 project 里，agent 直接读 project.rules / project.env / project.links
+    project: { id: project.id, name: project.name, path: project.path, ...projectExtras(project) },
     claim: { agent: r.claim.agent, at: r.claim.at },
     resumed: !!resumed
   };

@@ -11,9 +11,74 @@ const { fail } = require('./errors');
 const { nowIso } = require('./dates');
 const { samePath, rebaseCwd } = require('./paths');
 const { findProject } = require('./lookups');
-const { projectView } = require('./views');
+const { projectView, projectExtras } = require('./views');
 const { detectKind } = require('../project-detect');
 const { bump: notifyTaskAvailable } = require('./next-waiter');
+
+const EXTRA_CAPS = { links: 20, env: 50, rules: 30 };
+const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** 条目 id 沿用客户端已有的，新增条目由服务端分配；界面 key 不会因每次保存而重排 */
+function keepExtraId(raw, prefix) {
+  const id = String(raw || '').trim();
+  return id || store.uid(prefix);
+}
+
+function normalizeLinks(raw, projectId) {
+  const projects = store.get().projects;
+  const out = [];
+  const seen = new Set();
+  (Array.isArray(raw) ? raw : []).forEach((item) => {
+    const targetId = String((item && item.projectId) || '').trim();
+    if (!targetId) return;
+    if (targetId === projectId) fail('不能关联项目自身', 'bad_extras', 400);
+    if (seen.has(targetId)) return;
+    if (!projects.some((x) => x.id === targetId)) fail('关联的项目不存在', 'project_missing', 400);
+    seen.add(targetId);
+    out.push({
+      id: keepExtraId(item.id, 'pl'),
+      projectId: targetId,
+      note: String((item && item.note) || '').trim().slice(0, 300)
+    });
+  });
+  return out.slice(0, EXTRA_CAPS.links);
+}
+
+function normalizeEnv(raw) {
+  const out = [];
+  const seen = new Set();
+  (Array.isArray(raw) ? raw : []).forEach((item) => {
+    const key = String((item && item.key) || '').trim();
+    if (!key) return;
+    if (!ENV_KEY_RE.test(key)) fail('环境变量名不合法：' + key, 'bad_env', 400);
+    // Windows 环境变量名不区分大小写，同名视为重复
+    const low = key.toLowerCase();
+    if (seen.has(low)) fail('环境变量名重复：' + key, 'duplicate_env', 409);
+    seen.add(low);
+    out.push({
+      id: keepExtraId(item.id, 'pe'),
+      key: key.slice(0, 64),
+      value: String(item && item.value != null ? item.value : '').trim().slice(0, 1000)
+    });
+  });
+  return out.slice(0, EXTRA_CAPS.env);
+}
+
+function normalizeRules(raw) {
+  const out = [];
+  (Array.isArray(raw) ? raw : []).forEach((item) => {
+    const title = String((item && item.title) || '').trim().slice(0, 80);
+    const text = String((item && item.body) || '').trim().slice(0, 4000);
+    if (!title && !text) return;
+    out.push({
+      id: keepExtraId(item && item.id, 'pr'),
+      title,
+      body: text,
+      enabled: !(item && item.enabled === false)
+    });
+  });
+  return out.slice(0, EXTRA_CAPS.rules);
+}
 
 function createProjects() {
   return {
@@ -26,7 +91,10 @@ function createProjects() {
       return { projects: list };
     },
 
-    project: ({ id }) => ({ project: projectView(findProject(id)) }),
+    project: ({ id }) => {
+      const p = findProject(id);
+      return { project: projectView(p), extras: projectExtras(p) };
+    },
 
     /** 项目真实图标按需取：dataURL 体积远大于普通字段，不跟着项目列表轮询下发 */
     projectIcon: ({ id }) => {
@@ -125,6 +193,16 @@ function createProjects() {
           if (running.length) fail('该项目有 ' + running.length + ' 条命令正在运行，先停止再归档', 'project_running', 409);
         }
       }
+      if (body.extras !== undefined) {
+        // 先全部校验再落库：任何一条非法都不应留下半改的项目
+        const ex = body.extras || {};
+        const next = {};
+        if (ex.links !== undefined) next.links = normalizeLinks(ex.links, p.id);
+        if (ex.env !== undefined) next.env = normalizeEnv(ex.env);
+        if (ex.rules !== undefined) next.rules = normalizeRules(ex.rules);
+        if (!p.extras) p.extras = { links: [], env: [], rules: [] };
+        Object.assign(p.extras, next);
+      }
       p.updatedAt = nowIso();
       store.save();
       notifyTaskAvailable();
@@ -133,6 +211,9 @@ function createProjects() {
       if (before.path !== p.path) changes.push('path');
       if (before.aiScout !== (p.aiScout !== false)) changes.push('aiScout');
       if (before.autoPull !== (p.autoPull === undefined ? null : p.autoPull)) changes.push('autoPull');
+      if (body.extras && body.extras.links !== undefined) changes.push('links');
+      if (body.extras && body.extras.env !== undefined) changes.push('env');
+      if (body.extras && body.extras.rules !== undefined) changes.push('rules');
       eventLog.append({
         type: 'project.updated',
         projectId: p.id,
@@ -147,7 +228,7 @@ function createProjects() {
           data: { projectName: p.name, name: p.name }
         });
       }
-      return { project: projectView(p), syncedCommands };
+      return { project: projectView(p), syncedCommands, extras: projectExtras(p) };
     },
 
     /**

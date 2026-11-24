@@ -833,7 +833,27 @@ function startMcpHttp(dispatch, log, prompts) {
       resolve({
         port: PORT,
         url: 'http://127.0.0.1:' + PORT + '/mcp',
-        close: () => new Promise((r) => server.close(r))
+        close: () => new Promise((settle) => {
+          let settled = false;
+          const done = () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(force);
+            settle();
+          };
+          /**
+           * 不能只等 server.close 的完成回调：它要等所有连接自然结束，而 /next、/remote/wait
+           * 的长轮询会挂住几分钟，/ask 挂 1 小时、/complete 挂 2 小时。应用退出（含自动更新
+           * 的「重启并安装」）会被这些连接拖住，表现为点了没反应。这里给 500ms 让在途响应
+           * 发完，然后强制断开剩余连接。
+           */
+          const force = setTimeout(() => {
+            if (typeof server.closeAllConnections === 'function') server.closeAllConnections();
+            done();
+          }, 500);
+          if (force.unref) force.unref();
+          server.close(done);
+        })
       });
     });
   });

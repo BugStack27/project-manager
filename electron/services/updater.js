@@ -28,6 +28,13 @@ const { app } = require('electron');
 const FIRST_CHECK_DELAY = 8000;
 const CHECK_EVERY = 6 * 60 * 60 * 1000;
 
+/**
+ * 安装前清理的上限。清理里要关 MCP 服务，在途的长轮询（/next、/ask、/complete）可能占住
+ * 连接几分钟到几小时；不设上限就会「点了重启并安装，界面毫无反应」。超时也照样往下走：
+ * 库在清理开头已经落盘，剩下的只是收尾。
+ */
+const BEFORE_INSTALL_TIMEOUT = 3000;
+
 let autoUpdater = null;
 let timer = null;
 let emit = () => {};
@@ -189,7 +196,15 @@ async function install() {
   if (!autoUpdater || state.phase !== 'downloaded') return { ok: false, state: snapshot() };
   if (onBeforeInstall) {
     try {
-      await onBeforeInstall();
+      let timer = null;
+      await Promise.race([
+        onBeforeInstall(),
+        new Promise((r) => {
+          timer = setTimeout(r, BEFORE_INSTALL_TIMEOUT);
+          if (timer.unref) timer.unref();
+        })
+      ]);
+      if (timer) clearTimeout(timer);
     } catch (_) {}
   }
   // 让本次 IPC 先把「正在重启」回给界面，再真的退出

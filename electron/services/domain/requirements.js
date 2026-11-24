@@ -437,7 +437,8 @@ function createRequirements() {
     },
 
     /**
-     * agent 提问：追加一条待回答提问 + 一条往返消息，然后在服务端**等用户回答**（默认 1 小时）。
+     * agent 提问：追加一条待回答提问 + 一条往返消息，然后在服务端**等用户回答**（固定 1 小时，
+     * 不接受 agent 传参缩短等待）。
      *
      * 一条需求可以同时挂多条提问（上限 `MAX_QUESTIONS`）：每条有独立的 questionId、独立的等待与
      * 超时、独立的回答，互不顶掉。这样 agent 并行问两三件互不依赖的事时，用户能一次答完，
@@ -451,7 +452,7 @@ function createRequirements() {
      * - 需求被交付 / 释放 / 删除：`reason='cancelled'`，不必等超时。
      * 超时即关闭提问，之后不能再补答 —— 想改就让用户打完交付再打回。
      */
-    askRequirement: async ({ rid, agent, text, options, fallback, waitMs }) => {
+    askRequirement: async ({ rid, agent, text, options, fallback }) => {
       const id = assertTaskId(rid);
       const who = assertAgent(agent);
       const r = findReq(id);
@@ -477,8 +478,7 @@ function createRequirements() {
       const fb = assertEncoded(String(fallback ?? '').trim(), 'default');
       if (fb.length > 2000) fail('默认回答过长（上限 2000 字符）', 'bad_question', 400);
 
-      // 单条提问的等待不能超过服务端上限：agent 传更大的值只会白等，不如在 expiresAt 上就说实话
-      const wait = Number.isFinite(waitMs) ? Math.min(ASK_TIMEOUT, Math.max(0, waitMs)) : ASK_TIMEOUT;
+      // 等待时长固定为上限，不接受 agent 传参缩短：提问只能等到用户回答或服务端超时
       const at = nowIso();
       const qid = store.uid('q');
       addQuestion(r, {
@@ -488,7 +488,7 @@ function createRequirements() {
         text: t,
         options: opts,
         default: fb,
-        expiresAt: new Date(Date.parse(at) + wait).toISOString()
+        expiresAt: new Date(Date.parse(at) + ASK_TIMEOUT).toISOString()
       });
       r.updatedAt = at;
       pushMessage(r, { at, role: 'agent', kind: 'question', agent: who, text: t, qid });
@@ -502,7 +502,7 @@ function createRequirements() {
         data: { ...snapshot(r), agent: who, note: t, questionId: qid }
       });
 
-      const res = await waitFor(qid, wait, id);
+      const res = await waitFor(qid, ASK_TIMEOUT, id);
 
       // 等待期间用户可能撤销、删除需求，或被别的操作改了状态：重新取一次，别拿旧引用写
       const cur = store.get().requirements.find((x) => x.id === id);

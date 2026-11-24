@@ -681,15 +681,14 @@ const AGENT_ROUTES = {
   '/ask': {
     mode: 'json',
     method: 'askRequirement',
-    // default 是超时兜底（与手册同名，也接受 fallback）；wait 是秒，可缩短单次等待
+    // default 是超时兜底（与手册同名，也接受 fallback）；
+    // 等待时长固定为服务端上限，不接受 agent 传 wait 自行缩短
     params: (b) => ({
       rid: b.taskId,
       agent: b.agent,
       text: b.text,
       options: b.options,
-      fallback: b.default !== undefined ? b.default : b.fallback,
-      waitMs:
-        b.wait === undefined || b.wait === null || b.wait === '' ? undefined : Number(b.wait) * 1000
+      fallback: b.default !== undefined ? b.default : b.fallback
     }),
     failMsg: '提问失败'
   },

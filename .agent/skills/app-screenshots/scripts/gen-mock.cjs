@@ -30,10 +30,10 @@ const newProjects = [
   { id: 'p_suixing', name: '岁星报表引擎', path: 'D:\\workspace\\suixing-report', aiScout: true, stacks: ['javafx', 'gradle'], createdAt: iso(60 * DAY) }
 ];
 
-const A_CURSOR = { agent: 'cursor-agent', agentName: '光标' };
-const A_CLAUDE = { agent: 'claude-code', agentName: '白泽' };
-const A_SCOUT = { agent: 'scout-agent', agentName: '巡星' };
-const A_COPILOT = { agent: 'copilot-agent', agentName: '青鸾' };
+const A_CURSOR = { agent: 'cursor-agent', agentName: 'Cursor' };
+const A_CLAUDE = { agent: 'claude-code', agentName: 'Claude Code' };
+const A_SCOUT = { agent: 'workbuddy-agent', agentName: 'Work Buddy' };
+const A_COPILOT = { agent: 'copilot-agent', agentName: 'Copilot Agent' };
 
 function claim(a, msAgo) {
   return { agent: a.agent, agentName: a.agentName, at: iso(msAgo) };

@@ -54,6 +54,7 @@
 - **需求详情** — 正文渲染 markdown（含 GFM 表格）；`@` 引用其他项目、本项目需求与文件 / 文件夹，`/` 引用技能，悬停就地预览内容（文件夹列一级条目），不用离开当前需求。
 - **让 agent 干活** — 本地 MCP 接入后，agent 能提需求、认领、交付、提问；认领与验收按项目串行，命令启停不对 AI 开放。
 - **启动台** — 点一下跑本地进程，日志保留 ANSI 颜色；退出时可选择分离，应用关了进程继续跑。
+- **项目扩展信息** — 项目设置里维护关联项目（带备注）、环境变量与 Agent 规则；环境变量默认注入启动台命令（单条命令可关闭），规则支持 Markdown 与 `/` 插入技能，启用的规则随任务下发给 Agent。
 - **修改记录** — 当前改动和提交历史在一棵树里，行内展开 diff；验收时可顺手提交并推送。
 - **搜索与切换** — `Ctrl / ⌘ + K` 全局搜索（项目、需求、日志、提交都支持拼音），`+ O` 切项目，`+ P` 命令面板。
 - **通知与审计** — 待审核、命令异常、AI 新需求会发系统通知；托盘角标显示待审核数；事件流可筛选。
@@ -133,6 +134,6 @@ doc/         设计决策记录与截图
 ## 文档
 
 - [产品方案](doc/product-spec.md) · [架构与通道](doc/architecture-and-channels.md) · [壳层与导航](doc/app-shell-and-navigation.md) · [主题与身份色](doc/theme-and-identity-colors.md)
-- [需求中心与 Agent 协作](doc/requirements-and-agent.md) · [自动派发与自动执行](doc/auto-dispatch.md) · [需求往返对话与提问](doc/requirement-thread.md) · [修改记录与 git 同步](doc/changes-and-git-sync.md)
+- [需求中心与 Agent 协作](doc/requirements-and-agent.md) · [自动派发与自动执行](doc/auto-dispatch.md) · [需求往返对话与提问](doc/requirement-thread.md) · [修改记录与 git 同步](doc/changes-and-git-sync.md) · [项目扩展信息](doc/project-extras.md)
 - [总览与统计](doc/overview-and-statistics.md) · [启动台与命令运行](doc/launch-and-runs.md) · [项目登记与图标识别](doc/projects.md) · [搜索与快捷键](doc/search-and-shortcuts.md)
 - [事件日志与通知](doc/event-log-and-notifications.md) · [系统运行与发布](doc/system-runtime-and-release.md) · [数据备份与恢复](doc/backup-and-restore.md) · [手机端通信](doc/mobile-link.md)

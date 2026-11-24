@@ -60,6 +60,7 @@ function createCommands() {
         name: String(body.name || '').trim(),
         text,
         cwd,
+        noProjectEnv: body.noProjectEnv === true,
         createdAt: nowIso(),
         updatedAt: nowIso(),
         runs: []
@@ -80,7 +81,7 @@ function createCommands() {
       const c = findCommand(cid);
       if (runner.isActive(c)) fail('命令正在运行，先停止再编辑', 'command_running', 409);
       const body = patch || {};
-      const before = { text: c.text, cwd: c.cwd, name: c.name || '' };
+      const before = { text: c.text, cwd: c.cwd, name: c.name || '', noProjectEnv: !!c.noProjectEnv };
 
       if (body.text !== undefined) {
         const text = String(body.text).trim();
@@ -93,12 +94,14 @@ function createCommands() {
         c.cwd = cwd || (proj ? proj.path : c.cwd);
       }
       if (body.name !== undefined) c.name = String(body.name).trim();
+      if (body.noProjectEnv !== undefined) c.noProjectEnv = !!body.noProjectEnv;
       c.updatedAt = nowIso();
       store.save();
       const fields = [];
       if (before.text !== c.text) fields.push('text');
       if (before.cwd !== c.cwd) fields.push('cwd');
       if (before.name !== (c.name || '')) fields.push('name');
+      if (before.noProjectEnv !== !!c.noProjectEnv) fields.push('noProjectEnv');
       eventLog.append({
         type: 'command.updated',
         projectId: c.projectId,

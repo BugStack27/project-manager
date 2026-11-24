@@ -188,6 +188,7 @@ function cmdView(c) {
     name: c.name || '',
     text: c.text,
     cwd: c.cwd,
+    noProjectEnv: !!c.noProjectEnv,
     status: running ? 'running' : 'stopped',
     running,
     runCount: runs.length,
@@ -224,7 +225,9 @@ function projectExtras(p) {
     id: r.id,
     title: r.title || '',
     body: r.body || '',
-    enabled: r.enabled !== false
+    enabled: r.enabled !== false,
+    /** 规则正文是 Markdown，可写 `{UseSkill:id}`；与需求同一套解析，agent 拿到 entry 就能读 */
+    skills: resolveSkills(r.body || '')
   }));
   return { links, env, rules };
 }

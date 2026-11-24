@@ -32,7 +32,7 @@ function normalizeLinks(raw, projectId) {
     const targetId = String((item && item.projectId) || '').trim();
     if (!targetId) return;
     if (targetId === projectId) fail('不能关联项目自身', 'bad_extras', 400);
-    if (seen.has(targetId)) return;
+    if (seen.has(targetId)) fail('关联已存在', 'duplicate_link', 409);
     if (!projects.some((x) => x.id === targetId)) fail('关联的项目不存在', 'project_missing', 400);
     seen.add(targetId);
     out.push({
@@ -50,6 +50,7 @@ function normalizeEnv(raw) {
   (Array.isArray(raw) ? raw : []).forEach((item) => {
     const key = String((item && item.key) || '').trim();
     if (!key) return;
+    if (key.length > 64) fail('环境变量名过长（最多 64 字符）：' + key.slice(0, 20) + '…', 'bad_env', 400);
     if (!ENV_KEY_RE.test(key)) fail('环境变量名不合法：' + key, 'bad_env', 400);
     // Windows 环境变量名不区分大小写，同名视为重复
     const low = key.toLowerCase();
@@ -57,7 +58,7 @@ function normalizeEnv(raw) {
     seen.add(low);
     out.push({
       id: keepExtraId(item.id, 'pe'),
-      key: key.slice(0, 64),
+      key,
       value: String(item && item.value != null ? item.value : '').trim().slice(0, 1000)
     });
   });
@@ -152,6 +153,16 @@ function createProjects() {
       /** 本次跟着改目录的命令条数，回给界面做提示 */
       let syncedCommands = 0;
 
+      // 先把 extras 全部规范化：任何一条非法都在改动基础字段之前失败，不留下半改的项目
+      let nextExtras = null;
+      if (body.extras !== undefined) {
+        const ex = body.extras || {};
+        nextExtras = {};
+        if (ex.links !== undefined) nextExtras.links = normalizeLinks(ex.links, p.id);
+        if (ex.env !== undefined) nextExtras.env = normalizeEnv(ex.env);
+        if (ex.rules !== undefined) nextExtras.rules = normalizeRules(ex.rules);
+      }
+
       if (body.name !== undefined) {
         const nm = String(body.name).trim();
         if (!nm) fail('项目名不能为空');
@@ -193,15 +204,9 @@ function createProjects() {
           if (running.length) fail('该项目有 ' + running.length + ' 条命令正在运行，先停止再归档', 'project_running', 409);
         }
       }
-      if (body.extras !== undefined) {
-        // 先全部校验再落库：任何一条非法都不应留下半改的项目
-        const ex = body.extras || {};
-        const next = {};
-        if (ex.links !== undefined) next.links = normalizeLinks(ex.links, p.id);
-        if (ex.env !== undefined) next.env = normalizeEnv(ex.env);
-        if (ex.rules !== undefined) next.rules = normalizeRules(ex.rules);
+      if (nextExtras) {
         if (!p.extras) p.extras = { links: [], env: [], rules: [] };
-        Object.assign(p.extras, next);
+        Object.assign(p.extras, nextExtras);
       }
       p.updatedAt = nowIso();
       store.save();

@@ -75,11 +75,19 @@ async function checkDirty(projectIds) {
 }
 
 function viewOf(project, r, resumed) {
+  const extras = projectExtras(project);
   return {
     agent: r.claim.agent,
     requirement: reqView(r),
-    // 扩展信息平铺在 project 里，agent 直接读 project.rules / project.env / project.links
-    project: { id: project.id, name: project.name, path: project.path, ...projectExtras(project) },
+    // 扩展信息平铺在 project 里，agent 直接读 project.rules / project.env / project.links；
+    // 规则只下发启用的，禁用项留给界面，不干扰 agent
+    project: {
+      id: project.id,
+      name: project.name,
+      path: project.path,
+      ...extras,
+      rules: extras.rules.filter((x) => x.enabled)
+    },
     claim: { agent: r.claim.agent, at: r.claim.at },
     resumed: !!resumed
   };

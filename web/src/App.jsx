@@ -859,6 +859,7 @@ export default function App() {
           await archiveProject(modal.project);
           setModal(null);
         }}
+        onRevealProject={revealProject}
         onSaveRequirement={saveRequirement}
         onConfirmStatusNote={confirmStatusWithGit}
         onSaveCommand={saveCommand}

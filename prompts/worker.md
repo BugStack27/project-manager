@@ -19,7 +19,7 @@ curl -sS -G http://127.0.0.1:7318/next --data-urlencode 'agent={{agent}}'
 | 字段 | 含义|
 | - | - |
 | `requirement` | 任务详情：`id` / `seq` / `title` / `body` / `note` / `feedback` / `release` / `questions` / `thread` / `status` / `claim` / `refs`（`body` 里 `@{项目名}` 引用的项目）/ `reqRefs`（`@{#序号}` 引用的本项目需求）/ `fileRefs`（`@{file:路径}` 引用的本项目文件）/ `skills`（正文与最近一次打回意见里 `{UseSkill:x}` 关联的技能），均见第 2 节 |
-| `project`     | `id` / `name` / `path` —— 你要在这个目录里干活                                                                                                                                                                                                        |
+| `project`     | `id` / `name` / `path` / `rules` / `env` / `links` —— 工作目录，以及项目规则（只含启用项；每条含 `title / body / skills`，`body` 为 Markdown）、环境变量、关联项目，见第 2 节 |
 | `claim`       | `agent` / `at` —— 你的认领记录                                                                                                                                                                                                                        |
 | `resumed`     | `true` 表示这是你上一轮已认领、还没交付的任务                                                                                                                                                                                                         |
 | `reason`      | 只在 `requirement` 为 `null` 时出现，通常是 `no_task`                                                                                                                                                                                                 |
@@ -66,6 +66,10 @@ curl -sS -G http://127.0.0.1:7318/next --data-urlencode 'agent={{agent}}'
   - `exists: false`：目录已不在（换了机器 / 删了客户端）。这时用 `/ask` 告诉用户「需求要求技能 X，但本机路径已失效」，**不要 `/release`** —— 释放会触发冷却并把项目锁住，代价比问一句大得多；
   - `ambiguous: true`：同名技能在多个客户端目录里都有（`candidates` 列出全部），默认用第一个即可，需要时再看另一个；
   - 需要重新确认路径时用 `GET http://127.0.0.1:7318/skill/<skillId>`（也接受裸名），返回同形结构。
+- **`project.rules` / `project.env` / `project.links` 是项目扩展信息**：
+  - `rules`：项目规则（只含启用项），每条含 `title` / `body` / `skills`。`body` 是 Markdown，按普通文档阅读即可；里面出现的 `{UseSkill:id}` 已解析进该条的 `skills`（结构与 `requirement.skills` 相同，含 `entry` / `exists` / `ambiguous`），需要时按 `entry` 读技能手册，目录已不在就用 `/ask` 问用户。**开工前先读一遍**，与本条需求不冲突时按规则执行（例如「docs 条目过多时调用收敛文档 Skill」）；规则与需求冲突时以需求为准，并在交付说明里点一句。
+  - `env`：环境变量清单（`key` / `value`，如 `JAVA_HOME`）。你用 shell 跑命令前先按这份清单 `set` / `export`；同名变量以项目配置为准。
+  - `links`：关联项目，含 `name` / `path` / `note` / `exists`。只用来理解上下文与查阅，**不要改被关联项目的代码**；`exists: false` 表示目标已删除，跳过即可。
 - **先读 `requirement.thread`**：这是这条需求的往返记录（之前的交付、打回、提问、回答）。`feedback` 只是最近一次打回原因的快捷字段。**不要重复已经被否掉的方案**，交付说明里逐条回应上一轮的意见。
 - 只做这条需求范围内的事：顺手发现的问题不要夹带修改，写进交付说明即可。
 - 验证用项目自己的方式（构建、类型检查、项目内的测试）。**不要留下常驻进程**：需要起的服务用完就停，别把开发服务器挂在后台。

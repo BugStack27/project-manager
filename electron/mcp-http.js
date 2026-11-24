@@ -74,7 +74,7 @@ const TOOLS = [
   },
   {
     name: 'pm_get_project',
-    description: '按项目 id 取单个项目的详情（含 AI 巡检开关 aiScout 与各项需求计数）。',
+    description: '按项目 id 取单个项目的详情（含 AI 巡检开关 aiScout、各项需求计数，以及关联项目 / 环境变量 / 规则等扩展信息；规则正文为 Markdown，含 {UseSkill:x} 的会附 skills 解析）。',
     inputSchema: {
       type: 'object',
       properties: { projectId: { type: 'string' } },

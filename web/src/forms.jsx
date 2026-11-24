@@ -444,6 +444,7 @@ export function CommandForm({ mode, project, command, onClose, onSave, onDelete 
   const [text, setText] = useState(command ? command.text : '');
   const [cwd, setCwd] = useState(command ? command.cwd : project.path);
   const [name, setName] = useState(command ? command.name || '' : '');
+  const [noProjectEnv, setNoProjectEnv] = useState(!!(command && command.noProjectEnv));
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
   const [pickErr, setPickErr] = useState('');
@@ -506,7 +507,7 @@ export function CommandForm({ mode, project, command, onClose, onSave, onDelete 
     setBusy(true);
     setErr('');
     try {
-      await onSave({ text: text.trim(), cwd: cwd.trim(), name: name.trim() });
+      await onSave({ text: text.trim(), cwd: cwd.trim(), name: name.trim(), noProjectEnv });
     } catch (e2) {
       setErr(e2.message);
       setBusy(false);
@@ -595,6 +596,20 @@ export function CommandForm({ mode, project, command, onClose, onSave, onDelete 
         <div className="field">
           <label>备注名（可选）</label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如 开发服务器" />
+        </div>
+
+        <div className="field">
+          <label>项目环境变量</label>
+          <label className="checkline">
+            <input
+              type="checkbox"
+              checked={noProjectEnv}
+              disabled={busy}
+              onChange={(e) => setNoProjectEnv(e.target.checked)}
+            />
+            <span>不注入项目扩展信息里配置的环境变量</span>
+          </label>
+          <div className="hintline">默认注入；个别命令需要干净环境时再勾选</div>
         </div>
 
         <div className={'mfoot' + (editing ? ' split' : '')}>

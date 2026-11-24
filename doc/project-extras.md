@@ -1,9 +1,12 @@
 ---
 date: 2026-11-24
 description: 项目设置升级为带左侧分区导航的大弹窗：基础 / 关联项目 / 环境 / 规则；条目型配置即时保存，并下发给启动命令与 Agent
+status: accepted
 ---
 
 # 项目扩展信息配置 — 任务规划
+
+> 状态：✅ 已验收（2026-11-24）
 
 ## 1. 需求概述
 
@@ -32,7 +35,7 @@ description: 项目设置升级为带左侧分区导航的大弹窗：基础 / �
 - 入口不变：项目行 `···` → 设置；不新增视图页签、不改侧栏结构。
 - 扩展信息存项目记录 `p.extras = { links, env, rules }`，不建独立表，不改 `db.version`；旧库读时按空数组兜底，无需迁移。
 - **不塞进 5 秒项目列表轮询**：项目列表 `projectView` 保持现状，扩展信息只随单项目详情（`project` 动作）、`/next`、`updateProject` 结果返回。理由与 `projectIcon` 一致——规则正文可能较长，不能让轮询载荷膨胀。
-- 环境变量只注入启动台命令的**子进程**，不注入命令宿主进程，也不影响「在终端打开」；不打印变量值到日志。
+- 环境变量并入宿主进程的 `spawn env`，由宿主透传给命令子进程；不影响 IDE、「在终端打开」与系统环境；不打印变量值到日志。
 - 规则只下发 `enabled !== false` 的条目；关联目标被归档或删除时标记 `exists / archived`，界面显示「已失效」并允许移除。
 - 数量与长度上限：关联 20 条（备注 ≤300 字）、环境 50 条（key ≤64、value ≤1000）、规则 30 条（标题 ≤80、正文 ≤4000）；环境 key 按 Windows 语义忽略大小写去重。
 
@@ -149,6 +152,22 @@ description: 项目设置升级为带左侧分区导航的大弹窗：基础 / �
 | 关联目标被归档/删除后成孤儿 | 视图解析时标记 `exists / archived`，条目保留可移除，不做级联删除 |
 | 旧库无 `extras` | 读时 `Array.isArray` 兜底为空数组，不写回、不迁移 |
 
+## 7. 第二轮：设计落地（2026-11-24）
+
+按评审通过的设计稿重做设置弹窗，并扩展规则能力：
+
+| 决策点 | 结论 | 理由 |
+|---|---|---|
+| 浏览方式 | 连续滚动 + 左栏锚点，不再用分区页签 | 配置类内容需要通读；页签会把「环境/规则」藏起来 |
+| 身份与范围 | 头部常驻项目头像/名称/路径/技术栈；左栏显示各分区条数与「启动命令 / Agent 规则」影响数 | 打开即确认改的是谁、会影响什么 |
+| 说明文字 | 删除字段旁的解释性小字；改用状态 chip（单向 / Agent 可读 / 随 /next 下发 / 已停用）、计数与占位符表达 | 能用控件与状态说明的，不再写一段解释 |
+| 保存反馈 | 基础区显式保存；条目自动保存，底部常驻「所有更改已保存 + 时间」 | 两类保存语义不同，反馈要能区分 |
+| 规则正文 | Markdown 渲染；编辑时输入 `/` 插入 `{UseSkill:id}`（规则编辑器禁用 `@` 项目/文件引用） | 规则是给 Agent 的操作手册，需要排版与技能坐标 |
+| 规则技能解析 | `extras.rules[].skills` 由 `resolveSkills(rule.body)` 派生，随 `project` / `/next` 下发；不落库 | 与需求同一条纪律：服务端解析一处、不存副本 |
+| 环境录入 | 账本式 KEY/VALUE + 批量粘贴，重复与格式在保存前拦截 | 路径类变量通常成批迁移，逐条新建费劲 |
+
+验证：`npm run check` 与 web 构建通过；无头 Chromium 实拍四个分区与规则编辑态，关联新增、环境新增、规则开关与 Markdown 正文保存均落库；后端实测规则正文保留换行与 Markdown，`{UseSkill:x}` 解析进 `skills`（本机没有该技能时 `exists:false`）。
+
 ## Complements
 
 ### 1. 数据模型与项目详情视图
@@ -164,7 +183,92 @@ description: 项目设置升级为带左侧分区导航的大弹窗：基础 / �
 - **状态**：✅ 已完成
 - **修改文件**：
   - `electron/services/domain/projects.js` — 新增 `normalizeLinks / normalizeEnv / normalizeRules`；`updateProject` 接受 `patch.extras`，先整体校验再落库；截断上限、环境变量忽略大小写去重、禁止自关联/重复关联/不存在的目标；审计 `changes` 增加 `links/env/rules`；返回值补 `extras`
-- **审查结果**：待审查
+- **审查结果**：审查通过（三轮：超长 key 改为直接拒绝；extras 校验前置保证失败不留半改数据；重复关联在提交数组内拒绝）
 - **完成时间**：2026-11-24
+
+### 3. 命令级「不注入项目环境」开关
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `electron/services/domain/commands.js` — `createCommand` 落 `noProjectEnv`，`updateCommand` 接受该字段并写入审计 `fields`
+  - `electron/services/domain/views.js` — `cmdView` 返回 `noProjectEnv`
+  - `web/src/forms.jsx` — `CommandForm` 增加「不注入项目扩展信息里配置的环境变量」勾选框与说明
+- **审查结果**：审查通过
+- **完成时间**：2026-11-24
+
+### 4. 启动注入链路
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `electron/services/runner.js` — `start()` 读取项目 `extras.env`，并入宿主 spawn env（`noProjectEnv` 时跳过）；`command.started` 审计只记 `envCount`，不记 value；未走 argv，避免 Windows 命令行长度上限
+- **审查结果**：审查通过（端到端实测：注入后输出项目值；勾选后回落到系统同名变量）
+- **完成时间**：2026-11-24
+
+### 5. Agent 下发与手册
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `electron/services/domain/auto-claim.js` — `/next` 的 `project.rules` 只保留 `enabled` 的条目，`env` / `links` 原样下发
+  - `prompts/worker.md` — 第 1 节 project 字段说明补 `rules/env/links`；第 2 节新增开工前读规则、执行命令前注入环境变量、关联项目只读的说明
+  - `electron/mcp-http.js` — `pm_get_project` 描述补充扩展信息（仅改描述文字）
+- **审查结果**：审查通过
+- **完成时间**：2026-11-24
+
+### 6. 大弹窗骨架与基础分区
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `web/src/components/ProjectSettingsModal.jsx` — 新增大弹窗：左侧四分区导航、右侧独立滚动；基础区保留项目名/路径/AI 巡检/自动拉取、未保存圆点、归档与底部保存/取消；打开时 `api.project` 拉取 extras
+  - `web/src/components/AppModals.jsx` — 项目编辑态路由到新弹窗，新建态仍用 ProjectForm
+  - `web/src/forms.jsx` — 导出 `FolderField` 供新弹窗复用
+  - `web/src/styles/modal.css` — 新增 `.pset` 布局样式（760×640、窄窗口自适应）
+- **审查结果**：审查通过
+- **完成时间**：2026-11-24
+
+### 7. 关联项目分区
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `web/src/components/ProjectSettingsModal.jsx` — `LinksSection` + `LinkRow`：列表、内联模糊搜索（复用 `matchProjects`，排除自身/已关联）、备注失焦保存、移除、已归档/已失效标记
+  - `web/src/styles/modal.css` — 关联行、标签、搜索下拉样式
+- **审查结果**：审查通过（两轮：备注失败还原、连续操作用 draft ref 取最新数组）
+- **完成时间**：2026-11-24
+
+### 8. 环境变量分区
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `web/src/components/ProjectSettingsModal.jsx` — `EnvSection` + `EnvRow`：KEY/VALUE 行、失焦保存、添加行、本地正则与忽略大小写去重、错误就地显示、draft ref 防连续操作丢改动
+  - `web/src/styles/modal.css` — 环境变量行分组网格
+- **审查结果**：审查通过（补 `.pset-env .pset-note` 等宽字体规则）
+- **完成时间**：2026-11-24
+
+### 9. 规则分区
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `web/src/components/ProjectSettingsModal.jsx` — `RulesSection` + `RuleRow`：标题/正文失焦保存、启用开关即时保存、删除、新增（本地长度校验）、示例说明；移除占位组件
+  - `web/src/styles/modal.css` — 规则行头、启用开关、正文高度样式
+- **审查结果**：审查通过
+- **完成时间**：2026-11-24
+
+### 10. 联调与回归
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `.agent/skills/app-screenshots/assets/mock-base.js` — 演示桥补 `projectExtras`、`project`/`updateProject` 返回 extras，并给星港数据平台种入关联/环境/规则示例（供 UI 回归与后续截图）
+- **验证方式**：
+  - `npm run check` 通过；`npm --prefix web run build` 通过
+  - 后端脚本实测：extras 增删改与部分更新、环境 key 正则/忽略大小写去重/超长拒绝、关联自关联/数组内重复/目标不存在拒绝、校验失败不产生半改数据、上限截断、删除目标后 `exists:false`
+  - 启动链路实测：项目 `JAVA_HOME` 注入生效；`noProjectEnv` 勾选后回落到系统同名变量
+  - UI 实测（无头 Chromium + 演示桥，亮/暗色各一轮）：四分区渲染、关联搜索新增与删除落库、环境重复 key 就地拦截、新增环境变量落库、规则启用开关落库；旧场景 `requirements` 截图回归正常
+- **审查结果**：审查通过（归档回调使用 AppModals 专用包装，失败会抛错并保持弹窗；演示桥不参与打包）
+- **完成时间**：2026-11-24
+
+### 11. 文档定稿
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `doc/project-extras.md` — 状态改为已验收（`status: accepted`）
+  - `doc/projects.md` — 新增 §2.6 项目扩展信息（存储、载荷、关联、保存、上限）
+  - `doc/launch-and-runs.md` — 新增 §2.6 项目环境变量注入（来源、范围、单命令关闭、传递方式、审计、Agent）
+  - `README.md` — 功能列表补「项目扩展信息」，文档索引补本文件链接
+- **审查结果**：审查通过（两轮：修正宿主/子进程注入表述，源码注释同步）
+- **完成时间**：2026-11-24
+
+---
+
+**完成总结（2026-11-24）**：11 个任务全部通过审查。能力范围：项目扩展信息（单向关联 + 备注、环境变量、Agent 规则）落库并随 `project` / `/next` 下发；启动台命令默认注入项目环境变量且可单命令关闭；项目设置编辑态升级为左侧四分区大弹窗，条目即改即存。验证：`npm run check` 与 web 构建通过，后端与启动链路脚本实测通过，无头 Chromium 亮/暗色 UI 回归通过。已知边界：规则条件仍由 Agent 自行判断；不注入「在终端打开」；关联不做级联清理。
 
 

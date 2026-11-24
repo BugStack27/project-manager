@@ -218,6 +218,17 @@ function start(command) {
   };
 
   store.ensureDirs();
+  // 项目扩展信息里的环境变量：并入宿主 env，由宿主透传给命令子进程；
+  // 走 spawn env 而不是 argv，避免 Windows 命令行长度上限
+  const project = store.get().projects.find((p) => p.id === command.projectId);
+  const projectEnv = {};
+  if (!command.noProjectEnv && project && project.extras && Array.isArray(project.extras.env)) {
+    project.extras.env.forEach((v) => {
+      if (v && v.key) projectEnv[v.key] = String(v.value == null ? '' : v.value);
+    });
+  }
+  const envCount = Object.keys(projectEnv).length;
+
   const spec = {
     text: command.text,
     cwd: command.cwd,
@@ -229,7 +240,7 @@ function start(command) {
   try {
     // detached + ELECTRON_RUN_AS_NODE：宿主脱离本进程的会话，应用退出后仍能代持管道
     child = spawn(process.execPath, [HOST_SCRIPT, Buffer.from(JSON.stringify(spec)).toString('base64')], {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      env: { ...process.env, ...projectEnv, ELECTRON_RUN_AS_NODE: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
       windowsHide: true
@@ -256,7 +267,7 @@ function start(command) {
     projectId: command.projectId,
     commandId: command.id,
     actor: actor.system('runner'),
-    data: commandData(command, { runId: run.id })
+    data: commandData(command, { runId: run.id, envCount })
   });
 
   // 宿主 stdout 只有一行 PID：真实命令进程号，日志输出不经过这里

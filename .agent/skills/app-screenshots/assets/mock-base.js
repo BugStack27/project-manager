@@ -25,7 +25,40 @@
       name: '星港数据平台',
       path: 'D:\\workspace\\aurora-platform',
       aiScout: true,
-      createdAt: iso(210 * DAY)
+      createdAt: iso(210 * DAY),
+      extras: {
+        links: [
+          { id: 'pl_demo_1', projectId: 'p_mobile', note: '移动端复用同一套鉴权与导出接口' },
+          { id: 'pl_demo_2', projectId: 'p_nimbus', note: '网关暴露导出任务的开放接口' }
+        ],
+        env: [
+          { id: 'pe_demo_1', key: 'JAVA_HOME', value: 'D:\\software\\jdk-21' },
+          { id: 'pe_demo_2', key: 'MAVEN_HOME', value: 'D:\\software\\maven-3.9' }
+        ],
+        rules: [
+          {
+            id: 'pr_demo_1',
+            title: 'docs 收敛',
+            body: 'docs 目录条目超过 30 条时，调用 {UseSkill:workbuddy/收敛文档} 整理后再提交。\n\n- 先合并重复主题\n- 再删除过期草稿',
+            enabled: true,
+            skills: [
+              {
+                name: 'workbuddy/收敛文档',
+                skillId: 'workbuddy/收敛文档',
+                source: 'workbuddy',
+                dir: 'C:\\Users\\demo\\.workbuddy\\skills\\doc-consolidate',
+                entry: 'C:\\Users\\demo\\.workbuddy\\skills\\doc-consolidate\\SKILL.md',
+                description: '把散落的文档合并、去重并重建索引',
+                exists: true,
+                ambiguous: false,
+                candidates: [],
+                reason: null
+              }
+            ]
+          },
+          { id: 'pr_demo_2', title: '导出改动补失败用例', body: '改动导出中心时，为失败分支补一条集成测试。', enabled: false, skills: [] }
+        ]
+      }
     },
     {
       id: 'p_mobile',
@@ -1398,6 +1431,33 @@
     return commands.filter((c) => c.projectId === pid);
   }
 
+  /** 演示桥也要还原真实接口的 extras 形状，否则项目设置弹窗看不到示例数据 */
+  function projectExtras(p) {
+    const ex = (p && p.extras) || {};
+    return {
+      links: (ex.links || []).map((l) => {
+        const t = projects.find((x) => x.id === l.projectId);
+        return {
+          id: l.id,
+          projectId: l.projectId,
+          note: l.note || '',
+          name: t ? t.name : '',
+          path: t ? t.path : '',
+          archived: !!(t && t.archived),
+          exists: !!t
+        };
+      }),
+      env: (ex.env || []).map((e) => ({ id: e.id, key: e.key, value: e.value })),
+      rules: (ex.rules || []).map((r) => ({
+        id: r.id,
+        title: r.title || '',
+        body: r.body || '',
+        enabled: r.enabled !== false,
+        skills: Array.isArray(r.skills) ? r.skills : []
+      }))
+    };
+  }
+
   function projectView(p) {
     const reqs = reqsOf(p.id);
     const unfinished = reqs.filter((r) => UNFINISHED.includes(r.status));
@@ -1475,7 +1535,10 @@
 
   const handlers = {
     projects: () => ({ projects: projects.map(projectView) }),
-    project: ({ id }) => ({ project: projectView(projects.find((p) => p.id === id)) }),
+    project: ({ id }) => {
+      const p = projects.find((x) => x.id === id);
+      return { project: projectView(p), extras: projectExtras(p) };
+    },
     requirements: ({ id }) => ({ requirements: reqsOf(id).map(reqView) }),
     pendingRequirements: ({ id }) => ({
       requirements: reqsOf(id).filter((r) => UNFINISHED.includes(r.status)).map(reqView)
@@ -1644,8 +1707,26 @@
     },
     updateProject: ({ id, patch }) => {
       const p = projects.find((x) => x.id === id);
-      if (p) Object.assign(p, patch || {});
-      return { project: p ? projectView(p) : null, syncedCommands: 0 };
+      if (p) {
+        const body = { ...(patch || {}) };
+        if (body.extras) {
+          p.extras = p.extras || { links: [], env: [], rules: [] };
+          ['links', 'env', 'rules'].forEach((k) => {
+            if (!body.extras[k]) return;
+            p.extras[k] = body.extras[k].map((x, i) => ({
+              ...x,
+              id: x.id || 'pextra_' + k + '_' + Date.now() + '_' + i
+            }));
+          });
+          delete body.extras;
+        }
+        Object.assign(p, body);
+      }
+      return {
+        project: p ? projectView(p) : null,
+        extras: p ? projectExtras(p) : null,
+        syncedCommands: 0
+      };
     },
     archiveProject: ({ id }) => {
       const p = projects.find((x) => x.id === id);

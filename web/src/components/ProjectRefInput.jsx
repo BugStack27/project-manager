@@ -54,7 +54,8 @@ export default function ProjectRefInput({
   placeholder,
   className,
   autoFocus,
-  disabled
+  disabled,
+  skillsOnly = false
 }) {
   const areaRef = useRef(null);
   /** { kind:'ref'|'skill', start, caret, query, mode, items, index }；null = 不显示候选 */
@@ -77,6 +78,7 @@ export default function ProjectRefInput({
   }, []);
 
   useEffect(() => {
+    if (skillsOnly) return undefined;
     let live = true;
     setProjData({ reqs: [], files: [], ready: false });
     loadProjectData(currentProjectId).then((d) => {
@@ -85,7 +87,7 @@ export default function ProjectRefInput({
     return () => {
       live = false;
     };
-  }, [currentProjectId]);
+  }, [currentProjectId, skillsOnly]);
 
   useEffect(() => {
     const pos = pendingCaret.current;
@@ -114,11 +116,14 @@ export default function ProjectRefInput({
   }
 
   function sync(text, caret) {
-    const ref = activeRefQuery(text, caret);
-    if (ref) {
-      const { mode, items } = refItems(ref.query);
-      setSug({ kind: 'ref', start: ref.start, caret, query: ref.query, mode, items, index: 0 });
-      return;
+    // 规则正文只认技能：@ 项目 / 需求 / 文件引用在规则里没有服务端解析，插进去只会变成字面量
+    if (!skillsOnly) {
+      const ref = activeRefQuery(text, caret);
+      if (ref) {
+        const { mode, items } = refItems(ref.query);
+        setSug({ kind: 'ref', start: ref.start, caret, query: ref.query, mode, items, index: 0 });
+        return;
+      }
     }
 
     const sk = activeSkillQuery(text, caret);

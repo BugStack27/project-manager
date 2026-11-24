@@ -7,6 +7,7 @@ import GitSettingsModal from './GitSettingsModal.jsx';
 import AiAccessModal from './AiAccessModal.jsx';
 import MobileLinkModal from './MobileLinkModal.jsx';
 import NotificationModal from './NotificationModal.jsx';
+import ProjectSettingsModal from './ProjectSettingsModal.jsx';
 import ShortcutSettingsModal from './ShortcutSettingsModal.jsx';
 import UpdateModal from './UpdateModal.jsx';
 
@@ -24,6 +25,7 @@ export default function AppModals({
   onRestoredRequirements,
   onSaveProject,
   onArchiveProject,
+  onRevealProject,
   onSaveRequirement,
   onConfirmStatusNote,
   onSaveCommand,
@@ -40,16 +42,27 @@ export default function AppModals({
   if (!modal) return null;
   return (
     <>
-      {modal.type === 'project' && (
-        <ProjectForm
-          mode={modal.mode}
-          project={modal.project}
-          initialPath={modal.initialPath}
-          onClose={onClose}
-          onSave={onSaveProject}
-          onArchive={onArchiveProject}
-        />
-      )}
+      {modal.type === 'project' &&
+        (modal.mode === 'edit' ? (
+          <ProjectSettingsModal
+            project={modal.project}
+            projects={projects}
+            onClose={onClose}
+            onSave={onSaveProject}
+            onArchive={onArchiveProject}
+            onReveal={onRevealProject}
+            notify={notify}
+          />
+        ) : (
+          <ProjectForm
+            mode={modal.mode}
+            project={modal.project}
+            initialPath={modal.initialPath}
+            onClose={onClose}
+            onSave={onSaveProject}
+            onArchive={onArchiveProject}
+          />
+        ))}
 
       {modal.type === 'requirement' && (
         <RequirementForm

@@ -7,7 +7,8 @@ import {
   findReqRef,
   linkifyFileRefs,
   readFileHref,
-  findFileRef
+  findFileRef,
+  fileRefInvalid
 } from '../lib/req-refs.js';
 import { findSkill, linkifySkills, readSkillHref } from '../lib/skill-refs.js';
 import MarkdownBody, { anchorFor } from './MarkdownBody.jsx';
@@ -89,7 +90,7 @@ function FileChip({ path, fileRef, projectId, onOpen }) {
       ? '该文件不提供打开（密钥/凭据/依赖目录）：' + path
       : fileRef.exists
         ? (fileRef.directory ? '目录：' : '打开文件：') + (fileRef.absPath || path)
-        : '文件不存在（可能已改名或删除）：' + path;
+        : fileRefInvalid(fileRef).tip + '：' + path;
   if (ok) {
     return (
       <button

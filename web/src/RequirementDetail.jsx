@@ -10,6 +10,7 @@ import { fmtClock, fmtDateTime } from "./format.js";
 import { usePendingChanges } from "./hooks/usePendingChanges.js";
 import { IC } from "./icons.jsx";
 import { actorName, eventSummary, eventTime, eventTypeLabel, groupByDay } from "./lib/events-view.js";
+import { fileRefInvalid } from "./lib/req-refs.js";
 import { skillMissing, skillTip } from "./lib/skill-refs.js";
 import { DangerButton, Modal, PanelClose } from "./ui.jsx";
 
@@ -772,6 +773,7 @@ export default function RequirementDetail({
                   不存在/越界/密钥标失效，这些退回原生 title 说明原因，不出信息窗。 */}
               {fileRefs.map((fr) => {
                 const fHover = hoverProps.file(fr, requirement.projectId);
+                const invalid = !fr.exists && !fr.restricted ? fileRefInvalid(fr) : null;
                 return (
                   <button
                     key={fr.name}
@@ -789,7 +791,7 @@ export default function RequirementDetail({
                           ? "该文件不提供打开（密钥/凭据/依赖目录）：" + fr.path
                           : fr.exists
                             ? (fr.directory ? "目录：" : "打开文件：") + (fr.absPath || fr.path)
-                            : "文件不存在（可能已改名或删除）：" + fr.path
+                            : invalid.tip + "：" + fr.path
                     }
                   >
                     <span className="rd-ref-name">{fr.path}</span>
@@ -798,11 +800,19 @@ export default function RequirementDetail({
                     ) : fr.exists ? (
                       fr.directory ? <i className="rd-ref-tag">目录</i> : null
                     ) : (
-                      <i className="rd-ref-tag">不存在</i>
+                      <i className="rd-ref-tag">{invalid.tag}</i>
                     )}
                   </button>
                 );
               })}
+              {/* 失效态最需要的是「接下来怎么办」：引用只存坐标，不会跟着改名走，
+                  这里明说可以改正文重新选文件，而不是让人对着「不存在」自己去猜。
+                  项目没有目录（path_missing）重选文件也救不了，那一条不出这句。 */}
+              {fileRefs.some((fr) => !fr.exists && !fr.restricted && fr.reason !== "path_missing") ? (
+                <div className="rd-refs-note">
+                  引用只记录路径，文件改名后旧写法就会失效；可在「编辑需求」里重新输入 @ 选择文件。
+                </div>
+              ) : null}
             </div>
           ) : null}
 

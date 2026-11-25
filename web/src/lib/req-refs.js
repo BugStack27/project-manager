@@ -328,3 +328,20 @@ export function findFileRef(fileRefs, path) {
   const key = String(path || '');
   return (Array.isArray(fileRefs) ? fileRefs : []).find((f) => f && f.path === key) || null;
 }
+
+/**
+ * 文件引用解析失败的原因 → 角标与一句人话。
+ * 引用只存坐标：文件改名 / 删除后正文里的旧写法就失效了，提示要写明「可能已改名或删除」，
+ * 并告诉用户怎么补回来（重新输入 @ 选择文件）；只丢一个「不存在」等于让人自己猜。
+ * 服务端 reason：not_found / bad_path / path_missing；restricted 由调用方单独处理。
+ */
+export function fileRefInvalid(fr) {
+  const reason = String((fr && fr.reason) || 'not_found');
+  if (reason === 'path_missing') {
+    return { tag: '无项目目录', tip: '项目还没有可用目录，这个文件引用暂时无法解析' };
+  }
+  if (reason === 'bad_path') {
+    return { tag: '路径不合法', tip: '引用路径不合法（不能用绝对路径或 ..），请重新输入 @ 选择项目内的文件' };
+  }
+  return { tag: '不存在', tip: '文件不存在（可能已改名或删除），可重新输入 @ 选择文件' };
+}

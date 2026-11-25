@@ -62,6 +62,8 @@
   .rd-ref-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .rd-ref-tag{font-style:normal;font-size:10px;color:var(--label-3);font-weight:400}
   .rd-ref.miss .rd-ref-tag{color:var(--red-text)}
+  /* 引用失效时补一句「怎么修」：引用只存坐标，文件改名后要回正文重新选文件 */
+  .rd-refs-note{flex-basis:100%;padding:0 2px;font-size:11px;line-height:1.5;color:var(--label-3)}
   /* 技能关联是只读信息，不是可点按钮：复用 rd-ref 的尺寸与配色，去掉指针与 hover 反应 */
   .rd-skill{background:var(--fill-3);color:var(--label-2);cursor:default}
   .rd-skill:hover{background:var(--fill-3)}

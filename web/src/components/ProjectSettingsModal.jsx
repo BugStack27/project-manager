@@ -58,6 +58,7 @@ export default function ProjectSettingsModal({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [pathErr, setPathErr] = useState('');
+  const [confirmClose, setConfirmClose] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -155,6 +156,20 @@ export default function ProjectSettingsModal({
     }
   }
 
+  /** 基础区有未保存改动时，Esc / 点遮罩 / 关闭入口先在底部就地确认；再按一次 Esc 等于继续编辑 */
+  function requestClose() {
+    if (busy) return;
+    if (confirmClose) {
+      setConfirmClose(false);
+      return;
+    }
+    if (dirty) {
+      setConfirmClose(true);
+      return;
+    }
+    onClose();
+  }
+
   async function choosePath() {
     setPathErr('');
     try {
@@ -178,7 +193,7 @@ export default function ProjectSettingsModal({
   }
 
   return (
-    <Modal onClose={onClose} className="pset">
+    <Modal onClose={requestClose} className="pset">
       <header className="pset-head">
         <ProjectIcon project={project} color={avatarColor(projects || [], project.id)} size={42} />
         <div className="pset-id">
@@ -197,7 +212,7 @@ export default function ProjectSettingsModal({
               {IC.folder}打开位置
             </button>
           ) : null}
-          <button type="button" className="pset-x" onClick={onClose} title="关闭" aria-label="关闭">
+          <button type="button" className="pset-x" onClick={requestClose} title="关闭" aria-label="关闭">
             {IC.x}
           </button>
         </div>
@@ -372,19 +387,44 @@ export default function ProjectSettingsModal({
       </div>
 
       <footer className="pset-foot">
-        <span className={'pset-saved' + (saveState === 'error' ? ' err' : '')}>
-          <i />
-          {saveState === 'saving' ? '保存中…' : saveState === 'error' ? '保存失败' : '所有更改已保存'}
-          {savedAt && saveState === 'saved' ? <span className="time">{savedAt}</span> : null}
-        </span>
-        <div className="pset-foot-actions">
-          <button type="button" className="btn sm" onClick={onClose}>
-            关闭
-          </button>
-          <button type="button" className="btn sm primary" onClick={submitBasic} disabled={busy || !dirty}>
-            {busy ? '保存中…' : '保存'}
-          </button>
-        </div>
+        {confirmClose ? (
+          <>
+            <span className="pset-saved warn">
+              <i />
+              基础区有未保存的改动，关闭后会丢失
+            </span>
+            <div className="pset-foot-actions">
+              <button type="button" className="btn sm" onClick={() => setConfirmClose(false)}>
+                继续编辑
+              </button>
+              <button type="button" className="btn sm danger-solid" onClick={onClose}>
+                放弃改动并关闭
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <span className={'pset-saved' + (dirty ? ' warn' : saveState === 'error' ? ' err' : '')}>
+              <i />
+              {dirty
+                ? '有未保存的改动'
+                : saveState === 'saving'
+                  ? '保存中…'
+                  : saveState === 'error'
+                    ? '保存失败'
+                    : '所有更改已保存'}
+              {!dirty && savedAt && saveState === 'saved' ? <span className="time">{savedAt}</span> : null}
+            </span>
+            <div className="pset-foot-actions">
+              <button type="button" className="btn sm" onClick={requestClose} disabled={busy}>
+                关闭
+              </button>
+              <button type="button" className="btn sm primary" onClick={submitBasic} disabled={busy || !dirty}>
+                {busy ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </>
+        )}
       </footer>
     </Modal>
   );

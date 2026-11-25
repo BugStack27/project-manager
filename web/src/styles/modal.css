@@ -586,6 +586,8 @@
   .pset-saved i{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--green-tint)}
   .pset-saved.err{color:var(--red-text)}
   .pset-saved.err i{background:var(--red);box-shadow:0 0 0 3px var(--red-tint)}
+  .pset-saved.warn{color:var(--orange-text)}
+  .pset-saved.warn i{background:var(--orange);box-shadow:0 0 0 3px var(--orange-tint)}
   .pset-saved .time{font-size:11px;color:var(--label-4);font-variant-numeric:tabular-nums}
   .pset-foot-actions{margin-left:auto;display:flex;gap:8px}
   .pset-nav-foot .btn{width:100%;justify-content:flex-start;background:transparent;border-color:transparent;color:var(--red-text)}

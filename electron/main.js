@@ -580,12 +580,7 @@ async function shutdown(mode) {
     if (mode === 'detach') {
       runner.detachAll();
     } else {
-      const db = store.get();
-      for (const c of db.commands) {
-        if (runner.isActive(c)) {
-          try { runner.stop(c); } catch (_) {}
-        }
-      }
+      await runner.stopAll();
     }
     store.save();
   } catch (_) {}

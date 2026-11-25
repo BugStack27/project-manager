@@ -180,6 +180,8 @@ export const api = {
   deleteCommand: (cid) => call('deleteCommand', { cid }),
   startCommand: (cid) => call('startCommand', { cid }),
   stopCommand: (cid) => call('stopCommand', { cid }),
+  /** 跨项目停掉全部运行中命令：恢复备份被拦截时的「全部停止并重试」用 */
+  stopAllCommands: () => call('stopAllCommands', {}),
   commandStatus: (cid) => call('commandStatus', { cid }),
   commandRuns: (cid) => call('commandRuns', { cid }),
   logs: (cid, runId) => call('logs', { cid, runId }),

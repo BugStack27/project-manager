@@ -419,6 +419,38 @@ function detachAll() {
 }
 
 /**
+ * 一次停掉所有仍在运行的命令（含已分离但宿主仍存活的）。
+ * 退出清理与恢复备份前的「全部停止」共用；单条失败不打断其余命令。
+ * 分离的命令没有 close 回调，会在 waitMs 内轮询宿主 pid，确认退出情况后返回 survivors。
+ */
+async function stopAll(waitMs) {
+  const active = store.get().commands.filter(isActive);
+  const failed = [];
+  const hosts = [];
+  for (const c of active) {
+    if (!live.has(c.id)) {
+      const run = detachedRun(c);
+      if (run && run.hostPid) hosts.push({ id: c.id, name: c.name || '', pid: run.hostPid });
+    }
+    try {
+      stop(c);
+    } catch (e) {
+      failed.push({ id: c.id, name: c.name || '', message: e.message });
+    }
+  }
+  try { store.save(); } catch (_) {}
+  const deadline = Date.now() + Math.max(0, waitMs || 0);
+  while (hosts.some((h) => isAlivePid(h.pid)) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const survivors = hosts.filter((h) => isAlivePid(h.pid));
+  for (const h of survivors) {
+    failed.push({ id: h.id, name: h.name, message: '进程未能退出（PID ' + h.pid + '）' });
+  }
+  return { total: active.length, failed, survivors };
+}
+
+/**
  * 退出提示用：当前在跑的命令。
  * 分离出去但宿主还活着的同样算「在跑」—— 退出时不提醒的话，用户会以为已经把服务停了。
  */
@@ -547,6 +579,7 @@ function readLog(command, runId) {
 module.exports = {
   start,
   stop,
+  stopAll,
   detachAll,
   runningList,
   isRunning,

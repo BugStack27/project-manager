@@ -142,6 +142,27 @@ function createCommands() {
       return { command: cmdView(c), run: runView(run) };
     },
 
+    /**
+     * 一次停掉所有仍在运行的命令（跨项目，含已分离但宿主仍存活的）。
+     * 恢复备份被 commands_running 拦住时，弹窗据此提供「全部停止并重试」，
+     * 不必逐个项目去启动台手动停。remaining > 0 说明还有进程没退出，不要继续恢复。
+     */
+    stopAllCommands: async () => {
+      const active = () => store.get().commands.filter((c) => runner.isActive(c));
+      const total = active().length;
+      const { failed, survivors } = await runner.stopAll(3000);
+      // 托管进程的 close 回调落库后 isActive 才归零，恢复守卫用的是同一口径
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline && active().length) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      // 分离宿主可能仍活着但状态已先落成 stopped，单独并进来才算真实残留
+      const remainingIds = new Set(active().map((c) => c.id));
+      survivors.forEach((h) => remainingIds.add(h.id));
+      const remaining = remainingIds.size;
+      return { total, stopped: Math.max(0, total - remaining), remaining, failed };
+    },
+
     commandStatus: ({ cid }) => {
       const c = findCommand(cid);
       return { id: c.id, status: runner.isRunning(c.id) ? 'running' : 'stopped', pid: runner.runningPid(c.id) };

@@ -23,6 +23,7 @@ export default function BackupModal({ onClose, notify }) {
   const [sel, setSel] = useState(null);
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState(null);
+  const [stoppingAll, setStoppingAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,14 +67,33 @@ export default function BackupModal({ onClose, notify }) {
       notify('已恢复到 ' + when + '，应用即将重启');
     } catch (e) {
       setRestoring(false);
-      // 有命令在运行时后端会拒绝，指出具体去处理的位置
-      const msg =
-        e.code === 'commands_running'
-          ? e.message + '（到启动台停止命令后再恢复）'
-          : e.message;
-      setRestoreError(msg);
-      notify(msg, 'warn');
+      // 有命令在运行时后端会拒绝：就地给「全部停止并重试」，不必逐个项目去启动台停
+      setRestoreError({ message: e.message, code: e.code || null });
+      notify(e.message, 'warn');
     }
+  }
+
+  /** 跨项目停掉全部运行中命令，确认没有残留后再走一次恢复 */
+  async function stopAllAndRetry() {
+    if (stoppingAll || restoring) return;
+    setStoppingAll(true);
+    try {
+      const res = await api.stopAllCommands();
+      const remaining = (res && res.remaining) || 0;
+      if (remaining) {
+        const err = new Error('仍有 ' + remaining + ' 条命令没有退出，请到启动台处理后再恢复');
+        err.code = 'commands_running';
+        throw err;
+      }
+      setRestoreError(null);
+      setStoppingAll(false);
+      await restore();
+      return;
+    } catch (e) {
+      setRestoreError({ message: e.message, code: e.code || null });
+      notify(e.message, 'warn');
+    }
+    setStoppingAll(false);
   }
 
   function row(b) {
@@ -85,7 +105,7 @@ export default function BackupModal({ onClose, notify }) {
         role="radio"
         aria-checked={on}
         className={'backup-row' + (on ? ' on' : '') + (b.valid ? '' : ' bad')}
-        disabled={!b.valid || restoring}
+        disabled={!b.valid || restoring || stoppingAll}
         title={b.valid ? b.name : '快照文件无法解析，不能恢复'}
         onClick={() => setSel(b.name)}
       >
@@ -105,7 +125,7 @@ export default function BackupModal({ onClose, notify }) {
   }
 
   return (
-    <Modal wide onClose={restoring ? () => {} : onClose}>
+    <Modal wide onClose={restoring || stoppingAll ? () => {} : onClose}>
       <h2>备份与恢复</h2>
       {loading ? (
         <div className="backup-state">正在读取快照…</div>
@@ -140,7 +160,16 @@ export default function BackupModal({ onClose, notify }) {
         </p>
       ) : null}
 
-      {restoreError ? <div className="berr">{restoreError}</div> : null}
+      {restoreError ? (
+        <div className="berr">
+          <span>{restoreError.message}</span>
+          {restoreError.code === 'commands_running' ? (
+            <button className="btn sm" onClick={stopAllAndRetry} disabled={stoppingAll}>
+              {stoppingAll ? '正在全部停止…' : '全部停止并重试'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {restoring ? (
         <div className="bwait">
@@ -150,11 +179,11 @@ export default function BackupModal({ onClose, notify }) {
       ) : (
         <div className="mfoot split">
           <div className="left">
-            <button className="btn" onClick={load} disabled={loading}>
+            <button className="btn" onClick={load} disabled={loading || stoppingAll}>
               {IC.refresh}刷新
             </button>
           </div>
-          <button className="btn" onClick={onClose}>
+          <button className="btn" onClick={onClose} disabled={stoppingAll}>
             取消
           </button>
           <DangerButton
@@ -162,7 +191,7 @@ export default function BackupModal({ onClose, notify }) {
             label="恢复此快照"
             confirmLabel="确认恢复并重启"
             onConfirm={restore}
-            disabled={!selected}
+            disabled={!selected || stoppingAll}
           />
         </div>
       )}

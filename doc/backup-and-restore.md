@@ -20,7 +20,7 @@ status: accepted
 |------|------|------|
 | 入口位置 | 侧栏底部「设置与数据」→「数据」→ 二级菜单「备份与恢复」 | 低频操作不占导航；数据相关三项（备份与恢复 / 数据文件 / 审计日志）收进同一个二级菜单 |
 | 恢复生效方式 | 覆盖后 `app.relaunch()` + `app.exit(0)` 自动重启 | 跳过 before-quit → shutdown 的保存，避免内存旧库写回 |
-| 有命令在运行 | 用 `runner.isActive` 判断，已分离且宿主存活的进程同样拦截（409 `commands_running`），提示先到启动台停止 | 进程退出会把内存旧库写回，静默覆盖恢复结果；分离进程不被 `isRunning` 算到，2026-10-31 修正 |
+| 有命令在运行 | 用 `runner.isActive` 判断，已分离且宿主存活的进程同样拦截（409 `commands_running`）；弹窗就地提供「全部停止并重试」，跨项目停掉全部命令并确认宿主退出后才恢复 | 进程退出会把内存旧库写回，静默覆盖恢复结果；分离进程不被 `isRunning` 算到，2026-10-31 修正；逐个项目去启动台停止太啰嗦，2026-11-25 改为弹窗一键全停 |
 | 恢复前保全 | 当前库复制为 `backups/manual-YYYYMMDD-HHmmss.json`，不参与 7 天清理 | 恢复可撤回；同秒重名追加序号 |
 | 快照可恢复性 | 列表逐个解析，坏文件标「无法解析」且不可选；后端恢复前二次校验 | 坏快照绝不覆盖 `db.json` |
 | 两步确认 | 沿用 `DangerButton`；切换选中项即重置已武装态 | 危险写操作；避免确认落到另一份快照 |
@@ -36,9 +36,11 @@ status: accepted
 |------|------|
 | `electron/services/store.js` | 快照命名白名单、`listBackups`、`restoreBackup`、`writesLocked`；`load` 的损坏检测与写入锁 |
 | `electron/services/domain/backups.js` | `backups` / `restoreBackup`（运行中命令守卫 + 延迟重启）/ `dataStatus` / `revealDataDir` |
+| `electron/services/runner.js` | `stopAll`：全停（分离宿主按 pid 确认退出），退出清理与恢复前全停共用 |
+| `electron/services/domain/commands.js` | `stopAllCommands`：跨项目全停，返回 stopped / remaining / failed |
 | `electron/main.js` | `buildNativeBridge().relaunch`：`app.relaunch` + `app.exit`，失败兜底 `exit(1)` |
 | `web/src/api.js` | `backups` / `restoreBackup` / `dataStatus` / `revealDataDir` 通道 |
-| `web/src/components/BackupModal.jsx` | 分组快照列表、坏文件禁用、两步确认、执行态与错误展示 |
+| `web/src/components/BackupModal.jsx` | 分组快照列表、坏文件禁用、两步确认、执行态与错误展示、运行中命令一键全停并重试 |
 | `web/src/components/DataCorruptBanner.jsx` | 损坏提示条：说明现状 + 数据文件 / 备份与恢复出口 |
 | `web/src/components/AppModals.jsx` | `backup` 弹窗分支 |
 | `web/src/Sidebar.jsx` | 侧栏底部「设置与数据」→「数据」行的二级菜单（备份与恢复 / 数据文件 / 审计日志） |

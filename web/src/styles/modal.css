@@ -165,7 +165,9 @@
   .bbad{flex:none;padding:1px 6px;border-radius:5px;background:var(--orange-tint);color:var(--orange-text);font-size:11px;font-weight:600}
   .backup-dir{margin:12px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--label-4)}
   .backup-state{display:flex;align-items:center;justify-content:center;gap:10px;min-height:90px;font-size:12px;color:var(--label-3);text-align:center}
-  .berr{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--red-tint);color:var(--red-text);font-size:12px;line-height:1.5}
+  .berr{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--red-tint);color:var(--red-text);font-size:12px;line-height:1.5}
+  .berr>span{flex:1;min-width:0}
+  .berr .btn{flex:none}
   .bwait{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;padding:10px;border-radius:10px;background:var(--blue-tint);color:var(--blue);font-size:12px;font-weight:600}
 
   /* 已归档需求弹窗：逐条列出归档记录 + 一键恢复 */

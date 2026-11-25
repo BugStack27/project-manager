@@ -8,3 +8,4 @@ build/cloudflared/
 .DS_Store
 .workbuddy/
 .trae-html-share-packages/
+.screenshots/

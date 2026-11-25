@@ -33,7 +33,7 @@
 <p align="center"><strong>需求中心（列表视图）— 候选、进行中、待审核在同一条时间线上推进</strong></p>
 <p align="center"><img src="doc/screenshots/requirements.png" width="960" alt="需求中心" /></p>
 
-<p align="center"><strong>需求详情 — 正文用 @ 引用其他项目、本项目需求与文件，用 / 引用技能；悬停就地查看需求或文件内容</strong></p>
+<p align="center"><strong>需求详情 — 正文用 @ 引用其他项目、本项目需求与文件（含文件夹），用 / 引用技能；悬停就地查看需求、文件内容或目录里的一级条目</strong></p>
 <p align="center"><img src="doc/screenshots/requirement-refs.png" width="960" alt="需求详情引用与悬停预览" /></p>
 
 <p align="center"><strong>Agent 提问 — 带候选答案和倒计时，你回一句它当场继续</strong></p>
@@ -47,6 +47,8 @@
 
 <p align="center"><strong>修改记录 — 当前改动与提交历史一棵树，点开就地看 diff</strong></p>
 <p align="center"><img src="doc/screenshots/changes.png" width="960" alt="修改记录" /></p>
+
+<p align="center"><sub>界面图由 <code>.agent/skills/app-screenshots</code> 用虚构项目数据生成，不含本机真实项目。</sub></p>
 
 ## 功能
 

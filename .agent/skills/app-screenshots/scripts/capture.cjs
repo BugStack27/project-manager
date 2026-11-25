@@ -6,6 +6,7 @@
  *
  * 用法（在仓库根目录）：
  *   node .agent/skills/app-screenshots/scripts/capture.cjs
+ *   node .agent/skills/app-screenshots/scripts/capture.cjs --suite note
  *   node .agent/skills/app-screenshots/scripts/capture.cjs --theme dark
  *   node .agent/skills/app-screenshots/scripts/capture.cjs --only overview,launch
  *   node .agent/skills/app-screenshots/scripts/capture.cjs --width 1440 --height 900 --scale 2 *
@@ -33,12 +34,17 @@ const THEME = arg('theme', 'light') === 'dark' ? 'dark' : 'light';
 const W = Number(arg('width', 1280));
 const H = Number(arg('height', 860));
 const SCALE = Number(arg('scale', 2));
-const OUT_DIR = path.resolve(ROOT, arg('out', path.join('doc', 'screenshots')));
+/** 两套场景：README 用整窗九页，公众号笔记用 1.4.0 的局部特写 */
+const SUITE = arg('suite', 'readme') === 'note' ? 'note' : 'readme';
+const OUT_DIR = path.resolve(
+  ROOT,
+  arg('out', SUITE === 'note' ? path.join('.screenshots', 'note') : path.join('doc', 'screenshots'))
+);
 const ONLY = String(arg('only', '') || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
-const SHOT_NAMES = [
+const README_SHOTS = [
   'overview',
   'statistics',
   'requirements-board',
@@ -49,6 +55,16 @@ const SHOT_NAMES = [
   'agent-resume',
   'agent-question'
 ];
+const NOTE_SHOTS = [
+  'note-commit-links',
+  'note-folder-ref',
+  'note-stack-hover',
+  'note-copy-path',
+  'note-sidebar-data',
+  'note-sidebar-appearance',
+  'note-svg-preview'
+];
+const SHOT_NAMES = SUITE === 'note' ? NOTE_SHOTS : README_SHOTS;
 const want = (name) => (ONLY.length ? ONLY.includes(name) : true);
 
 const TMP = path.join(os.tmpdir(), 'app-screenshots');
@@ -364,76 +380,149 @@ async function main() {
       await waitFor('!!document.querySelector(' + JSON.stringify(waitSelector) + ')', '悬停卡');
     };
 
+    /** 把鼠标挪开，收起悬停卡；否则下一张图会带着上一张卡的残影 */
+    const moveAway = async () => {
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 1, y: 1, button: 'none' });
+      await sleep(400);
+    };
+
     await waitFor("document.querySelectorAll('.ov-row').length > 3", '总览渲染');
     await waitFor("document.documentElement.dataset.theme === '" + THEME + "'", '主题应用');
-    await shot('overview');
 
-    await clickText('.nav-item', '统计');
-    await waitFor("!!document.querySelector('.stat-chart')", '统计页');
-    await shot('statistics');
+    if (SUITE === 'readme') {
+      await shot('overview');
 
-    await clickText('.pitem', '星港数据平台');
-    await waitFor("!!document.querySelector('.req')", '需求列表');
-    await clickText('.req', '工作台首页支持自定义卡片排序');
-    await waitFor("!!document.querySelector('.rd-title')", '需求详情');
-    await shot('requirements');
+      await clickText('.nav-item', '统计');
+      await waitFor("!!document.querySelector('.stat-chart')", '统计页');
+      await shot('statistics');
 
-    /* 看板：先去统计页让右面板收起，再看板视图占满中区；截完切回列表，后面的场景仍按列表点击 */
-    await clickText('.nav-item', '统计');
-    await waitFor("!!document.querySelector('.stat-chart')", '统计页');
-    await clickText('.pitem', '星港数据平台');
-    await waitFor("!!document.querySelector('.req')", '需求列表');
-    await clickAria('看板视图');
-    await waitFor("document.querySelectorAll('.board .bcard').length > 3", '看板');
-    await shot('requirements-board');
-    await clickAria('列表视图');
-    await waitFor("!!document.querySelector('.req')", '需求列表');
+      await clickText('.pitem', '星港数据平台');
+      await waitFor("!!document.querySelector('.req')", '需求列表');
+      await clickText('.req', '工作台首页支持自定义卡片排序');
+      await waitFor("!!document.querySelector('.rd-title')", '需求详情');
+      await shot('requirements');
 
-    await clickText('.req', '导出任务列表复用消息分组交互');
-    await waitFor("!!document.querySelector('.rd-title')", '引用示例需求详情');
-    await evalJs("(() => { const b = document.querySelector('.rpanel-body'); if (b) b.scrollTop = 0; return true; })()");
-    await hoverText('.rd-ref.rd-file', 'JobList.tsx', '.fhover');
-    await shot('requirement-refs');
+      /* 看板：先去统计页让右面板收起，再看板视图占满中区；截完切回列表，后面的场景仍按列表点击 */
+      await clickText('.nav-item', '统计');
+      await waitFor("!!document.querySelector('.stat-chart')", '统计页');
+      await clickText('.pitem', '星港数据平台');
+      await waitFor("!!document.querySelector('.req')", '需求列表');
+      await clickAria('看板视图');
+      await waitFor("document.querySelectorAll('.board .bcard').length > 3", '看板');
+      await shot('requirements-board');
+      await clickAria('列表视图');
+      await waitFor("!!document.querySelector('.req')", '需求列表');
 
-    await clickText('.vtab', '启动台');
-    await waitFor("!!document.querySelector('.rlogs .log')", '启动台日志');
-    await shot('launch');
+      await clickText('.req', '导出任务列表复用消息分组交互');
+      await waitFor("!!document.querySelector('.rd-title')", '引用示例需求详情');
+      await evalJs("(() => { const b = document.querySelector('.rpanel-body'); if (b) b.scrollTop = 0; return true; })()");
+      await hoverText('.rd-ref.rd-file', 'JobList.tsx', '.fhover');
+      await shot('requirement-refs');
 
-    await clickText('.vtab', '修改记录');
-    await waitFor("!!document.querySelector('.gtree .gfile')", '修改记录');
-    await clickText('.gfile', 'ExportPanel.tsx');
-    await waitFor("!!document.querySelector('.diff-body')", 'diff');
-    await shot('changes');
+      await clickText('.vtab', '启动台');
+      await waitFor("!!document.querySelector('.rlogs .log')", '启动台日志');
+      await shot('launch');
 
-    await clickText('.vtab', '需求中心');
-    await waitFor("!!document.querySelector('.req')", '需求列表');
-    await clickText('.pitem', '极光移动端');
-    await waitFor("!!document.querySelector('.req')", '移动端需求列表');
-    await clickText('.req', '消息中心支持按项目分组并置顶未读');
-    await waitFor("!!document.querySelector('.rd-title')", '已认领需求详情');
-    await evalJs("(() => { const b = document.querySelector('.rpanel-body'); if (b) b.scrollTop = b.scrollHeight; return true; })()");
-    await shot('agent-resume');
+      await clickText('.vtab', '修改记录');
+      await waitFor("!!document.querySelector('.gtree .gfile')", '修改记录');
+      await clickText('.gfile', 'ExportPanel.tsx');
+      await waitFor("!!document.querySelector('.diff-body')", 'diff');
+      await shot('changes');
 
-    await clickText('.req', '灰度开关默认值改为跟随系统');
-    await waitFor("!!document.querySelector('.rd-ask')", 'Agent 提问卡片');
-    /* 卡片是 sticky：默认不滚（保留顶部上下文）；只有卡片超出面板底部时才滚最小幅度 */
-    await evalJs(`(() => {
-      const b = document.querySelector('.rpanel-body');
-      const c = document.querySelector('.rd-ask');
-      if (!b || !c) return true;
-      b.scrollTop = 0;
-      const br = b.getBoundingClientRect();
-      const cr = c.getBoundingClientRect();
-      const overflow = cr.bottom - (br.bottom - 16);
-      if (overflow > 0) b.scrollTop += overflow;
-      return true;
-    })()`);
-    await sleep(1100);
-    await shot('agent-question');
+      await clickText('.vtab', '需求中心');
+      await waitFor("!!document.querySelector('.req')", '需求列表');
+      await clickText('.pitem', '极光移动端');
+      await waitFor("!!document.querySelector('.req')", '移动端需求列表');
+      await clickText('.req', '消息中心支持按项目分组并置顶未读');
+      await waitFor("!!document.querySelector('.rd-title')", '已认领需求详情');
+      await evalJs("(() => { const b = document.querySelector('.rpanel-body'); if (b) b.scrollTop = b.scrollHeight; return true; })()");
+      await shot('agent-resume');
+
+      await clickText('.req', '灰度开关默认值改为跟随系统');
+      await waitFor("!!document.querySelector('.rd-ask')", 'Agent 提问卡片');
+      /* 卡片是 sticky：默认不滚（保留顶部上下文）；只有卡片超出面板底部时才滚最小幅度 */
+      await evalJs(`(() => {
+        const b = document.querySelector('.rpanel-body');
+        const c = document.querySelector('.rd-ask');
+        if (!b || !c) return true;
+        b.scrollTop = 0;
+        const br = b.getBoundingClientRect();
+        const cr = c.getBoundingClientRect();
+        const overflow = cr.bottom - (br.bottom - 16);
+        if (overflow > 0) b.scrollTop += overflow;
+        return true;
+      })()`);
+      await sleep(1100);
+      await shot('agent-question');
+    } else {
+      /* 笔记场景：从需求中心进入，先做「关联提交」，再依次截引用、悬停卡与菜单 */
+      await clickText('.pitem', '星港数据平台');
+      await waitFor("!!document.querySelector('.req')", '需求列表');
+
+      await clickText('.req', '工作台首页支持自定义卡片排序');
+      await waitFor("!!document.querySelector('.rd-title')", '已验收需求详情');
+      await waitFor("!!document.querySelector('.rd-commits')", '关联提交');
+      /* 滚到「验收卡 + 关联提交」同屏：标题与正文让出，但保留一段上下文 */
+      await evalJs("(() => { const b = document.querySelector('.rpanel-body'); if (b) b.scrollTop = 300; return true; })()");
+      await sleep(400);
+      await shot('note-commit-links');
+
+      await clickText('.req', '导出任务列表复用消息分组交互');
+      await waitFor("!!document.querySelector('.rd-title')", '引用示例需求详情');
+      await evalJs("(() => { const b = document.querySelector('.rpanel-body'); if (b) b.scrollTop = 0; return true; })()");
+      await hoverText('.rd-ref.rd-file', 'web/src/views/export', '.fhover');
+      await shot('note-folder-ref');
+      await moveAway();
+
+      await hoverText('.pitem', '空谷文件同步', '.phover');
+      await shot('note-stack-hover');
+      await moveAway();
+
+      /* 项目行「更多操作」→ 复制路径 → 二级菜单。用点击展开二级菜单，避免鼠标路过行时又弹出项目悬停卡 */
+      const menuOpened = await evalJs(
+        "(() => { const row = [...document.querySelectorAll('.pitem[data-pid]')].find((e) => e.textContent.includes('星港数据平台')); const btn = row && row.querySelector('.pmenu'); if (!btn) return false; btn.click(); return true; })()"
+      );
+      if (!menuOpened) throw new Error('找不到项目行的更多操作按钮');
+      await waitFor("!!document.querySelector('.pmenu-pop')", '项目菜单');
+      const subOpened = await evalJs(
+        "(() => { const btn = [...document.querySelectorAll('.pmenu-parent')].find((e) => e.textContent.includes('复制路径')); if (!btn) return false; btn.click(); return true; })()"
+      );
+      if (!subOpened) throw new Error('找不到「复制路径」菜单项');
+      await waitFor("!!document.querySelector('.pmenu-flyout')", '复制路径二级菜单');
+      await sleep(300);
+      await shot('note-copy-path');
+      await evalJs("(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); return true; })()");
+      await sleep(300);
+
+      /* 底部「设置与数据」的两个二级菜单 */
+      await evalJs("(() => { document.querySelector('.side-data-toggle').click(); return true; })()");
+      await waitFor("!!document.querySelector('.datapop')", '设置与数据浮层');
+      await hoverText('.datapop-item', '数据', '.theme-sub');
+      await shot('note-sidebar-data');
+      await evalJs("(() => { document.querySelector('.side-data-toggle').click(); return true; })()");
+      await sleep(300);
+      await moveAway();
+
+      await evalJs("(() => { document.querySelector('.side-data-toggle').click(); return true; })()");
+      await waitFor("!!document.querySelector('.datapop')", '设置与数据浮层');
+      await hoverText('.datapop-item', '外观', '.appearance-sub');
+      await shot('note-sidebar-appearance');
+      await evalJs("(() => { document.querySelector('.side-data-toggle').click(); return true; })()");
+      await sleep(300);
+
+      /* 修改记录里预览 SVG：HEAD 与工作区两张图 + 源码 diff */
+      await clickText('.vtab', '修改记录');
+      await waitFor("!!document.querySelector('.gtree .gfile')", '修改记录');
+      await clickText('.gfile', 'logo-mark.svg');
+      await waitFor("!!document.querySelector('.diff-image')", 'SVG 预览');
+      await sleep(600);
+      await shot('note-svg-preview');
+    }
 
     console.log(
       '完成：' + saved + ' 张，' + W + '×' + H + ' 视口 @' + SCALE + 'x（' + W * SCALE + '×' + H * SCALE + '）' +
-        (ONLY.length ? '，仅 ' + ONLY.join(',') : '，共 ' + SHOT_NAMES.length + ' 页')
+        (ONLY.length ? '，仅 ' + ONLY.join(',') : '，共 ' + SHOT_NAMES.length + ' 页') +
+        '，场景组 ' + SUITE
     );
   } finally {
     cdp.close();

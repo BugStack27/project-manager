@@ -513,6 +513,7 @@
   .pset-info-sep{width:1px;height:12px;background:var(--sep-2)}
   .pset-linklike{margin-left:auto;border:0;background:transparent;color:var(--blue);font:inherit;font-size:12px;cursor:pointer;padding:0}
   .pset-linklike:hover{text-decoration:underline}
+  .pset-linklike:disabled{color:var(--label-4);cursor:default;text-decoration:none}
   .pset-env-card{border:1px solid var(--sep);border-radius:14px;background:var(--card);overflow:hidden;margin-bottom:8px}
   .pset-env-row{display:grid;grid-template-columns:170px 14px minmax(0,1fr) 26px;align-items:center;gap:10px;padding:9px 12px 9px 16px;border-top:1px solid var(--sep)}
   .pset-env-card > .pset-env-row:first-child{border-top:0}
@@ -555,6 +556,28 @@
   .pset-md-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-tint)}
   .pset-rule-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
   .pset-rule-new{border-style:dashed}
+
+  .pset-apply{border:1px solid var(--sep);border-radius:14px;background:var(--bg-sunken);padding:12px 14px;margin-bottom:12px}
+  .pset-apply-head{display:flex;align-items:center;gap:10px;margin-bottom:2px}
+  .pset-apply-head h3{margin:0;font-size:13px;font-weight:600;color:var(--label)}
+  .pset-apply-head .pset-linklike{margin-left:auto}
+  .pset-apply-hint{margin:0 0 10px;font-size:11.5px;line-height:1.5;color:var(--label-3)}
+  .pset-apply-label{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:11.5px;font-weight:600;color:var(--label-2)}
+  .pset-apply-label .pset-linklike{margin-left:auto;font-weight:400}
+  .pset-apply-sub{font-weight:400;color:var(--label-4)}
+  .pset-apply-list{max-height:168px;overflow:auto;border:1px solid var(--sep);border-radius:10px;background:var(--card);margin-bottom:10px}
+  .pset-apply-list.flat{max-height:150px;margin:0;border:0;border-radius:0;background:transparent}
+  .pset-apply-item{display:flex;align-items:center;gap:9px;padding:8px 11px;border-top:1px solid var(--sep);cursor:pointer}
+  .pset-apply-item:first-child{border-top:0}
+  .pset-apply-item:hover{background:var(--bg-hover)}
+  .pset-apply-item.off{opacity:.7}
+  .pset-apply-item input[type="checkbox"]{width:15px;height:15px;flex:none;margin:0;accent-color:var(--blue);cursor:pointer}
+  .pset-apply-main{min-width:0;flex:1;display:flex;flex-direction:column}
+  .pset-apply-name{flex:1;min-width:0;font-size:12.5px;color:var(--label);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .pset-apply-main .pset-apply-name{flex:none}
+  .pset-apply-path{font:10.5px var(--mono);color:var(--label-3);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .pset-apply-foot{display:flex;align-items:center;gap:8px;margin-top:2px}
+  .pset-apply-sum{margin-right:auto;font-size:11.5px;color:var(--label-3)}
 
   .pset-foot{height:58px;flex:none;display:flex;align-items:center;gap:14px;padding:0 20px;border-top:1px solid var(--sep);background:var(--bg)}
   .pset-saved{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--label-2)}

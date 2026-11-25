@@ -31,6 +31,13 @@ export const api = {
       autoPull: typeof data.autoPull === 'boolean' ? data.autoPull : null
     }),
   updateProject: (id, patch) => call('updateProject', { id, patch }),
+  /** 把源项目的规则批量追加到其他项目：ruleIds 为空表示全部规则，重复条目由服务端跳过 */
+  applyRules: (sourceProjectId, ruleIds, targetProjectIds) =>
+    call('applyRules', {
+      sourceProjectId,
+      ruleIds: Array.isArray(ruleIds) ? ruleIds : null,
+      targetProjectIds: Array.isArray(targetProjectIds) ? targetProjectIds : []
+    }),
   /** 侧栏拖拽排序：ids 为未归档项目的完整新顺序 */
   reorderProjects: (ids) => call('reorderProjects', { ids }),
   archiveProject: (id) => call('archiveProject', { id }),

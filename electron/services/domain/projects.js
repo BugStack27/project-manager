@@ -81,6 +81,11 @@ function normalizeRules(raw) {
   return out.slice(0, EXTRA_CAPS.rules);
 }
 
+/** 批量复制的重复判定：标题与正文都相同才算同一条，同名不同内容视为目标项目的本地版本 */
+function sameRule(a, b) {
+  return (a.title || '') === (b.title || '') && (a.body || '') === (b.body || '');
+}
+
 function createProjects() {
   return {
     projects: (params) => {
@@ -234,6 +239,92 @@ function createProjects() {
         });
       }
       return { project: projectView(p), syncedCommands, extras: projectExtras(p) };
+    },
+
+    /**
+     * 规则批量复制到其他项目：追加写入，标题与正文都相同的条目跳过，目标写满 30 条即停。
+     * 一次校验、一次落库：中途失败不会留下只写了一半的目标项目。
+     */
+    applyRules: ({ sourceProjectId, ruleIds, targetProjectIds }) => {
+      const source = findProject(sourceProjectId);
+      if (source.archived) fail('源项目已归档：' + source.name, 'project_archived', 400);
+      const allRules = ((source.extras && source.extras.rules) || []).filter((r) => r.title || r.body);
+      let picked = allRules;
+      if (Array.isArray(ruleIds)) {
+        const ids = new Set(ruleIds.map((x) => String(x || '')).filter(Boolean));
+        picked = allRules.filter((r) => ids.has(r.id));
+      }
+      if (!picked.length) fail('未选择要应用的规则', 'bad_rules', 400);
+
+      const seen = new Set();
+      const targetIds = [];
+      (Array.isArray(targetProjectIds) ? targetProjectIds : []).forEach((raw) => {
+        const id = String(raw || '').trim();
+        if (!id || id === source.id || seen.has(id)) return;
+        seen.add(id);
+        targetIds.push(id);
+      });
+      if (!targetIds.length) fail('未选择目标项目', 'bad_targets', 400);
+
+      const db = store.get();
+      const targets = targetIds.map((id) => {
+        const p = db.projects.find((x) => x.id === id);
+        if (!p) fail('目标项目不存在', 'project_missing', 400);
+        if (p.archived) fail('目标项目已归档：' + p.name, 'project_archived', 400);
+        return p;
+      });
+
+      const results = [];
+      const events = [];
+      let added = 0;
+      let skipped = 0;
+      targets.forEach((p) => {
+        if (!p.extras) p.extras = { links: [], env: [], rules: [] };
+        if (!Array.isArray(p.extras.rules)) p.extras.rules = [];
+        const rules = p.extras.rules;
+        const room = Math.max(0, EXTRA_CAPS.rules - rules.length);
+        let addedHere = 0;
+        let skippedHere = 0;
+        picked.forEach((rule) => {
+          if (rules.some((x) => sameRule(x, rule)) || addedHere >= room) {
+            skippedHere += 1;
+            return;
+          }
+          rules.push({
+            id: store.uid('pr'),
+            title: rule.title || '',
+            body: rule.body || '',
+            enabled: rule.enabled !== false
+          });
+          addedHere += 1;
+        });
+        if (addedHere) {
+          p.updatedAt = nowIso();
+          events.push({
+            type: 'project.updated',
+            projectId: p.id,
+            actor: actor.user(),
+            data: { projectName: p.name, name: p.name, changes: ['rules'], appliedFrom: source.name }
+          });
+        }
+        added += addedHere;
+        skipped += skippedHere;
+        results.push({
+          projectId: p.id,
+          name: p.name,
+          added: addedHere,
+          skipped: skippedHere,
+          full: rules.length >= EXTRA_CAPS.rules
+        });
+      });
+
+      if (added) {
+        // 先落库再写审计：与 updateProject 同一顺序，save 失败时不留「有事件没数据」的假象
+        store.save();
+        events.forEach((ev) => eventLog.append(ev));
+        notifyTaskAvailable();
+      }
+      return { source: { id: source.id, name: source.name }, results, added, skipped };
     },
 
     /**

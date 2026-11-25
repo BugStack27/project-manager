@@ -365,6 +365,7 @@ export default function ProjectSettingsModal({
               projects={projects}
               projectId={project.id}
               saveExtras={saveExtras}
+              notify={notify}
             />
           </section>
         </div>
@@ -864,10 +865,182 @@ function RuleRow({ item, no, onSave, onToggle, onRemove, projects, projectId }) 
   );
 }
 
-function RulesSection({ extras, projects, projectId, saveExtras }) {
+function RulesApplyPanel({ rules, projects, projectId, notify, onClose }) {
+  const [q, setQ] = useState('');
+  const [ruleIds, setRuleIds] = useState(() => new Set(rules.filter((r) => r.enabled).map((r) => r.id)));
+  const [targetIds, setTargetIds] = useState(() => new Set());
+  const [busy, setBusy] = useState(false);
+
+  const others = useMemo(
+    () => (Array.isArray(projects) ? projects : []).filter((p) => p.id !== projectId && !p.archived),
+    [projects, projectId]
+  );
+  const hits = useMemo(() => matchProjects(others, q), [others, q]);
+  const visibleIds = hits.map((row) => row.p.id);
+  const allVisiblePicked = visibleIds.length > 0 && visibleIds.every((id) => targetIds.has(id));
+  // 面板打开期间可能在下方删掉规则：提交与计数都按「当前仍存在的规则」求交集
+  const pickedRules = rules.filter((r) => ruleIds.has(r.id));
+  const allRulesPicked = pickedRules.length === rules.length;
+
+  function toggleRule(id) {
+    setRuleIds((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleTarget(id) {
+    setTargetIds((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function submit() {
+    if (busy || !pickedRules.length || !targetIds.size) return;
+    setBusy(true);
+    api
+      .applyRules(projectId, pickedRules.map((r) => r.id), [...targetIds])
+      .then((res) => {
+        const count = (res.results || []).length;
+        const tail = res.skipped ? '，跳过 ' + res.skipped + ' 条（已存在或超出上限）' : '';
+        if (res.added) {
+          notify('已应用到 ' + count + ' 个项目：共新增 ' + res.added + ' 条规则' + tail);
+        } else {
+          notify(count + ' 个项目没有新增' + tail);
+        }
+        onClose();
+      })
+      .catch((e) => {
+        notify(e.message || '应用失败', 'warn');
+        setBusy(false);
+      });
+  }
+
+  return (
+    <div className="pset-apply">
+      <div className="pset-apply-head">
+        <h3>应用到其他项目</h3>
+        <button type="button" className="pset-linklike" onClick={onClose} disabled={busy}>
+          收起
+        </button>
+      </div>
+      <p className="pset-apply-hint">
+        规则会追加到目标项目；标题与正文都相同的规则自动跳过，每个项目最多 30 条。
+      </p>
+
+      <div className="pset-apply-label">
+        <span>规则</span>
+        <span className="pset-apply-sub">
+          {pickedRules.length}/{rules.length} 条已选
+        </span>
+        <button
+          type="button"
+          className="pset-linklike"
+          disabled={busy}
+          onClick={() => setRuleIds(allRulesPicked ? new Set() : new Set(rules.map((r) => r.id)))}
+        >
+          {allRulesPicked ? '清空' : '全选'}
+        </button>
+      </div>
+      <div className="pset-apply-list">
+        {rules.map((r) => (
+          <label key={r.id} className={'pset-apply-item' + (r.enabled ? '' : ' off')}>
+            <input
+              type="checkbox"
+              checked={ruleIds.has(r.id)}
+              disabled={busy}
+              onChange={() => toggleRule(r.id)}
+            />
+            <span className="pset-apply-name">{r.title || '无标题'}</span>
+            {r.enabled ? null : <span className="pset-tag">已停用</span>}
+          </label>
+        ))}
+      </div>
+
+      <div className="pset-apply-label">
+        <span>目标项目</span>
+        <span className="pset-apply-sub">{targetIds.size} 个已选</span>
+        {targetIds.size ? (
+          <button type="button" className="pset-linklike" disabled={busy} onClick={() => setTargetIds(new Set())}>
+            清空
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="pset-linklike"
+          disabled={busy || !visibleIds.length}
+          onClick={() =>
+            setTargetIds((cur) => {
+              const next = new Set(cur);
+              visibleIds.forEach((id) => (allVisiblePicked ? next.delete(id) : next.add(id)));
+              return next;
+            })
+          }
+        >
+          {allVisiblePicked ? '取消全选' : '全选'}
+        </button>
+      </div>
+      <div className="pset-picker">
+        <div className="pset-picker-search">
+          {IC.search}
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="搜索项目"
+            spellCheck={false}
+            disabled={busy}
+          />
+        </div>
+        <div className="pset-apply-list flat">
+          {hits.map(({ p }) => (
+            <label key={p.id} className="pset-apply-item">
+              <input
+                type="checkbox"
+                checked={targetIds.has(p.id)}
+                disabled={busy}
+                onChange={() => toggleTarget(p.id)}
+              />
+              <ProjectIcon project={p} color={avatarColor(projects, p.id)} size={22} />
+              <span className="pset-apply-main">
+                <span className="pset-apply-name">{p.name}</span>
+                <span className="pset-apply-path">{p.path}</span>
+              </span>
+            </label>
+          ))}
+          {!hits.length ? <p className="pset-pick-empty">没有匹配的项目</p> : null}
+        </div>
+      </div>
+
+      <div className="pset-apply-foot">
+        <span className="pset-apply-sum">
+          {pickedRules.length} 条规则 → {targetIds.size} 个项目
+        </span>
+        <button type="button" className="btn sm" onClick={onClose} disabled={busy}>
+          取消
+        </button>
+        <button
+          type="button"
+          className="btn sm primary"
+          onClick={submit}
+          disabled={busy || !pickedRules.length || !targetIds.size}
+        >
+          {busy ? '应用中…' : '应用'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RulesSection({ extras, projects, projectId, saveExtras, notify }) {
   const draft = useRef([]);
   const newRef = useRef(null);
   const [adding, setAdding] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [nt, setNt] = useState('');
   const [nb, setNb] = useState('');
   const [nerr, setNerr] = useState('');
@@ -916,6 +1089,27 @@ function RulesSection({ extras, projects, projectId, saveExtras }) {
 
   return (
     <>
+      <div className="pset-info">
+        <span><b>{rows.length}</b> 条规则</span>
+        <span className="pset-info-sep" />
+        <span>启用 <b>{rows.filter((r) => r.enabled).length}</b> 条</span>
+        {rows.length ? (
+          <button type="button" className="pset-linklike" onClick={() => setApplying((v) => !v)}>
+            {applying ? '收起应用面板' : '应用到其他项目'}
+          </button>
+        ) : null}
+      </div>
+
+      {applying ? (
+        <RulesApplyPanel
+          rules={rows}
+          projects={projects}
+          projectId={projectId}
+          notify={notify}
+          onClose={() => setApplying(false)}
+        />
+      ) : null}
+
       {rows.map((item, i) => (
         <RuleRow
           key={item.id}

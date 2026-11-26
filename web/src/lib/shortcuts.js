@@ -14,6 +14,27 @@ const IS_MAC =
 /** 键盘上的纯修饰键：录制时只按这些键不算一个完整组合 */
 const MODIFIER_KEYS = new Set(['Alt', 'AltGraph', 'Control', 'Meta', 'Shift', 'CapsLock', 'Dead']);
 
+/** 标点物理键位 → 半角主键：输入法把 e.key 改写掉时按它兜底 */
+const CODE_KEYS = {
+  Comma: ',',
+  Period: '.',
+  Semicolon: ';',
+  Quote: "'",
+  Slash: '/',
+  Backslash: '\\',
+  BracketLeft: '[',
+  BracketRight: ']',
+  Minus: '-',
+  Equal: '=',
+  Backquote: '`'
+};
+
+/** 输入法组合态把主键上报成这些占位值，不能拿来匹配或录制 */
+const PLACEHOLDER_KEYS = new Set(['Process', 'Unidentified']);
+
+/** 全角标点 → 半角：中文标点模式下 e.key 是全角字符，而绑定里存的是半角 */
+const FULLWIDTH_KEYS = { '，': ',', '。': '.', '；': ';', '／': '/' };
+
 /** 主键的可读名：箭头 / 空格 / 退格等直接转符号，其余用原值 */
 const KEY_LABEL = {
   ArrowLeft: '←',
@@ -87,10 +108,21 @@ export const SHORTCUT_ACTIONS = [
 /** 动作 id → 显示名：冲突提示与弹窗标题共用 */
 export const ACTION_LABEL = Object.fromEntries(SHORTCUT_ACTIONS.map((a) => [a.id, a.label]));
 
-/** 主键归一化：字母不限大小写，其余键保留原样 */
+/** 主键归一化：字母不限大小写，全角标点折回半角，其余键保留原样 */
 export function normKey(key) {
   if (typeof key !== 'string' || !key) return '';
+  if (FULLWIDTH_KEYS[key]) return FULLWIDTH_KEYS[key];
   return key.length === 1 ? key.toLowerCase() : key;
+}
+
+/**
+ * 事件的主键：优先 e.key；中文输入法会把标点报成 Process / Unidentified，
+ * 这时按物理键位（e.code）还原，否则 Ctrl+, 这类组合会静默失效。
+ */
+export function eventKey(e) {
+  const key = normKey(e.key);
+  if (key && !PLACEHOLDER_KEYS.has(key)) return key;
+  return CODE_KEYS[e.code] || key;
 }
 
 /** 校验并规整一个绑定；结构不合法时返回 null */
@@ -111,13 +143,13 @@ export function bindingOf(e) {
     mod: !!(e.ctrlKey || e.metaKey),
     alt: !!e.altKey,
     shift: !!e.shiftKey,
-    key: normKey(e.key)
+    key: eventKey(e)
   };
 }
 
 /** 是否只是按下了修饰键（还没等到主键） */
 export function isModifierOnly(e) {
-  return MODIFIER_KEYS.has(e.key) || !normKey(e.key);
+  return MODIFIER_KEYS.has(e.key) || !eventKey(e);
 }
 
 /** 组合是否可用作快捷键：必须有 Ctrl/⌘ 或 Alt，避免纯字母 / 纯 Shift 误触 */
@@ -135,7 +167,7 @@ export function matchBinding(e, binding) {
   if (mod !== !!binding.mod) return false;
   if (!!e.altKey !== !!binding.alt) return false;
   if (!!e.shiftKey !== !!binding.shift) return false;
-  return normKey(e.key) === binding.key;
+  return eventKey(e) === binding.key;
 }
 
 /** 两个绑定是否是同一个组合 */

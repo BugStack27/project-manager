@@ -6,7 +6,7 @@ const runner = require('../runner');
 const git = require('../git');
 const eventLog = require('../event-log');
 const { readGitSettings } = require('./settings');
-const { noteAuthError } = require('./remote-check');
+const { noteAuthError, notePulled } = require('./remote-check');
 
 const { actor } = eventLog;
 
@@ -55,6 +55,8 @@ async function pullOne(project) {
     const res = await git.pullFastForward(project.path);
     const afterSha = await git.headSha(project.path);
     const commits = await git.countCommits(project.path, beforeSha, afterSha);
+    // 拉完落后数必为 0：当场刷新巡检缓存，否则侧栏的「有更新」灯会亮到下一轮巡检
+    notePulled(project.id);
     // 已经是最新：pull 会白跑一次网络，结果按「跳过」记，避免每次启动都写一条审计
     if (!commits) return skipped(base, 'up_to_date', '已是最新');
     return pulled(base, commits, res.upstream);
@@ -163,15 +165,19 @@ function createAutoPull() {
     /**
      * 跑一轮自动拉取（启动时由主进程触发，也可由设置弹窗手动触发）。
      * 总开关关且没有项目单独开启时直接返回空结果，不碰 git、不联网。
-     * force 是给「一键拉取」用的：手动点下去就是想现在同步全部项目，
-     * 与远程巡检的「立即检查」同一口径，不受「启动自动拉取」开关拦截。
+     * force 是给「一键拉取」用的：手点下去就不受「启动自动拉取」开关拦截。
+     * projectIds 由「一键拉取」传入界面列出的「有更新」项目：只同步这些仓库，
+     * 不能顺手把已经是最新的仓库也挨个拉一遍网络；不传则按开关整批跑（启动场景）。
      */
-    autoPullNow: ({ trigger, force } = {}) => {
+    autoPullNow: ({ trigger, force, projectIds } = {}) => {
       if (inflight) return inflight;
 
       const db = store.get();
       const globalOn = readGitSettings(db).autoPullOnLaunch;
-      const projects = db.projects.filter((p) => !p.archived && (force || isEnabled(p, globalOn)));
+      const wanted = Array.isArray(projectIds) ? new Set(projectIds) : null;
+      const projects = db.projects.filter(
+        (p) => !p.archived && (force || isEnabled(p, globalOn)) && (!wanted || wanted.has(p.id))
+      );
       const startedAt = new Date().toISOString();
 
       // 先挂到 inflight 再跑：并发调用方（主进程启动 + 界面手动触发）共用同一轮结果

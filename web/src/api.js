@@ -126,10 +126,11 @@ export const api = {
   gitSettings: () => call('gitSettings', {}),
   saveGitSettings: (patch) => call('saveGitSettings', { patch }),
   /**
-   * 按当前规则立刻跑一轮自动拉取：设置弹窗里的「一键拉取」用。
-   * force=true 表示手点下去就同步全部项目，不受「启动自动拉取」总开关拦截。
+   * 立刻跑一轮自动拉取：设置弹窗里的「一键拉取」用。
+   * force=true 表示不受「启动自动拉取」总开关拦截；
+   * projectIds 传当前有更新的项目，只同步这几个仓库，已是最新的不重复拉。
    */
-  autoPullNow: (force) => call('autoPullNow', { trigger: 'manual', force: !!force }),
+  autoPullNow: (force, projectIds) => call('autoPullNow', { trigger: 'manual', force: !!force, projectIds }),
   /** 自动拉取状态：running / last（最近一轮结果）/ progress（运行期间的逐项目进度） */
   autoPullStatus: () => call('autoPullStatus', {}),
   /**

@@ -137,18 +137,19 @@ export default function GitSettingsModal({ onClose, notify }) {
   }
 
   /**
-   * 一键拉取：不看自动开关，把所有项目快进拉一遍（与「立即检查」同一口径：
-   * 手点下去就说明此刻想同步）。多仓库时等待可能很久，所以先置 running，
-   * 由下面的轮询把逐项目进度画出来；拉完再巡检一轮刷新待拉取数。
+   * 一键拉取：只同步巡检列出的「有更新」项目，已是最新的仓库不再挨个拉一遍网络。
+   * 拉完立刻解除「完成」的禁用；待拉取数用本地巡检缓存刷新（拉过的项目已归零），
+   * 不再额外等一整轮联网检查，否则列表全绿了按钮还是灰的。
    */
   async function pullAll() {
-    if (busy) return;
+    if (busy || !canPull) return;
+    const ids = behindItems.map((it) => it.projectId);
     setBusy('pull');
     setError('');
     setProgress(null);
     setStatus((s) => ({ running: true, last: s ? s.last : null }));
     try {
-      const res = await api.autoPullNow(true);
+      const res = await api.autoPullNow(true, ids);
       setStatus({ running: false, last: res });
       // 用最终结果覆盖最后一次轮询：避免轮询恰好停在「还有几个没标完」的中间态
       if (res && Array.isArray(res.items)) {
@@ -159,8 +160,6 @@ export default function GitSettingsModal({ onClose, notify }) {
         });
       }
       notify('同步完成：' + describe(res));
-      setBusy('check');
-      await api.remoteCheckNow();
       setScan(await api.remoteCheckStatus());
     } catch (e) {
       setError(e.message || '拉取失败');
@@ -174,6 +173,10 @@ export default function GitSettingsModal({ onClose, notify }) {
   /** 待拉取明细：只列真的落后上游的项目，顺序跟侧栏项目顺序一致 */
   const behindItems = ((scan && scan.items) || []).filter((it) => it.behind > 0);
   const behindCommits = behindItems.reduce((n, it) => n + (it.behind || 0), 0);
+  /** 已经有过巡检结果才说得清「谁落后」；没有就先让用户点「检查更新」 */
+  const scanReady = !!((scan && scan.last) || (scan && scan.items && scan.items.length));
+  /** 没有待拉取项目时一键拉取无事可做，禁用它而不是把全部仓库重新拉一遍 */
+  const canPull = scanReady && behindItems.length > 0;
   /** 失败列表：成功数已经在摘要里了，逐条列出来只为了看谁没拉成 */
   const failures = (last && last.items ? last.items : []).filter((it) => it.status === 'failed');
 
@@ -240,8 +243,14 @@ export default function GitSettingsModal({ onClose, notify }) {
               <button
                 className="btn sm primary"
                 onClick={pullAll}
-                disabled={!!busy || saving || statusRunning}
-                title="把所有项目快进拉取到最新"
+                disabled={!!busy || saving || statusRunning || !canPull}
+                title={
+                  !scanReady
+                    ? '先点「检查更新」确认哪些项目有新提交'
+                    : behindItems.length
+                      ? '只同步有新提交的项目'
+                      : '所有项目都已是最新，没有需要拉取的提交'
+                }
               >
                 {busy === 'pull' ? '拉取中…' : '一键拉取'}
               </button>

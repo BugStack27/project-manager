@@ -88,6 +88,8 @@ function reqView(r) {
      * agent 交付记录：只在调过完成接口后存在，待审核时用户据此判断。
      * note 是会话回复（也进 thread），commitMessage 是独立的 git 提交信息，
      * 只供提交弹窗 / 验收提交预填——不进 thread、不进 reviews 摘要。
+     * rules 是项目规则的逐条核对结果，只在待审核时下发：验收卡片用它，
+     * 已通过的交付不必跟着 5 秒轮询重复传。
      */
     completion: r.completion
       ? {
@@ -96,6 +98,15 @@ function reqView(r) {
           at: r.completion.at,
           note: r.completion.note || '',
           commitMessage: r.completion.commitMessage || '',
+          rules:
+            r.status === 'review' && Array.isArray(r.completion.rules)
+              ? r.completion.rules.map((x) => ({
+                  id: x.id || '',
+                  title: x.title || '',
+                  status: x.status || '',
+                  note: x.note || ''
+                }))
+              : [],
           /** 会话回复里点名的技能：待审核时这条还没进往返记录，块内也要能渲染成 chip */
           skills: resolveSkills(r.completion.note || '')
         }

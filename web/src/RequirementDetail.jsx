@@ -33,7 +33,8 @@ function buildContentText(r) {
  * 只对未开始 / 进行中生成（不能拿 UNFINISHED 当判据，它含 review）。
  * agentId 由用户在弹窗里选定后写入；不传时才退回「你的AgentID」占位。
  * 备注不写死示例：agent 照抄示例会把无关内容写进交付记录。
- * 交付指令给出 note / commitMessage 两个字段并说明分工，避免会话回复被当成提交信息。
+ * 交付指令给出 note / commitMessage / rules 三个字段并说明分工，避免会话回复被当成提交信息，
+ * 也避免项目规则只在说明里提一句就跳过。
  * 编码要求写在文案里：agent 用 GBK 手拼 URL 或 body 会让交付文本变成不可逆乱码。
  */
 function buildAgentText(r, project, agentId) {
@@ -68,10 +69,10 @@ function buildAgentText(r, project, agentId) {
   }
   lines.push(
     `1. 认领与获取任务详情：GET http://127.0.0.1:7318/claim?taskId=${id}&agent=${agent}`,
-    `2. 完成后交付：POST http://127.0.0.1:7318/complete，body {"taskId":"${r.id}","agent":"${agent}","note":"给用户的回复","commitMessage":"标准 git 提交信息"}`,
+    `2. 完成后交付：POST http://127.0.0.1:7318/complete，body {"taskId":"${r.id}","agent":"${agent}","note":"给用户的回复","commitMessage":"标准 git 提交信息","rules":[{"id":"pr_xxx","status":"done","note":"可选"}]}`,
     `3. 有必须由人拍板的问题：POST http://127.0.0.1:7318/ask，body {"taskId":"${r.id}","agent":"${agent}","text":"问题","options":["候选一","候选二"]}`,
     `4. 做不下去就释放：POST http://127.0.0.1:7318/release，body {"taskId":"${r.id}","agent":"${agent}","note":"原因"}`,
-    "交付分两段：note 是给用户看的会话回复（进往返记录）；commitMessage 是独立的标准 git 提交信息，汇总本次全部改动，只用于一键提交，不进往返记录、打回后不保留。两段都按 UTF-8 JSON 写，不要把会话内容写进 commitMessage。",
+    "交付分三段：note 是给用户看的会话回复（进往返记录）；commitMessage 是独立的标准 git 提交信息，汇总本次全部改动，只用于一键提交，不进往返记录、打回后不保留；项目有启用规则时 rules 必填，逐条回答 done（已执行）/ na（不适用）/ needs_user（已提问待确认），na 与 needs_user 要写原因，id 取认领返回的 project.rules[].id，漏条会被 400 拒绝。三段都按 UTF-8 JSON 写，不要把会话内容写进 commitMessage。",
     "---",
     "按上面流程执行：认领后从接口取完整需求再动手，做完交付；有必须由人拍板的问题就提问后结束本轮，做不下去就释放。除这四个动作接口、GET /skill/<技能id> 与 GET /skills 外，不允许调用其他 7318 接口。",
     `编码要求：GET 的参数先按 UTF-8 编码再做 percent-encode；POST 的 body 直接写 UTF-8 JSON（正文长时可写进临时文件用 --data-binary @文件发送）。不要用 GBK / 系统默认编码。`,
@@ -218,6 +219,13 @@ const THREAD_KIND = {
   fallback: { label: "默认继续", icon: IC.auto, tone: "muted" },
   timeout: { label: "提问超时", icon: IC.alert, tone: "muted" },
   release: { label: "释放", icon: IC.alert, tone: "muted" },
+};
+
+/** 交付里的规则核对状态：文案与配色和往返记录共用同一套语义色 */
+const RULE_STATE = {
+  done: { label: "已执行", tone: "ok" },
+  na: { label: "不适用", tone: "na" },
+  needs_user: { label: "待你确认", tone: "wait" },
 };
 
 /**
@@ -878,6 +886,36 @@ export default function RequirementDetail({
               >
                 {completion.note || "（agent 未填写给用户的回复）"}
               </MarkdownText>
+              {Array.isArray(completion.rules) && completion.rules.length ? (
+                <div className="rd-rulecheck">
+                  <div className="rd-rulecheck-hd">
+                    <span>规则核对</span>
+                    <span className="meta">
+                      {completion.rules.filter((x) => x.status === "done").length}/{completion.rules.length} 已执行
+                    </span>
+                  </div>
+                  {completion.rules.map((rule, i) => {
+                    const state = RULE_STATE[rule.status] || { label: rule.status || "未核对", tone: "na" };
+                    return (
+                      <div className={"rd-rulecheck-row tone-" + state.tone} key={rule.id || i}>
+                        <div className="rd-rulecheck-line">
+                          <span className="rd-rulecheck-ico">
+                            {rule.status === "done" ? IC.check : IC.alert}
+                          </span>
+                          <span className="rd-rulecheck-title">{rule.title || rule.id}</span>
+                          <span className="rd-rulecheck-state">{state.label}</span>
+                        </div>
+                        {rule.note ? <div className="rd-rulecheck-note">{rule.note}</div> : null}
+                      </div>
+                    );
+                  })}
+                  {completion.rules.some((x) => x.status === "needs_user") ? (
+                    <p className="rd-rulecheck-hint">
+                      有规则还在等你确认：可「继续回复」让 Agent 执行，或确认接受后再通过。
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="field">
                 {/* 打回意见也要能点名技能：与正文编辑器共用同一套 @ / 候选，
                     写成 {UseSkill:id} 后由服务端并入 requirement.skills（见 views.skillText） */}

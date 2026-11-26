@@ -663,12 +663,13 @@ const AGENT_ROUTES = {
   '/complete': {
     mode: 'json',
     method: 'completeRequirement',
-    // note 是给用户的会话回复，commitMessage 是独立的 git 提交信息：两者不共用一条通道
+    // note 是给用户的会话回复，commitMessage 是独立的 git 提交信息，rules 是项目规则的逐条核对
     params: (b) => ({
       rid: b.taskId,
       agent: b.agent,
       note: b.note,
-      commitMessage: b.commitMessage
+      commitMessage: b.commitMessage,
+      rules: b.rules
     }),
     failMsg: '提交完成失败'
   },

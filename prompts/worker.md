@@ -33,7 +33,11 @@ curl -sS -G http://127.0.0.1:7318/next --data-urlencode 'agent={{agent}}'
 
 - 只改 `project.path` 目录内的文件，不碰别的项目、不碰工作台的数据目录。
 - 先读 `thread`，不要重复已被否掉的方案；交付时逐条回应上一轮意见。
-- `project.rules` 开工前读一遍：与需求不冲突就按规则执行；冲突时以需求为准，并在交付说明里点一句。规则里出现 `{UseSkill:x}` 时，按该条 `skills` 里的 `entry` 读技能手册。
+- `project.rules` 开工前逐条读完：它们和需求一样是交付条件，不是参考建议。
+  - 能直接执行的按规则做；判断不适用的，交付时写清理由。
+  - 规则里出现 `{UseSkill:x}` 时先读该条 `skills` 里的 `entry` 技能手册。规则与技能手册冲突（例如规则要求自动执行、手册要求用户确认后手动调用）时取更保守的做法：可逆部分照做，删除 / 发布 / 外部写入等不可逆部分按第 3 节 `/ask` 让用户拍板；不得默默跳过，也不得把「需要时告诉我」留到交付里。
+  - 规则与需求冲突时以需求为准，并在交付说明里点一句。
+  - 交付时用第 4 节的 `rules` 逐条给出结论；项目没有启用规则时不用传。
 - `project.env` 里的变量在跑命令前先注入，同名变量以项目配置为准。
 - `project.links` 只看不改。
 - `refs`（跨项目引用）：按 `path` 进目录看结构、README 与相关源码；`pending` 是它当前压着的需求标题，可用来判断该读哪块。`path` 为 `null` 说明名字没对上，别猜目录，交付说明里点一句；`archived` / `ambiguous` 表示项目已归档 / 库里有同名项目，留意别认错。被引用项目只读不改。
@@ -56,6 +60,7 @@ curl -sS -X POST http://127.0.0.1:7318/ask \
 ```
 
 - 必须带 `default`：1 小时无人回答时按它继续，并在交付说明里点明哪项决定未经确认。
+- 规则要求的动作属于删除 / 发布 / 外部写入等不可逆操作，或规则与技能手册冲突时，必须提问让用户拍板；禁止把「需要时告诉我」当成结论。
 - 有明确选项时给 `options`（2–5 条、每条 ≤120 字的短句）。
 - 可同时挂多条提问（上限 5 条），但一条只问一件事（`text` ≤1000 字符）。能靠读代码、读文档、看 git 历史定的，自己定。
 - 看返回 `answer`：`source: "user"` 照做；`source: "default"`（`timedOut: true`）按默认值继续；`answer: null` 且超时说明提问作废，按自己判断继续，不要马上重复提问。
@@ -66,18 +71,19 @@ curl -sS -X POST http://127.0.0.1:7318/ask \
 
 `/complete` 会在服务端挂住等用户验收（最多 2 小时）。这不是错误，不要给这次调用设 30 / 60 秒的硬超时。
 
-交付写两段互不混用的文本：
+交付写三段互不混用的内容：
 
 - `note`：给用户的会话回复——做了什么、怎么验证、哪些没验证、上一轮意见怎么处理、以及任何需要人知道的情况。只进往返记录，不进 git。
 - `commitMessage`：一条用户不改一字就能直接提交的完整 git 信息，汇总本轮全部改动：首行 `类型: 一句话摘要`（≤50 字、动词开头、不加句号），空行后逐条列改动文件与要点。只用于提交，不进往返记录。
+- `rules`：`project.rules` 非空时必填，逐条给出结论，形状 `[{"id":"pr_xxx","status":"done","note":"…"}]`。`id` 用 `/next` 返回的规则 id；`status` 只能是 `done`（已执行）/ `na`（不适用，`note` 必填）/ `needs_user`（已按第 3 节提问、等你确认，`note` 必填）；`note` 每条 ≤300 字。漏条会 400 `rule_check_required`，状态或 id 不对会 400 `bad_rules`。项目没有启用规则时不用传。
 
 ```bash
 curl -sS -X POST http://127.0.0.1:7318/complete \
   -H 'Content-Type: application/json' \
-  -d '{"taskId":"r_xxxxxxxx","agent":"{{agent}}","note":"…","commitMessage":"fix: …\n\n- 文件：要点"}'
+  -d '{"taskId":"r_xxxxxxxx","agent":"{{agent}}","note":"…","commitMessage":"fix: …\n\n- 文件：要点","rules":[{"id":"pr_xxxxxxxx","status":"done","note":"…"}]}'
 ```
 
-两段都可选、各 ≤2000 字符，一律 UTF-8（不要 percent-encode、不要 GBK，否则 400 `bad_encoding`）。必须是当前认领者本人提交，重复提交是幂等的。
+`note` / `commitMessage` 可选、各 ≤2000 字符，一律 UTF-8（不要 percent-encode、不要 GBK，否则 400 `bad_encoding`）。必须是当前认领者本人提交，重复提交是幂等的。
 
 按返回收尾：
 

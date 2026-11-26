@@ -139,6 +139,14 @@
           req.completion = { agent: AGENT_ID, agentName: AGENT_NAME, at: req.thread[4].at, note: query.get('note') || req.thread[4].text, commitMessage };
         }
       }
+      // ?rules=1：模拟带规则核对的交付，核对验收卡片里 done / na / needs_user 三态
+      if (query.get('rules') === '1' && req.completion) {
+        req.completion.rules = [
+          { id: 'pr_a', title: '自动计划模式', status: 'done', note: '已按规则先用规划技能出方案' },
+          { id: 'pr_b', title: '自动收敛开发文档', status: 'needs_user', note: 'doc 30 篇超过 20；收敛与删除文档需要你确认' },
+          { id: 'pr_c', title: '提交信息首行不超过 50 字', status: 'na', note: '本轮没有代码提交' }
+        ];
+      }
       // ?ask=1：模拟进行中的待回答提问，核对回复框吸顶与记录的滚动
       if (status === 'doing' && query.get('ask') === '1') {
         req.question = {

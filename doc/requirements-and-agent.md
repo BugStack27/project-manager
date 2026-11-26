@@ -26,7 +26,7 @@ status: accepted
 |---|---|---|
 | 状态全集 | 六态（含候选池）；`review` 只能由完成接口进入，`setRequirementStatus` 对 `review` 返回 409 `use_complete_api` | 交付入口唯一，避免人工与 agent 两条路径打架 |
 | 未完成口径 | `UNFINISHED` 含 `review`；侧栏、总览、统计的未完成计数统一用它 | 验收前仍算没做完，计数口径单一 |
-| 元数据位置 | `claim = {agent, at}`、`completion = {agent, at, note, commitMessage}`、`feedback = {at, note, kind}` 为独立字段，不写 `note`；`kind` 区分打回 `rejection` 与撤销重开 `reopen` | 不污染需求语义，视图投影后可撤销、可追溯；同一个字段承载「最近一次回传 agent 的原因」 |
+| 元数据位置 | `claim = {agent, at}`、`completion = {agent, at, note, commitMessage, rules?}`、`feedback = {at, note, kind}` 为独立字段，不写 `note`；`kind` 区分打回 `rejection` 与撤销重开 `reopen` | 不污染需求语义，视图投影后可撤销、可追溯；同一个字段承载「最近一次回传 agent 的原因」 |
 | 交付两段文本（2026-11-10） | `completion.note` 是给用户的会话回复，进 `thread` 的 delivery 消息与详情「本次交付」；`completion.commitMessage` 是独立的 git 提交信息，只供提交弹窗预填 / 验收时提交推送使用，不进 `thread`、不进事件流 | 一键批准提交曾把会话流水账写进 commit；反过来提交信息又赖在交谈记录里。两条通道分开后互不污染，打回（清 `completion`）时提交信息自然从会话里消失 |
 | 认领生命周期 | 首次认领 `todo → doing`；撤销回 `todo` 释放认领（有认领时 `DangerButton` 二次确认，2026-10-29）；`done` / `rejected` 保留记录 | 撤销是唯一人工释放路径；误点会中断 agent 协作 |
 | 交付生命周期 | 打回 `review → doing` 保留认领、只清 `completion`；通过进 `done`；打回弹窗必填原因存 `feedback`（2026-10-31） | 同一个 agent 可继续改并再次交付，意见能回到 agent 侧 |
@@ -73,6 +73,7 @@ status: accepted
 | 参数校验 | `taskId` 必填；`agent` trim 后非空、≤64 字符、拒绝控制字符；区分「缺失」与「非法」错误码 | 接口仍按字符串校验，AgentID 也走同一套 |
 | Agent 身份 | 执行 agent 不再自报名字：在「AI 接入 → Agent 管理」添加 Agent（可从本机已装客户端一键登记，也可自定义），工作台用 `store.uid('a')` 分配 AgentID（与项目 / 需求同形），复制接入说明时自动写入；所有动作接口的 `agent` 参数都用它；界面展示名称而非 ID | 名字自报不稳定，改名或重名会让已认领任务找不回来；固定 ID 才能让任务归属可预测，名称只用于识别 |
 | 完成说明与编码 | `note`（会话回复）与 `commitMessage`（git 提交信息）都可选、各 ≤2000 字符，超长分别 400 `bad_note` / `bad_commit_message`；两字段与 `agent` 含 U+FFFD 一律 400 `bad_encoding`，文案给出编码示例与 `curl -G --data-urlencode` | GBK 编码按 UTF-8 解码后原字节已丢；只写「做 URL 编码」不够，须写明字符集 |
+| 规则核对（2026-11-26） | 项目启用规则时，`/complete` 必须带 `rules: [{id, status, note}]`，逐条回答 `done`（已执行）/ `na`（不适用）/ `needs_user`（已提问待确认）；`na` / `needs_user` 的 `note` 必填，每条 ≤300 字；缺条 400 `rule_check_required`，重复 / 未知 id 或非法状态 400 `bad_rules`。标题按 id 由服务端快照，验收卡片按状态展示并提示待确认项 | 规则只当下发文本时，agent 可以用一句「需要时告诉我」整条跳过；变成交付契约后至少强制它逐条给出结论，不可逆动作仍走提问，不静默执行 |
 | 安全姿态 | 仅绑定 `127.0.0.1`、无鉴权；`GET` 带副作用与 MCP 同姿态，接口不可达先确认应用在运行 | 本机单用户工具，暂不引鉴权 |
 | 自动派发入口 | `GET /next`（取即认领）：项目有 `doing` / `review` / 未提交改动时不出活；没有活时在服务端长等（默认 5 分钟，`wait` 可调），有变更立即返回。该限制只作用于本入口，`/claim` 语义不变 | 定时 agent 不必知道 `taskId`；调度间隔可以很短而不会反复空转，项目级串行换取「验收后才开下一件」 |
 | 释放入口 | 新增 `POST /release`（JSON body）：当前认领者把 `doing` 退回 `todo` 并清认领，记 `requirement.released` | 坏任务不该永久卡住整个项目；待审核不可释放，交付已交到用户手上 |

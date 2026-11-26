@@ -31,6 +31,68 @@ function snapshot(r) {
   return { projectName: p.name, seq: r.seq, title: r.title };
 }
 
+/** 规则核对状态：done 已执行 / na 不适用 / needs_user 等用户确认 */
+const RULE_STATUSES = new Set(['done', 'na', 'needs_user']);
+
+/**
+ * 交付时的规则核对。
+ *
+ * 项目启用规则后，只把规则当提示词下发，agent 可以提一句「需要时告诉我」就跳过；
+ * 这里把规则变成交付契约：必须逐条给出结论，标题由服务端按 id 取快照，
+ * agent 只能回 id 与结论，不能自己编标题，也不能漏条。
+ */
+function ruleReport(project, input) {
+  const rules = ((project.extras && project.extras.rules) || []).filter((r) => r.enabled !== false);
+  if (!rules.length) return [];
+  if (input !== undefined && input !== null && !Array.isArray(input)) {
+    fail('rules 必须是数组', 'bad_rules', 400);
+  }
+
+  const given = new Map();
+  for (const item of input || []) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      fail('rules 的每一项必须是 { id, status, note }', 'bad_rules', 400);
+    }
+    const id = String(item.id || '').trim();
+    if (!id) fail('rules 的每一项都要带规则 id', 'bad_rules', 400);
+    if (given.has(id)) fail('同一条规则核对了两遍：' + id, 'bad_rules', 400);
+    const status = String(item.status || '').trim();
+    if (!RULE_STATUSES.has(status)) {
+      fail('规则状态只能是 done / na / needs_user：' + id, 'bad_rules', 400);
+    }
+    const note = assertEncoded(String(item.note ?? '').trim(), '规则说明');
+    if (note.length > 300) fail('规则说明过长（上限 300 字）：' + id, 'bad_rules', 400);
+    given.set(id, { status, note });
+  }
+
+  const missing = [];
+  const report = [];
+  for (const rule of rules) {
+    const hit = given.get(rule.id);
+    if (!hit) {
+      missing.push(rule.title || rule.id);
+      continue;
+    }
+    if ((hit.status === 'na' || hit.status === 'needs_user') && !hit.note) {
+      fail('规则「' + (rule.title || rule.id) + '」标记为 ' + hit.status + ' 时必须写明原因', 'bad_rules', 400);
+    }
+    report.push({ id: rule.id, title: rule.title || '', status: hit.status, note: hit.note });
+    given.delete(rule.id);
+  }
+  if (missing.length) {
+    fail(
+      '交付前要逐条核对项目规则：用 rules:[{id,status,note}] 逐条回答 done / na / needs_user，缺少：' +
+        missing.join('、'),
+      'rule_check_required',
+      400
+    );
+  }
+  if (given.size) {
+    fail('规则核对里有项目当前不存在的规则：' + Array.from(given.keys()).join('、'), 'bad_rules', 400);
+  }
+  return report;
+}
+
 /**
  * 认领的唯一写入点：写 claim、todo → doing、记事件。
  * 调用方负责先做校验（终态、他人已认领）；这里不再判一次，避免两处规则漂移。
@@ -375,12 +437,15 @@ function createRequirements() {
      * - `commitMessage`：独立的 git 提交信息，只放在 completion 里供一键提交预填，
      *   绝不写进 thread / 事件流——打回时 completion 被清掉，交谈历史里不留提交信息。
      *
+     * `rules` 是项目启用规则的核对结果：每条规则回答 done / na / needs_user，
+     * 项目没有启用规则时忽略。标题由服务端快照，agent 只回 id。
+     *
      * 三种收尾：
      * - 用户点「通过」：`approved = true`，任务进入已完成，agent 本轮结束；
      * - 用户点「继续回复」：`feedback` 带回修改意见，需求回到进行中，agent 接着改并再次交付；
      * - 超时无人处理：`timedOut = true`，交付留在待审核，agent 本轮结束（用户之后仍可验收）。
      */
-    completeRequirement: async ({ rid, agent, note, commitMessage }) => {
+    completeRequirement: async ({ rid, agent, note, commitMessage, rules }) => {
       const id = assertTaskId(rid);
       const who = assertAgent(agent);
       const r = findReq(id);
@@ -399,10 +464,17 @@ function createRequirements() {
       if (commitText.length > 2000) {
         fail('提交信息过长（上限 2000 字符）', 'bad_commit_message', 400);
       }
+      const ruleReportList = ruleReport(findProject(r.projectId), rules);
 
       const at = nowIso();
       // 提交信息与会话回复并列存放，但只有 note 会往下流进交谈记录
-      r.completion = { agent: who, at, note: text, commitMessage: commitText };
+      r.completion = {
+        agent: who,
+        at,
+        note: text,
+        commitMessage: commitText,
+        ...(ruleReportList.length ? { rules: ruleReportList } : {})
+      };
       r.status = 'review';
       // 交付即离开 doing：待回答随认领一起作废（原文仍留在 thread），否则待审核需求会带着回复框
       const dropped = clearQuestions(r);

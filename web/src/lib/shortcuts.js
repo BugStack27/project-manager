@@ -152,6 +152,22 @@ export function isModifierOnly(e) {
   return MODIFIER_KEYS.has(e.key) || !eventKey(e);
 }
 
+/** 主键是单个标点：中文输入法会把这类的键盘事件整个吞掉，需要主进程系统热键兜底 */
+export function isPunctuationKey(key) {
+  return typeof key === 'string' && key.length === 1 && !/[a-z0-9]/i.test(key);
+}
+
+/** 绑定 → Electron accelerator（如 Ctrl+, → CommandOrControl+,） */
+export function acceleratorOf(binding) {
+  if (!binding || !binding.key) return '';
+  const parts = [];
+  if (binding.mod) parts.push('CommandOrControl');
+  if (binding.alt) parts.push('Alt');
+  if (binding.shift) parts.push('Shift');
+  parts.push(binding.key);
+  return parts.join('+');
+}
+
 /** 组合是否可用作快捷键：必须有 Ctrl/⌘ 或 Alt，避免纯字母 / 纯 Shift 误触 */
 export function isAllowedBinding(binding) {
   if (!binding || !binding.key) return false;

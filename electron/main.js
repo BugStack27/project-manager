@@ -9,7 +9,19 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 
-const { app, BrowserWindow, Menu, Tray, dialog, shell, screen, ipcMain, nativeTheme, net } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Tray,
+  dialog,
+  shell,
+  screen,
+  ipcMain,
+  nativeTheme,
+  net,
+  globalShortcut
+} = require('electron');
 const store = require('./services/store');
 const archive = require('./services/archive');
 const eventLog = require('./services/event-log');
@@ -283,6 +295,49 @@ function syncChromeOnShow() {
   applyAppearance(appearanceDark === null ? initialDark() : appearanceDark, appearanceLightBg);
 }
 
+/* ── 标点快捷键的系统热键兜底 ─────────────────── */
+
+/**
+ * 中文输入法会把「Ctrl + 标点」的键盘事件整个吞掉：渲染进程连 keyup 都收不到，
+ * 菜单加速键同样不触发（实测 Ctrl+, 只剩一个 Control keydown），只有系统级热键还能拿到。
+ * 渲染端把这类组合报上来，这里只在主窗口聚焦期间注册，失焦立即注销，避免抢走其他应用的组合键。
+ */
+let shortcutAccels = [];
+let registeredAccels = [];
+
+function syncShortcutRegistration() {
+  const canHold =
+    mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized() && mainWindow.isFocused();
+  const want = canHold ? shortcutAccels : [];
+  const wantSet = new Set(want.map((x) => x.accelerator));
+  for (const acc of registeredAccels) {
+    if (wantSet.has(acc)) continue;
+    try {
+      globalShortcut.unregister(acc);
+    } catch (_) {}
+  }
+  const next = [];
+  for (const item of want) {
+    if (registeredAccels.includes(item.accelerator)) {
+      next.push(item.accelerator);
+      continue;
+    }
+    let ok = false;
+    try {
+      ok = globalShortcut.register(item.accelerator, () => {
+        const win = mainWindow;
+        if (!win || win.isDestroyed() || !win.isFocused()) return;
+        win.webContents.send('pm:shortcut', item.id);
+      });
+    } catch (e) {
+      console.warn('[shortcut] 注册失败：' + item.accelerator + ' ' + e.message);
+    }
+    if (ok) next.push(item.accelerator);
+    else console.warn('[shortcut] 注册失败（可能被其他程序占用）：' + item.accelerator);
+  }
+  registeredAccels = next;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -357,10 +412,16 @@ function createWindow() {
   // 托盘恢复：隐藏期间系统主题可能变过，show 出来再对齐一次
   mainWindow.on('show', () => setTimeout(syncChromeOnShow, 0));
 
+  // 标点快捷键只在窗口聚焦期间注册为系统热键：失焦、隐藏到托盘、最小化都要立刻注销
+  for (const ev of ['focus', 'blur', 'show', 'hide', 'minimize', 'restore']) {
+    mainWindow.on(ev, syncShortcutRegistration);
+  }
+
   mainWindow.on('closed', () => {
     clearTimeout(readyFallback);
     ipcMain.removeListener('pm:renderer-ready', onRendererReady);
     mainWindow = null;
+    syncShortcutRegistration();
   });
 
   // 页面内不允许开新窗口；外链交给系统浏览器
@@ -1047,6 +1108,20 @@ function startGui() {
       },
       // 外观只动窗口层，消息没有回执，因此用 on 通道而非 invoke
       appearance: (dark, lightBg) => applyAppearance(dark, lightBg),
+      // 标点快捷键：渲染端给的是「动作 id + accelerator」，只接受带修饰键的短组合
+      shortcutAccelerators: (list) => {
+        shortcutAccels = (Array.isArray(list) ? list : [])
+          .filter(
+            (x) =>
+              x &&
+              typeof x.id === 'string' &&
+              typeof x.accelerator === 'string' &&
+              x.accelerator.includes('+') &&
+              x.accelerator.length <= 40
+          )
+          .slice(0, 12);
+        syncShortcutRegistration();
+      },
       crash: (action, payload) => {
         if (action === 'list') return { ok: true, items: crash.list() };
         if (action === 'record') {

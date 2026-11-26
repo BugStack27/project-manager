@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_BINDINGS, bindingOf, eventKey, matchBinding, normKey } from './shortcuts.js';
+import {
+  DEFAULT_BINDINGS,
+  acceleratorOf,
+  bindingOf,
+  eventKey,
+  isPunctuationKey,
+  matchBinding,
+  normKey
+} from './shortcuts.js';
 
 /** 造一个 keydown 事件对象：只带匹配逻辑用到的字段 */
 function ev(props) {
@@ -34,4 +42,20 @@ test('字母键仍按 e.key 比较，不被物理键位兜底带偏', () => {
 
 test('录制时占位主键按物理键位还原', () => {
   assert.deepEqual(bindingOf(ev({ key: 'Process', code: 'Comma', ctrlKey: true })), { mod: true, alt: false, shift: false, key: ',' });
+});
+
+test('只有单个标点主键才需要主进程热键兜底', () => {
+  assert.equal(isPunctuationKey(','), true);
+  assert.equal(isPunctuationKey('/'), true);
+  assert.equal(isPunctuationKey('k'), false);
+  assert.equal(isPunctuationKey('1'), false);
+  assert.equal(isPunctuationKey('ArrowLeft'), false);
+  assert.equal(isPunctuationKey(''), false);
+});
+
+test('绑定转 Electron accelerator', () => {
+  assert.equal(acceleratorOf({ mod: true, alt: false, shift: false, key: ',' }), 'CommandOrControl+,');
+  assert.equal(acceleratorOf({ mod: false, alt: true, shift: false, key: 'ArrowLeft' }), 'Alt+ArrowLeft');
+  assert.equal(acceleratorOf({ mod: true, alt: false, shift: true, key: '/' }), 'CommandOrControl+Shift+/');
+  assert.equal(acceleratorOf(null), '');
 });

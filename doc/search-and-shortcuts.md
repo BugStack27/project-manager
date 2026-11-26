@@ -67,7 +67,8 @@ status: accepted
 | 脏数据 | 任一重复组合 → 整份回退默认 | 分发只执行第一个，重复会让后一项永久失效 |
 | 输入框例外 | 仅放行面板自己输入框（`.cmdk-input`）内的开关组合 | 否则面板打开后无法用原组合收起 |
 | 弹窗层级 | 快捷键弹窗打开时收起侧栏「设置与数据」浮层 | 否则浮层压在弹窗上 |
-| 主键归一化 | `e.key` 可用就用它；中文输入法报成 `Process` / `Unidentified` 时按物理键位 `e.code` 还原，全角标点折回半角 | `e.key` 受输入法与键盘布局影响，`Ctrl+,` 这类标点组合会被静默吞掉 |
+| 主键归一化 | `e.key` 可用就用它；中文输入法报成 `Process` / `Unidentified` 时按物理键位 `e.code` 还原，全角标点折回半角 | `e.key` 受输入法与键盘布局影响，同一组合在别的机器上报的字符可能不同 |
+| 标点组合兜底 | 主键是标点的组合由渲染端报给主进程（`pm:shortcut-accelerators`），主窗口聚焦期间注册为系统热键，失焦 / 隐藏 / 最小化即注销；触发后经 `pm:shortcut` 回到渲染端走同一套 handler（弹窗打开、输入控件聚焦仍让路） | 中文输入法会把这类组合的键盘事件整个吞掉：渲染进程连 keydown / keyup 都收不到，菜单加速键同样不触发，只有系统级热键能拿到 |
 
 ## 3. 交付物
 
@@ -79,7 +80,8 @@ status: accepted
 | `electron/services/domain/pinyin.js` | 拼音命中判定（主进程唯一实现）：与渲染进程同一套逐字对齐规则，只回答「是否命中」，不做子序列模糊 |
 | `web/src/components/ProjectPalette.jsx` / `web/src/lib/project-palette.js` | 项目切换面板：列表、键盘导航、当前项目标记；名称模糊匹配与命中下标（打分来自 `lib/pinyin.js`） |
 | `web/src/lib/search-view.js` / `search-view.test.js` | 分组顺序、扁平化、每组展示条数与展开裁剪、循环步进与边界 |
-| `web/src/lib/shortcuts.js` / `web/src/hooks/useShortcuts.js` | `SHORTCUT_ACTIONS`、绑定读写、`bindingOf` / `matchBinding` / `conflictOf`；分发与 `setBinding` / `resetOne` / `resetAll` |
+| `web/src/lib/shortcuts.js` / `web/src/hooks/useShortcuts.js` | `SHORTCUT_ACTIONS`、绑定读写、`eventKey` / `bindingOf` / `matchBinding` / `conflictOf`、`acceleratorOf`；分发与 `setBinding` / `resetOne` / `resetAll`；标点组合上报主进程并接 `pm:shortcut` |
+| `electron/main.js` / `electron/preload.js` / `electron/ipc.js` | 标点组合的系统热键兜底：按窗口焦点 / 可见性注册与注销，触发后推 `pm:shortcut` |
 | `web/src/components/ShortcutSettingsModal.jsx` | 动作列表、录制态、非法 / 冲突提示、单项与全部恢复默认 |
 | `web/src/App.jsx` | 面板挂载、四类结果跳转、提交加载后展开；接入快捷键 hook 与 handlers 映射；三个命令面板互斥与项目切换落点 |
 | `web/src/api.js`、`web/src/LogDrawer.jsx`、`web/src/components/RightPanel.jsx`、`web/src/hooks/useGit.js` | IPC 包装、日志初始命中定位、右面板透传、提交展开 |
@@ -102,7 +104,8 @@ status: accepted
 - **首字母与全拼拆成两条路会漏掉混输** → 「先取首字母串再分别匹配」无法处理 `项mu`；按「查询逐字消费原文的音节」一条对齐规则同时覆盖全拼、首字母与混输。
 - **几百条需求逐字转拼音会拖慢每次按键** → 主进程按「原文无汉字」「查询无拉丁字符」两个条件提前退出，这类调用连词表都不碰。
 - **首字母用系统中文排序器推断（旧实现）在非拼音排序的系统上是错的** → 排序器不可用时整档静默失效，且拿不到全拼；换成显式字表后规则稳定、可测。
-- **`Ctrl+,` 在有中文输入法的机器上静默失效** → 输入法会把标点的 `e.key` 报成 `Process`（keyCode 229）或全角 `，`，而 `Ctrl+K` 这类字母组合不受影响；匹配与录制统一走 `eventKey()`，`e.key` 不可用时按物理键位 `e.code` 还原。
+- **`Ctrl+,` 在有中文输入法的机器上静默失效** → 实测该组合的 keydown 和 keyup 都到不了渲染进程（输入法在 TSF 层就吃掉了），菜单加速键也不触发，连 `isComposing` 都拿不到；渲染层做多少次键值归一化都没用。唯一能拿到的是系统级热键：主进程按窗口焦点注册 / 注销，再回推给渲染端分发。
+- **靠 `e.key` 猜键值不够** → 同一台机器上输入法会把标点报成 `Process`、全角 `，` 或干脆不给；匹配与录制仍统一走 `eventKey()`（`e.key` 不可用时按 `e.code` 还原），它只解决「事件到了但键值不对」的那一半。
 
 ## 5. 已知边界
 

@@ -68,6 +68,17 @@ contextBridge.exposeInMainWorld('pm', {
     record: (payload) => ipcRenderer.invoke('pm:crash', 'record', payload),
     export: () => ipcRenderer.invoke('pm:crash', 'export')
   },
+  /** 标点快捷键（Ctrl+, 等）在中文输入法下到不了渲染进程，改由主进程注册系统热键兜底 */
+  setShortcutAccelerators: (list) => ipcRenderer.send('pm:shortcut-accelerators', Array.isArray(list) ? list : []),
+  onShortcut: (cb) => {
+    const handler = (_e, id) => {
+      try {
+        cb(id);
+      } catch (_) {}
+    };
+    ipcRenderer.on('pm:shortcut', handler);
+    return () => ipcRenderer.removeListener('pm:shortcut', handler);
+  },
   /** 启动自动拉取的结果：主进程在后台跑完后推 pm:auto-pull */
   onAutoPull: onAutoPullEvent,
   /** 通知/审计点击后的统一跳转：主进程推 pm:navigate，渲染端解析项目与页面 */

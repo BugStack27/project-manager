@@ -3,8 +3,10 @@ import {
   ACTION_LABEL,
   DEFAULT_BINDINGS,
   SHORTCUT_ACTIONS,
+  acceleratorOf,
   conflictOf,
   isAllowedBinding,
+  isPunctuationKey,
   loadBindings,
   matchBinding,
   saveBindings
@@ -23,10 +25,36 @@ export function useShortcuts({ blocked, handlers }) {
   const [bindings, setBindings] = useState(loadBindings);
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
+  const blockedRef = useRef(blocked);
+  blockedRef.current = blocked;
 
   useEffect(() => {
     saveBindings(bindings);
   }, [bindings]);
+
+  // 标点组合（Ctrl+, / Ctrl+/）在中文输入法下 keydown 会被输入法吞掉：渲染进程连 keyup 都收不到，
+  // 菜单加速键同样不触发，只有系统级热键能拿到。把这类组合报给主进程，由它在窗口聚焦时注册。
+  useEffect(() => {
+    if (!window.pm || !window.pm.setShortcutAccelerators) return;
+    const list = SHORTCUT_ACTIONS.filter((a) => isPunctuationKey(bindings[a.id] && bindings[a.id].key)).map((a) => ({
+      id: a.id,
+      accelerator: acceleratorOf(bindings[a.id])
+    }));
+    window.pm.setShortcutAccelerators(list);
+  }, [bindings]);
+
+  // 系统热键触发：与 keydown 同一套门槛（弹窗打开、焦点在输入控件时不响应）。
+  // 两条路都开也无妨——标点组合在输入法环境下只有主进程这条能到，正常环境下重复触发的是幂等的「打开某个弹窗」。
+  useEffect(() => {
+    if (!window.pm || !window.pm.onShortcut) return undefined;
+    return window.pm.onShortcut((id) => {
+      if (blockedRef.current) return;
+      const t = document.activeElement;
+      if (t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+      const fn = handlersRef.current && handlersRef.current[id];
+      if (fn) fn();
+    });
+  }, []);
 
   /** 改键：校验格式与冲突，失败返回文案且不落库；成功返回 null */
   const setBinding = useCallback(

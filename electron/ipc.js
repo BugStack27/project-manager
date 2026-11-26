@@ -24,6 +24,10 @@ function registerIpc(dispatch, hooks) {
   if (hooks && hooks.appearance) {
     ipcMain.on('pm:appearance', (_event, dark, lightBg) => hooks.appearance(!!dark, lightBg));
   }
+  // 标点快捷键的系统热键登记：渲染端说哪些组合要兜底，主进程按窗口焦点注册 / 注销。无回执。
+  if (hooks && hooks.shortcutAccelerators) {
+    ipcMain.on('pm:shortcut-accelerators', (_event, list) => hooks.shortcutAccelerators(list));
+  }
 }
 
 module.exports = { createDispatcher, registerIpc };
